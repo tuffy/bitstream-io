@@ -98,6 +98,35 @@ fn test_reader_be() {
 }
 
 #[test]
+fn test_edge_cases_be() {
+    use bitstream_io::BitReaderBE;
+    use bitstream_io::BitRead;
+
+    let data: Vec<u8> = vec![0, 0, 0, 0, 255, 255, 255, 255,
+                             128, 0, 0, 0, 127, 255, 255, 255,
+                             0, 0, 0, 0, 0, 0, 0, 0,
+                             255, 255, 255, 255, 255, 255, 255, 255,
+                             128, 0, 0, 0, 0, 0, 0, 0,
+                             127, 255, 255, 255, 255, 255, 255, 255];
+
+    {
+        /*unsigned 32 and 64-bit values*/
+        let mut c = Cursor::new(&data);
+        let mut r = BitReaderBE::new(&mut c);
+        assert_eq!(r.read::<u32>(32).unwrap(), 0);
+        assert_eq!(r.read::<u32>(32).unwrap(), 4294967295);
+        assert_eq!(r.read::<u32>(32).unwrap(), 2147483648);
+        assert_eq!(r.read::<u32>(32).unwrap(), 2147483647);
+        assert_eq!(r.read::<u64>(64).unwrap(), 0);
+        assert_eq!(r.read::<u64>(64).unwrap(), 0xFFFFFFFFFFFFFFFF);
+        assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775808);
+        assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775807);
+    }
+
+    /*FIXME - signed 32 and 64-bit values*/
+}
+
+#[test]
 fn test_reader_le() {
     use bitstream_io::BitReaderLE;
     use bitstream_io::BitRead;
@@ -191,4 +220,32 @@ fn test_reader_le() {
         assert!(r.read_bytes(&mut sub_data).is_ok());
         assert_eq!(&sub_data, b"\xDB\xBE");
     }
+}
+
+#[test]
+fn test_edge_cases_le() {
+    use bitstream_io::BitReaderLE;
+    use bitstream_io::BitRead;
+
+    let data: Vec<u8> = vec![0, 0, 0, 0, 255, 255, 255, 255,
+                             0, 0, 0, 128, 255, 255, 255, 127,
+                             0, 0, 0, 0, 0, 0, 0, 0,
+                             255, 255, 255, 255, 255, 255, 255, 255,
+                             0, 0, 0, 0, 0, 0, 0, 128,
+                             255, 255, 255, 255, 255, 255, 255, 127];
+    {
+        /*unsigned 32 and 64-bit values*/
+        let mut c = Cursor::new(&data);
+        let mut r = BitReaderLE::new(&mut c);
+        assert_eq!(r.read::<u32>(32).unwrap(), 0);
+        assert_eq!(r.read::<u32>(32).unwrap(), 4294967295);
+        assert_eq!(r.read::<u32>(32).unwrap(), 2147483648);
+        assert_eq!(r.read::<u32>(32).unwrap(), 2147483647);
+        assert_eq!(r.read::<u64>(64).unwrap(), 0);
+        assert_eq!(r.read::<u64>(64).unwrap(), 0xFFFFFFFFFFFFFFFF);
+        assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775808);
+        assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775807);
+    }
+
+    /*FIXME - signed 32 and 64-bit values*/
 }

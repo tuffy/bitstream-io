@@ -233,6 +233,20 @@ pub trait FromBit: Sized {
     fn from_bit(bit: bool) -> Self;
 }
 
+impl FromBit for u8 {
+    #[inline]
+    fn one() -> Self {1}
+    #[inline]
+    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
+}
+
+impl FromBit for u16 {
+    #[inline]
+    fn one() -> Self {1}
+    #[inline]
+    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
+}
+
 impl FromBit for u32 {
     #[inline]
     fn one() -> Self {1}
@@ -240,7 +254,7 @@ impl FromBit for u32 {
     fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
 }
 
-impl FromBit for u8 {
+impl FromBit for u64 {
     #[inline]
     fn one() -> Self {1}
     #[inline]
