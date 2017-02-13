@@ -1,12 +1,16 @@
 use std::io;
+use std::ops::{BitOrAssign, Shl, ShlAssign};
 use std::collections::VecDeque;
+
 
 pub trait BitRead {
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
     /// that the programmer is using an output value
     /// sufficiently large to hold those bits.
-    fn read(&mut self, bits: u32) -> Result<u32, io::Error>;
+    fn read<U>(&mut self, bits: u32) -> Result<U, io::Error>
+        where U: Sized + FromBit + Default + ShlAssign<U> + BitOrAssign<U> +
+        Shl<u32,Output=U>;
 
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.  This method assumes
@@ -40,7 +44,7 @@ pub trait BitRead {
 
 pub struct BitReaderBE<'a> {
     reader: &'a mut io::Read,
-    buffer: VecDeque<u32>
+    buffer: VecDeque<bool>
 }
 
 impl<'a> BitReaderBE<'a> {
@@ -48,38 +52,41 @@ impl<'a> BitReaderBE<'a> {
         BitReaderBE{reader: reader, buffer: VecDeque::with_capacity(8)}
     }
 
-    fn next_bit(&mut self) -> Result<u32, io::Error> {
+    fn next_bit(&mut self) -> Result<bool, io::Error> {
         if self.buffer.len() == 0 {
             let mut buf = [0; 1];
             self.reader.read_exact(&mut buf)?;
-            self.buffer.push_back(((buf[0] >> 7) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 6) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 5) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 4) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 3) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 2) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 1) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 0) & 1) as u32);
+            self.buffer.push_back(((buf[0] >> 7) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 6) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 5) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 4) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 3) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 2) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 1) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 0) & 1) != 0);
         }
         Ok(self.buffer.pop_front().unwrap())
     }
 }
 
 impl<'a> BitRead for BitReaderBE<'a> {
-    fn read(&mut self, mut bits: u32) -> Result<u32, io::Error> {
-        /*FIXME - make this generalized?*/
+    fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
+        where U: Sized + FromBit + Default + ShlAssign<U> + BitOrAssign<U> +
+        Shl<u32,Output=U> {
         /*FIXME - optimize this*/
-        let mut acc = 0;
+        let mut acc = U::default();
         while bits > 0 {
-            acc = (acc << 1) | self.next_bit()?;
+            acc <<= U::one();
+            acc |= U::from_bit(self.next_bit()?);
             bits -= 1;
         }
         Ok(acc)
     }
 
     fn read_signed(&mut self, bits: u32) -> Result<i32, io::Error> {
+        /*FIXME - make this generic*/
         /*FIXME - optimize this*/
-        self.read(bits).map(|u| if (u & (1 << (bits - 1))) == 0 {
+        self.read::<u32>(bits).map(|u| if (u & (1 << (bits - 1))) == 0 {
             u as i32
         } else {
             -((1 << bits) - (u as i32))
@@ -88,7 +95,7 @@ impl<'a> BitRead for BitReaderBE<'a> {
 
     fn skip(&mut self, bits: u32) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
-        self.read(bits).map(|_| ())
+        self.read::<u32>(bits).map(|_| ())
     }
 
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
@@ -96,7 +103,7 @@ impl<'a> BitRead for BitReaderBE<'a> {
             self.reader.read_exact(buf)
         } else {
             for b in buf.iter_mut() {
-                *b = self.read(8)? as u8;
+                *b = self.read::<u8>(8)?;
             }
             Ok(())
         }
@@ -105,7 +112,7 @@ impl<'a> BitRead for BitReaderBE<'a> {
     fn read_unary0(&mut self) -> Result<u32, io::Error> {
         /*FIXME - optimize this*/
         let mut acc = 0;
-        while self.read(1)? != 0 {
+        while self.read::<u32>(1)? != 0 {
             acc += 1;
         }
         Ok(acc)
@@ -114,7 +121,7 @@ impl<'a> BitRead for BitReaderBE<'a> {
     fn read_unary1(&mut self) -> Result<u32, io::Error> {
         /*FIXME - optimize this*/
         let mut acc = 0;
-        while self.read(1)? != 1 {
+        while self.read::<u32>(1)? != 1 {
             acc += 1;
         }
         Ok(acc)
@@ -131,7 +138,7 @@ impl<'a> BitRead for BitReaderBE<'a> {
 
 pub struct BitReaderLE<'a> {
     reader: &'a mut io::Read,
-    buffer: VecDeque<u32>
+    buffer: VecDeque<bool>
 }
 
 impl<'a> BitReaderLE<'a> {
@@ -139,37 +146,39 @@ impl<'a> BitReaderLE<'a> {
         BitReaderLE{reader: reader, buffer: VecDeque::with_capacity(8)}
     }
 
-    fn next_bit(&mut self) -> Result<u32, io::Error> {
+    fn next_bit(&mut self) -> Result<bool, io::Error> {
         if self.buffer.len() == 0 {
             let mut buf = [0; 1];
             self.reader.read_exact(&mut buf)?;
-            self.buffer.push_back(((buf[0] >> 0) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 1) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 2) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 3) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 4) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 5) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 6) & 1) as u32);
-            self.buffer.push_back(((buf[0] >> 7) & 1) as u32);
+            self.buffer.push_back(((buf[0] >> 0) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 1) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 2) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 3) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 4) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 5) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 6) & 1) != 0);
+            self.buffer.push_back(((buf[0] >> 7) & 1) != 0);
         }
         Ok(self.buffer.pop_front().unwrap())
     }
 }
 
 impl<'a> BitRead for BitReaderLE<'a> {
-    fn read(&mut self, bits: u32) -> Result<u32, io::Error> {
-        /*FIXME - make this generalized?*/
+    fn read<U>(&mut self, bits: u32) -> Result<U, io::Error>
+        where U: Sized + FromBit + Default + ShlAssign<U> + BitOrAssign<U> +
+        Shl<u32,Output=U> {
         /*FIXME - optimize this*/
-        let mut acc = 0;
+        let mut acc = U::default();
         for i in 0..bits {
-            acc |= (self.next_bit()?) << i;
+            acc |= U::from_bit(self.next_bit()?) << i;
         }
         Ok(acc)
     }
 
     fn read_signed(&mut self, bits: u32) -> Result<i32, io::Error> {
+        /*FIXME - make this generic*/
         /*FIXME - optimize this*/
-        self.read(bits).map(|u| if (u & (1 << (bits - 1))) == 0 {
+        self.read::<u32>(bits).map(|u| if (u & (1 << (bits - 1))) == 0 {
             u as i32
         } else {
             -((1 << bits) - (u as i32))
@@ -178,7 +187,7 @@ impl<'a> BitRead for BitReaderLE<'a> {
 
     fn skip(&mut self, bits: u32) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
-        self.read(bits).map(|_| ())
+        self.read::<u32>(bits).map(|_| ())
     }
 
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
@@ -186,7 +195,7 @@ impl<'a> BitRead for BitReaderLE<'a> {
             self.reader.read_exact(buf)
         } else {
             for b in buf.iter_mut() {
-                *b = self.read(8)? as u8;
+                *b = self.read::<u8>(8)?;
             }
             Ok(())
         }
@@ -195,7 +204,7 @@ impl<'a> BitRead for BitReaderLE<'a> {
     fn read_unary0(&mut self) -> Result<u32, io::Error> {
         /*FIXME - optimize this*/
         let mut acc = 0;
-        while self.read(1)? != 0 {
+        while self.read::<u32>(1)? != 0 {
             acc += 1;
         }
         Ok(acc)
@@ -204,7 +213,7 @@ impl<'a> BitRead for BitReaderLE<'a> {
     fn read_unary1(&mut self) -> Result<u32, io::Error> {
         /*FIXME - optimize this*/
         let mut acc = 0;
-        while self.read(1)? != 1 {
+        while self.read::<u32>(1)? != 1 {
             acc += 1;
         }
         Ok(acc)
@@ -217,4 +226,23 @@ impl<'a> BitRead for BitReaderLE<'a> {
     fn byte_align(&mut self) {
         self.buffer.clear()
     }
+}
+
+pub trait FromBit: Sized {
+    fn one() -> Self;
+    fn from_bit(bit: bool) -> Self;
+}
+
+impl FromBit for u32 {
+    #[inline]
+    fn one() -> Self {1}
+    #[inline]
+    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
+}
+
+impl FromBit for u8 {
+    #[inline]
+    fn one() -> Self {1}
+    #[inline]
+    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
 }

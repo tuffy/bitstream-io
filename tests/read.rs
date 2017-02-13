@@ -13,27 +13,27 @@ fn test_reader_be() {
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderBE::new(&mut c);
         assert!(r.byte_aligned());
-        assert_eq!(r.read(2).unwrap(), 2);
+        assert_eq!(r.read::<u32>(2).unwrap(), 2);
         assert!(!r.byte_aligned());
-        assert_eq!(r.read(3).unwrap(), 6);
+        assert_eq!(r.read::<u32>(3).unwrap(), 6);
         assert!(!r.byte_aligned());
-        assert_eq!(r.read(5).unwrap(), 7);
+        assert_eq!(r.read::<u32>(5).unwrap(), 7);
         assert!(!r.byte_aligned());
-        assert_eq!(r.read(3).unwrap(), 5);
+        assert_eq!(r.read::<u32>(3).unwrap(), 5);
         assert!(!r.byte_aligned());
-        assert_eq!(r.read(19).unwrap(), 0x53BC1);
+        assert_eq!(r.read::<u32>(19).unwrap(), 0x53BC1);
         assert!(r.byte_aligned());
-        assert!(r.read(1).is_err());
+        assert!(r.read::<u32>(1).is_err());
     }
     {
         /*skipping bits*/
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderBE::new(&mut c);
-        assert_eq!(r.read(2).unwrap(), 2);
+        assert_eq!(r.read::<u32>(2).unwrap(), 2);
         assert!(r.skip(3).is_ok());
-        assert_eq!(r.read(5).unwrap(), 7);
+        assert_eq!(r.read::<u32>(5).unwrap(), 7);
         assert!(r.skip(3).is_ok());
-        assert_eq!(r.read(19).unwrap(), 0x53BC1);
+        assert_eq!(r.read::<u32>(19).unwrap(), 0x53BC1);
     }
     {
         /*reading signed values*/
@@ -69,14 +69,14 @@ fn test_reader_be() {
         /*byte aligning*/
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderBE::new(&mut c);
-        assert_eq!(r.read(3).unwrap(), 5);
+        assert_eq!(r.read::<u32>(3).unwrap(), 5);
         r.byte_align();
-        assert_eq!(r.read(3).unwrap(), 7);
+        assert_eq!(r.read::<u32>(3).unwrap(), 7);
         r.byte_align();
         r.byte_align();
-        assert_eq!(r.read(8).unwrap(), 59);
+        assert_eq!(r.read::<u32>(8).unwrap(), 59);
         r.byte_align();
-        assert_eq!(r.read(4).unwrap(), 12);
+        assert_eq!(r.read::<u32>(4).unwrap(), 12);
     }
     {
         /*reading bytes, aligned*/
@@ -91,7 +91,7 @@ fn test_reader_be() {
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderBE::new(&mut c);
         let mut sub_data = [0; 2];
-        assert_eq!(r.read(4).unwrap(), 11);
+        assert_eq!(r.read::<u32>(4).unwrap(), 11);
         assert!(r.read_bytes(&mut sub_data).is_ok());
         assert_eq!(&sub_data, b"\x1E\xD3");
     }
@@ -109,27 +109,27 @@ fn test_reader_le() {
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderLE::new(&mut c);
         assert!(r.byte_aligned());
-        assert_eq!(r.read(2).unwrap(), 1);
+        assert_eq!(r.read::<u32>(2).unwrap(), 1);
         assert!(!r.byte_aligned());
-        assert_eq!(r.read(3).unwrap(), 4);
+        assert_eq!(r.read::<u32>(3).unwrap(), 4);
         assert!(!r.byte_aligned());
-        assert_eq!(r.read(5).unwrap(), 13);
+        assert_eq!(r.read::<u32>(5).unwrap(), 13);
         assert!(!r.byte_aligned());
-        assert_eq!(r.read(3).unwrap(), 3);
+        assert_eq!(r.read::<u32>(3).unwrap(), 3);
         assert!(!r.byte_aligned());
-        assert_eq!(r.read(19).unwrap(), 0x609DF);
+        assert_eq!(r.read::<u32>(19).unwrap(), 0x609DF);
         assert!(r.byte_aligned());
-        assert!(r.read(1).is_err());
+        assert!(r.read::<u32>(1).is_err());
     }
     {
         /*skipping bits*/
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderLE::new(&mut c);
-        assert_eq!(r.read(2).unwrap(), 1);
+        assert_eq!(r.read::<u32>(2).unwrap(), 1);
         assert!(r.skip(3).is_ok());
-        assert_eq!(r.read(5).unwrap(), 13);
+        assert_eq!(r.read::<u32>(5).unwrap(), 13);
         assert!(r.skip(3).is_ok());
-        assert_eq!(r.read(19).unwrap(), 0x609DF);
+        assert_eq!(r.read::<u32>(19).unwrap(), 0x609DF);
     }
     {
         /*reading signed values*/
@@ -165,14 +165,14 @@ fn test_reader_le() {
         /*byte aligning*/
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderLE::new(&mut c);
-        assert_eq!(r.read(3).unwrap(), 1);
+        assert_eq!(r.read::<u32>(3).unwrap(), 1);
         r.byte_align();
-        assert_eq!(r.read(3).unwrap(), 5);
+        assert_eq!(r.read::<u32>(3).unwrap(), 5);
         r.byte_align();
         r.byte_align();
-        assert_eq!(r.read(8).unwrap(), 59);
+        assert_eq!(r.read::<u32>(8).unwrap(), 59);
         r.byte_align();
-        assert_eq!(r.read(4).unwrap(), 1);
+        assert_eq!(r.read::<u32>(4).unwrap(), 1);
     }
     {
         /*reading bytes, aligned*/
@@ -187,7 +187,7 @@ fn test_reader_le() {
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderLE::new(&mut c);
         let mut sub_data = [0; 2];
-        assert_eq!(r.read(4).unwrap(), 1);
+        assert_eq!(r.read::<u32>(4).unwrap(), 1);
         assert!(r.read_bytes(&mut sub_data).is_ok());
         assert_eq!(&sub_data, b"\xDB\xBE");
     }
