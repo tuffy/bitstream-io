@@ -1,0 +1,6 @@
+[package]
+name = "bitstream-io"
+version = "0.1.0"
+authors = ["brian <bjl@usa.net>"]
+
+[dependencies]
