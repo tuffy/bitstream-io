@@ -6,14 +6,14 @@ use super::{Numeric, SignedNumeric};
 pub trait BitRead {
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
-    /// that the programmer is using an output value
+    /// that the programmer is using an output type
     /// sufficiently large to hold those bits.
     fn read<U>(&mut self, bits: u32) -> Result<U, io::Error>
         where U: Numeric;
 
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.  This method assumes
-    /// that the programmer is using an output value
+    /// that the programmer is using an output type
     /// sufficiently large to hold those bits.
     fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric;
@@ -40,6 +40,8 @@ pub trait BitRead {
 
     /// Throws away all unread bit values until the next whole byte.
     fn byte_align(&mut self);
+
+    /*FIXME - add support for reading Huffman codes*/
 }
 
 pub struct BitReaderBE<'a> {
