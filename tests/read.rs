@@ -39,11 +39,11 @@ fn test_reader_be() {
         /*reading signed values*/
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderBE::new(&mut c);
-        assert_eq!(r.read_signed(2).unwrap(), -2);
-        assert_eq!(r.read_signed(3).unwrap(), -2);
-        assert_eq!(r.read_signed(5).unwrap(), 7);
-        assert_eq!(r.read_signed(3).unwrap(), -3);
-        assert_eq!(r.read_signed(19).unwrap(), -181311);
+        assert_eq!(r.read_signed::<i32>(2).unwrap(), -2);
+        assert_eq!(r.read_signed::<i32>(3).unwrap(), -2);
+        assert_eq!(r.read_signed::<i32>(5).unwrap(), 7);
+        assert_eq!(r.read_signed::<i32>(3).unwrap(), -3);
+        assert_eq!(r.read_signed::<i32>(19).unwrap(), -181311);
     }
     {
         /*reading unary 0 values*/
@@ -123,7 +123,19 @@ fn test_edge_cases_be() {
         assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775807);
     }
 
-    /*FIXME - signed 32 and 64-bit values*/
+    {
+        /*signed 32 and 64-bit values*/
+        let mut c = Cursor::new(&data);
+        let mut r = BitReaderBE::new(&mut c);
+        assert_eq!(r.read::<i32>(32).unwrap(), 0);
+        assert_eq!(r.read::<i32>(32).unwrap(), -1);
+        assert_eq!(r.read::<i32>(32).unwrap(), -2147483648);
+        assert_eq!(r.read::<i32>(32).unwrap(), 2147483647);
+        assert_eq!(r.read::<i64>(64).unwrap(), 0);
+        assert_eq!(r.read::<i64>(64).unwrap(), -1);
+        assert_eq!(r.read::<i64>(64).unwrap(), -9223372036854775808);
+        assert_eq!(r.read::<i64>(64).unwrap(), 9223372036854775807);
+    }
 }
 
 #[test]
@@ -164,11 +176,11 @@ fn test_reader_le() {
         /*reading signed values*/
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderLE::new(&mut c);
-        assert_eq!(r.read_signed(2).unwrap(), 1);
-        assert_eq!(r.read_signed(3).unwrap(), -4);
-        assert_eq!(r.read_signed(5).unwrap(), 13);
-        assert_eq!(r.read_signed(3).unwrap(), 3);
-        assert_eq!(r.read_signed(19).unwrap(), -128545);
+        assert_eq!(r.read_signed::<i32>(2).unwrap(), 1);
+        assert_eq!(r.read_signed::<i32>(3).unwrap(), -4);
+        assert_eq!(r.read_signed::<i32>(5).unwrap(), 13);
+        assert_eq!(r.read_signed::<i32>(3).unwrap(), 3);
+        assert_eq!(r.read_signed::<i32>(19).unwrap(), -128545);
     }
     {
         /*reading unary 0 values*/
@@ -247,5 +259,16 @@ fn test_edge_cases_le() {
         assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775807);
     }
 
-    /*FIXME - signed 32 and 64-bit values*/
+    {
+        let mut c = Cursor::new(&data);
+        let mut r = BitReaderLE::new(&mut c);
+        assert_eq!(r.read_signed::<i32>(32).unwrap(), 0);
+        assert_eq!(r.read_signed::<i32>(32).unwrap(), -1);
+        assert_eq!(r.read_signed::<i32>(32).unwrap(), -2147483648);
+        assert_eq!(r.read_signed::<i32>(32).unwrap(), 2147483647);
+        assert_eq!(r.read_signed::<i64>(64).unwrap(), 0);
+        assert_eq!(r.read_signed::<i64>(64).unwrap(), -1);
+        assert_eq!(r.read_signed::<i64>(64).unwrap(), -9223372036854775808);
+        assert_eq!(r.read_signed::<i64>(64).unwrap(), 9223372036854775807);
+    }
 }

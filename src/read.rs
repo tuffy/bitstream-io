@@ -1,20 +1,22 @@
 use std::io;
 use std::collections::VecDeque;
 
-use super::Numeric;
+use super::{Numeric, SignedNumeric};
 
 pub trait BitRead {
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
     /// that the programmer is using an output value
     /// sufficiently large to hold those bits.
-    fn read<U: Numeric>(&mut self, bits: u32) -> Result<U, io::Error>;
+    fn read<U>(&mut self, bits: u32) -> Result<U, io::Error>
+        where U: Numeric;
 
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.  This method assumes
     /// that the programmer is using an output value
     /// sufficiently large to hold those bits.
-    fn read_signed(&mut self, bits: u32) -> Result<i32, io::Error>;
+    fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
+        where S: SignedNumeric;
 
     /// Skips the given number of bits in the stream.
     /// Since this method does not need an accumulator,
@@ -68,7 +70,8 @@ impl<'a> BitReaderBE<'a> {
 }
 
 impl<'a> BitRead for BitReaderBE<'a> {
-    fn read<U: Numeric>(&mut self, mut bits: u32) -> Result<U, io::Error> {
+    fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
+        where U: Numeric {
         /*FIXME - optimize this*/
         let mut acc = U::default();
         while bits > 0 {
@@ -79,14 +82,12 @@ impl<'a> BitRead for BitReaderBE<'a> {
         Ok(acc)
     }
 
-    fn read_signed(&mut self, bits: u32) -> Result<i32, io::Error> {
-        /*FIXME - make this generic*/
-        /*FIXME - optimize this*/
-        self.read::<u32>(bits).map(|u| if (u & (1 << (bits - 1))) == 0 {
-            u as i32
-        } else {
-            -((1 << bits) - (u as i32))
-        })
+    fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
+        where S: SignedNumeric {
+        debug_assert!(bits >= 1);
+        let sign = self.read::<S>(1)?;
+        let unsigned = self.read::<S>(bits - 1)?;
+        Ok(if sign.to_bit() {unsigned.as_negative(bits)} else {unsigned})
     }
 
     fn skip(&mut self, bits: u32) -> Result<(), io::Error> {
@@ -160,7 +161,8 @@ impl<'a> BitReaderLE<'a> {
 }
 
 impl<'a> BitRead for BitReaderLE<'a> {
-    fn read<U: Numeric>(&mut self, bits: u32) -> Result<U, io::Error> {
+    fn read<U>(&mut self, bits: u32) -> Result<U, io::Error>
+        where U: Numeric {
         /*FIXME - optimize this*/
         let mut acc = U::default();
         for i in 0..bits {
@@ -169,14 +171,13 @@ impl<'a> BitRead for BitReaderLE<'a> {
         Ok(acc)
     }
 
-    fn read_signed(&mut self, bits: u32) -> Result<i32, io::Error> {
-        /*FIXME - make this generic*/
-        /*FIXME - optimize this*/
-        self.read::<u32>(bits).map(|u| if (u & (1 << (bits - 1))) == 0 {
-            u as i32
-        } else {
-            -((1 << bits) - (u as i32))
-        })
+    fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
+        where S: SignedNumeric {
+        debug_assert!(bits >= 1);
+        let unsigned = self.read::<S>(bits - 1)?;
+        let sign = self.read::<S>(1)?;
+        println!("bits : {:?}  sign : {:?}  unsigned : {:?}", bits, sign, unsigned);
+        Ok(if sign.to_bit() {unsigned.as_negative(bits)} else {unsigned})
     }
 
     fn skip(&mut self, bits: u32) -> Result<(), io::Error> {
