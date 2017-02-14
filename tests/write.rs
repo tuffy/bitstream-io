@@ -12,15 +12,15 @@ fn test_writer_be() {
     {
         let mut w = BitWriterBE::new(&mut output);
         assert!(w.byte_aligned());
-        w.write(2, 2).unwrap();
+        w.write(2, 2u32).unwrap();
         assert!(!w.byte_aligned());
-        w.write(3, 6).unwrap();
+        w.write(3, 6u32).unwrap();
         assert!(!w.byte_aligned());
-        w.write(5, 7).unwrap();
+        w.write(5, 7u32).unwrap();
         assert!(!w.byte_aligned());
-        w.write(3, 5).unwrap();
+        w.write(3, 5u32).unwrap();
         assert!(!w.byte_aligned());
-        w.write(19, 0x53BC1).unwrap();
+        w.write(19, 0x53BC1u32).unwrap();
         assert!(w.byte_aligned());
     }
     assert_eq!(output.as_slice(), &final_data);
@@ -55,7 +55,7 @@ fn test_writer_be() {
         w.write_unary0(0).unwrap();
         w.write_unary0(0).unwrap();
         w.write_unary0(0).unwrap();
-        w.write(1, 1).unwrap();
+        w.write(1, 1u32).unwrap();
     }
     assert_eq!(output.as_slice(), &final_data);
 
@@ -89,14 +89,14 @@ fn test_writer_be() {
     let aligned_data = [0xA0, 0xE0, 0x3B, 0xC0];
     {
         let mut w = BitWriterBE::new(&mut output);
-        w.write(3, 5).unwrap();
+        w.write(3, 5u32).unwrap();
         w.byte_align().unwrap();
-        w.write(3, 7).unwrap();
+        w.write(3, 7u32).unwrap();
         w.byte_align().unwrap();
         w.byte_align().unwrap();
-        w.write(8, 59).unwrap();
+        w.write(8, 59u32).unwrap();
         w.byte_align().unwrap();
-        w.write(4, 12).unwrap();
+        w.write(4, 12u32).unwrap();
         w.byte_align().unwrap();
     }
     assert_eq!(output.as_slice(), &aligned_data);
@@ -115,7 +115,7 @@ fn test_writer_be() {
     let final_data = [0xBB, 0x1E, 0xD0];
     {
         let mut w = BitWriterBE::new(&mut output);
-        w.write(4, 11).unwrap();
+        w.write(4, 11u32).unwrap();
         w.write_bytes(b"\xB1\xED").unwrap();
         w.byte_align().unwrap();
     }
@@ -136,15 +136,15 @@ fn test_writer_le() {
     {
         let mut w = BitWriterLE::new(&mut output);
         assert!(w.byte_aligned());
-        w.write(2, 1).unwrap();
+        w.write(2, 1u32).unwrap();
         assert!(!w.byte_aligned());
-        w.write(3, 4).unwrap();
+        w.write(3, 4u32).unwrap();
         assert!(!w.byte_aligned());
-        w.write(5, 13).unwrap();
+        w.write(5, 13u32).unwrap();
         assert!(!w.byte_aligned());
-        w.write(3, 3).unwrap();
+        w.write(3, 3u32).unwrap();
         assert!(!w.byte_aligned());
-        w.write(19, 0x609DF).unwrap();
+        w.write(19, 0x609DFu32).unwrap();
         assert!(w.byte_aligned());
     }
     assert_eq!(output.as_slice(), &final_data);
@@ -179,7 +179,7 @@ fn test_writer_le() {
         w.write_unary0(0).unwrap();
         w.write_unary0(0).unwrap();
         w.write_unary0(0).unwrap();
-        w.write(2, 3).unwrap();
+        w.write(2, 3u32).unwrap();
     }
     assert_eq!(output.as_slice(), &final_data);
 
@@ -213,14 +213,14 @@ fn test_writer_le() {
     let aligned_data = [0x05, 0x07, 0x3B, 0x0C];
     {
         let mut w = BitWriterLE::new(&mut output);
-        w.write(3, 5).unwrap();
+        w.write(3, 5u32).unwrap();
         w.byte_align().unwrap();
-        w.write(3, 7).unwrap();
+        w.write(3, 7u32).unwrap();
         w.byte_align().unwrap();
         w.byte_align().unwrap();
-        w.write(8, 59).unwrap();
+        w.write(8, 59u32).unwrap();
         w.byte_align().unwrap();
-        w.write(4, 12).unwrap();
+        w.write(4, 12u32).unwrap();
         w.byte_align().unwrap();
     }
     assert_eq!(output.as_slice(), &aligned_data);
@@ -239,7 +239,7 @@ fn test_writer_le() {
     let final_data = [0x1B, 0xDB, 0x0E];
     {
         let mut w = BitWriterLE::new(&mut output);
-        w.write(4, 11).unwrap();
+        w.write(4, 11u32).unwrap();
         w.write_bytes(b"\xB1\xED").unwrap();
         w.byte_align().unwrap();
     }

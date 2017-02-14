@@ -1,16 +1,14 @@
 use std::io;
-use std::ops::{BitOrAssign, Shl, ShlAssign};
 use std::collections::VecDeque;
 
+use super::Numeric;
 
 pub trait BitRead {
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
     /// that the programmer is using an output value
     /// sufficiently large to hold those bits.
-    fn read<U>(&mut self, bits: u32) -> Result<U, io::Error>
-        where U: Sized + FromBit + Default + ShlAssign<U> + BitOrAssign<U> +
-        Shl<u32,Output=U>;
+    fn read<U: Numeric>(&mut self, bits: u32) -> Result<U, io::Error>;
 
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.  This method assumes
@@ -70,9 +68,7 @@ impl<'a> BitReaderBE<'a> {
 }
 
 impl<'a> BitRead for BitReaderBE<'a> {
-    fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
-        where U: Sized + FromBit + Default + ShlAssign<U> + BitOrAssign<U> +
-        Shl<u32,Output=U> {
+    fn read<U: Numeric>(&mut self, mut bits: u32) -> Result<U, io::Error> {
         /*FIXME - optimize this*/
         let mut acc = U::default();
         while bits > 0 {
@@ -164,9 +160,7 @@ impl<'a> BitReaderLE<'a> {
 }
 
 impl<'a> BitRead for BitReaderLE<'a> {
-    fn read<U>(&mut self, bits: u32) -> Result<U, io::Error>
-        where U: Sized + FromBit + Default + ShlAssign<U> + BitOrAssign<U> +
-        Shl<u32,Output=U> {
+    fn read<U: Numeric>(&mut self, bits: u32) -> Result<U, io::Error> {
         /*FIXME - optimize this*/
         let mut acc = U::default();
         for i in 0..bits {
@@ -226,37 +220,4 @@ impl<'a> BitRead for BitReaderLE<'a> {
     fn byte_align(&mut self) {
         self.buffer.clear()
     }
-}
-
-pub trait FromBit: Sized {
-    fn one() -> Self;
-    fn from_bit(bit: bool) -> Self;
-}
-
-impl FromBit for u8 {
-    #[inline]
-    fn one() -> Self {1}
-    #[inline]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-}
-
-impl FromBit for u16 {
-    #[inline]
-    fn one() -> Self {1}
-    #[inline]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-}
-
-impl FromBit for u32 {
-    #[inline]
-    fn one() -> Self {1}
-    #[inline]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-}
-
-impl FromBit for u64 {
-    #[inline]
-    fn one() -> Self {1}
-    #[inline]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
 }

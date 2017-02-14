@@ -1,7 +1,10 @@
 use std::io;
 
+use super::Numeric;
+
 pub trait BitWrite {
-    fn write(&mut self, bits: u32, value: u32) -> Result<(), io::Error>;
+    fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
+        where U: Numeric;
 
     fn write_signed(&mut self, bits: u32, value: i32) -> Result<(), io::Error>;
 
@@ -42,10 +45,12 @@ impl<'a> BitWriterBE<'a> {
 }
 
 impl<'a> BitWrite for BitWriterBE<'a> {
-    fn write(&mut self, mut bits: u32, value: u32) -> Result<(), io::Error> {
+    fn write<U>(&mut self, mut bits: u32, value: U) -> Result<(), io::Error>
+        where U: Numeric {
         /*FIXME - generalize this to any sort of unsigned value*/
         while bits > 0 {
-            self.write_bit(((value >> (bits - 1)) & 1) != 0)?;
+            let mask = U::one() << (bits - 1);
+            self.write_bit((value & mask).to_bit())?;
             bits -= 1;
         }
         Ok(())
@@ -54,10 +59,10 @@ impl<'a> BitWrite for BitWriterBE<'a> {
     fn write_signed(&mut self, bits: u32, value: i32) -> Result<(), io::Error> {
         /*FIXME - generalize this to any sort of signed value*/
         if value >= 0 {
-            self.write(1, 0)?;
+            self.write(1, 0u8)?;
             self.write(bits - 1, value as u32)
         } else {
-            self.write(1, 1)?;
+            self.write(1, 1u8)?;
             self.write(bits - 1, ((1 << (bits - 1)) + value) as u32)
         }
     }
@@ -67,7 +72,7 @@ impl<'a> BitWrite for BitWriterBE<'a> {
             self.writer.write_all(buf)
         } else {
             for b in buf {
-                self.write(8, *b as u32)?;
+                self.write(8, *b)?;
             }
             Ok(())
         }
@@ -76,17 +81,17 @@ impl<'a> BitWrite for BitWriterBE<'a> {
     fn write_unary0(&mut self, value: u32) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
         for _ in 0..value {
-            self.write(1, 1)?;
+            self.write(1, 1u8)?;
         }
-        self.write(1, 0)
+        self.write(1, 0u8)
     }
 
     fn write_unary1(&mut self, value: u32) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
         for _ in 0..value {
-            self.write(1, 0)?;
+            self.write(1, 0u8)?;
         }
-        self.write(1, 1)
+        self.write(1, 1u8)
     }
 
     fn byte_aligned(&self) -> bool {
@@ -96,7 +101,7 @@ impl<'a> BitWrite for BitWriterBE<'a> {
     fn byte_align(&mut self) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
         while !self.byte_aligned() {
-            self.write(1, 0)?;
+            self.write(1, 0u8)?;
         }
         Ok(())
     }
@@ -128,10 +133,12 @@ impl<'a> BitWriterLE<'a> {
 }
 
 impl<'a> BitWrite for BitWriterLE<'a> {
-    fn write(&mut self, bits: u32, value: u32) -> Result<(), io::Error> {
-        /*FIXME - generalize this to any sort of unsigned value*/
-        for bit in 0..bits {
-            self.write_bit((value & (1 << bit)) != 0)?;
+    fn write<U>(&mut self, mut bits: u32, mut value: U) -> Result<(), io::Error>
+        where U: Numeric {
+        while bits > 0 {
+            self.write_bit((value & U::one()).to_bit())?;
+            value >>= U::one();
+            bits -= 1;
         }
         Ok(())
     }
@@ -140,10 +147,10 @@ impl<'a> BitWrite for BitWriterLE<'a> {
         /*FIXME - generalize this to any sort of signed value*/
         if value >= 0 {
             self.write(bits - 1, value as u32)?;
-            self.write(1, 0)
+            self.write(1, 0u8)
         } else {
             self.write(bits - 1, ((1 << (bits - 1)) + value) as u32)?;
-            self.write(1, 1)
+            self.write(1, 1u8)
         }
     }
 
@@ -152,7 +159,7 @@ impl<'a> BitWrite for BitWriterLE<'a> {
             self.writer.write_all(buf)
         } else {
             for b in buf {
-                self.write(8, *b as u32)?;
+                self.write(8, *b)?;
             }
             Ok(())
         }
@@ -161,17 +168,17 @@ impl<'a> BitWrite for BitWriterLE<'a> {
     fn write_unary0(&mut self, value: u32) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
         for _ in 0..value {
-            self.write(1, 1)?;
+            self.write(1, 1u8)?;
         }
-        self.write(1, 0)
+        self.write(1, 0u8)
     }
 
     fn write_unary1(&mut self, value: u32) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
         for _ in 0..value {
-            self.write(1, 0)?;
+            self.write(1, 0u8)?;
         }
-        self.write(1, 1)
+        self.write(1, 1u8)
     }
 
     fn byte_aligned(&self) -> bool {
@@ -181,7 +188,7 @@ impl<'a> BitWrite for BitWriterLE<'a> {
     fn byte_align(&mut self) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
         while !self.byte_aligned() {
-            self.write(1, 0)?;
+            self.write(1, 0u8)?;
         }
         Ok(())
     }
