@@ -20,80 +20,48 @@ pub trait Numeric: Sized + Copy + Default + Debug +
     fn to_bit(self) -> bool;
 }
 
+macro_rules! define_numeric {
+    ($t:ty) => {
+        impl Numeric for $t {
+            #[inline(always)]
+            fn one() -> Self {1}
+            #[inline(always)]
+            fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
+            #[inline(always)]
+            fn to_bit(self) -> bool {self != 0}
+        }
+    }
+}
+
 pub trait SignedNumeric: Numeric {
     fn is_negative(self) -> bool;
     fn as_negative(self, bits: u32) -> Self;
     fn as_unsigned(self, bits: u32) -> Self;
 }
 
-impl Numeric for u8 {
-    #[inline(always)]
-    fn one() -> Self {1}
-    #[inline(always)]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline(always)]
-    fn to_bit(self) -> bool {self != 0}
+macro_rules! define_signed_numeric {
+    ($t:ty) => {
+        impl SignedNumeric for $t {
+            #[inline(always)]
+            fn is_negative(self) -> bool {self < 0}
+            #[inline(always)]
+            fn as_negative(self, bits: u32) -> Self {self + (-1 << (bits - 1))}
+            #[inline(always)]
+            fn as_unsigned(self, bits: u32) -> Self {self - (-1 << (bits - 1))}
+        }
+    }
 }
 
-impl Numeric for u16 {
-    #[inline(always)]
-    fn one() -> Self {1}
-    #[inline(always)]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline(always)]
-    fn to_bit(self) -> bool {self != 0}
-}
+define_numeric!(u8);
+define_numeric!(i8);
+define_numeric!(u16);
+define_numeric!(i16);
+define_numeric!(u32);
+define_numeric!(i32);
+define_numeric!(u64);
+define_numeric!(i64);
 
-impl Numeric for u32 {
-    #[inline(always)]
-    fn one() -> Self {1}
-    #[inline(always)]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline(always)]
-    fn to_bit(self) -> bool {self != 0}
-}
-
-impl Numeric for i32 {
-    #[inline(always)]
-    fn one() -> Self {1}
-    #[inline(always)]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline(always)]
-    fn to_bit(self) -> bool {self != 0}
-}
-
-impl SignedNumeric for i32 {
-    #[inline(always)]
-    fn is_negative(self) -> bool {self < 0}
-    #[inline(always)]
-    fn as_negative(self, bits: u32) -> Self {self + (-1 << (bits - 1))}
-    #[inline(always)]
-    fn as_unsigned(self, bits: u32) -> Self {self - (-1 << (bits - 1))}
-}
-
-impl Numeric for u64 {
-    #[inline(always)]
-    fn one() -> Self {1}
-    #[inline(always)]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline(always)]
-    fn to_bit(self) -> bool {self != 0}
-}
-
-impl Numeric for i64 {
-    #[inline(always)]
-    fn one() -> Self {1}
-    #[inline(always)]
-    fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline(always)]
-    fn to_bit(self) -> bool {self != 0}
-}
-
-impl SignedNumeric for i64 {
-    #[inline(always)]
-    fn is_negative(self) -> bool {self < 0}
-    #[inline(always)]
-    fn as_negative(self, bits: u32) -> Self {self + (-1 << (bits - 1))}
-    #[inline(always)]
-    fn as_unsigned(self, bits: u32) -> Self {self - (-1 << (bits - 1))}
-}
+define_signed_numeric!(i8);
+define_signed_numeric!(i16);
+define_signed_numeric!(i32);
+define_signed_numeric!(i64);
