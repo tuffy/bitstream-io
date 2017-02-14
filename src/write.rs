@@ -1,12 +1,13 @@
 use std::io;
 
-use super::Numeric;
+use super::{Numeric, SignedNumeric};
 
 pub trait BitWrite {
     fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
         where U: Numeric;
 
-    fn write_signed(&mut self, bits: u32, value: i32) -> Result<(), io::Error>;
+    fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
+        where S: SignedNumeric;
 
     fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error>;
 
@@ -47,7 +48,6 @@ impl<'a> BitWriterBE<'a> {
 impl<'a> BitWrite for BitWriterBE<'a> {
     fn write<U>(&mut self, mut bits: u32, value: U) -> Result<(), io::Error>
         where U: Numeric {
-        /*FIXME - generalize this to any sort of unsigned value*/
         while bits > 0 {
             let mask = U::one() << (bits - 1);
             self.write_bit((value & mask).to_bit())?;
@@ -56,14 +56,14 @@ impl<'a> BitWrite for BitWriterBE<'a> {
         Ok(())
     }
 
-    fn write_signed(&mut self, bits: u32, value: i32) -> Result<(), io::Error> {
-        /*FIXME - generalize this to any sort of signed value*/
-        if value >= 0 {
-            self.write(1, 0u8)?;
-            self.write(bits - 1, value as u32)
+    fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
+        where S: SignedNumeric {
+        if value.is_negative() {
+            self.write(1, 1u8)
+                .and_then(|()| self.write(bits - 1, value.as_unsigned(bits)))
         } else {
-            self.write(1, 1u8)?;
-            self.write(bits - 1, ((1 << (bits - 1)) + value) as u32)
+            self.write(1, 0u8)
+                .and_then(|()| self.write(bits - 1, value))
         }
     }
 
@@ -143,14 +143,14 @@ impl<'a> BitWrite for BitWriterLE<'a> {
         Ok(())
     }
 
-    fn write_signed(&mut self, bits: u32, value: i32) -> Result<(), io::Error> {
-        /*FIXME - generalize this to any sort of signed value*/
-        if value >= 0 {
-            self.write(bits - 1, value as u32)?;
-            self.write(1, 0u8)
+    fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
+        where S: SignedNumeric {
+        if value.is_negative() {
+            self.write(bits - 1, value.as_unsigned(bits))
+                .and_then(|()| self.write(1, 1u8))
         } else {
-            self.write(bits - 1, ((1 << (bits - 1)) + value) as u32)?;
-            self.write(1, 1u8)
+            self.write(bits - 1, value)
+                .and_then(|()| self.write(1, 0u8))
         }
     }
 

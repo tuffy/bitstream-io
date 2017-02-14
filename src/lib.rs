@@ -21,7 +21,9 @@ pub trait Numeric: Sized + Copy + Default + Debug +
 }
 
 pub trait SignedNumeric: Numeric {
+    fn is_negative(self) -> bool;
     fn as_negative(self, bits: u32) -> Self;
+    fn as_unsigned(self, bits: u32) -> Self;
 }
 
 impl Numeric for u8 {
@@ -62,9 +64,11 @@ impl Numeric for i32 {
 
 impl SignedNumeric for i32 {
     #[inline(always)]
-    fn as_negative(self, bits: u32) -> Self {
-        self + (-1 << (bits - 1))
-    }
+    fn is_negative(self) -> bool {self < 0}
+    #[inline(always)]
+    fn as_negative(self, bits: u32) -> Self {self + (-1 << (bits - 1))}
+    #[inline(always)]
+    fn as_unsigned(self, bits: u32) -> Self {self - (-1 << (bits - 1))}
 }
 
 impl Numeric for u64 {
@@ -87,7 +91,9 @@ impl Numeric for i64 {
 
 impl SignedNumeric for i64 {
     #[inline(always)]
-    fn as_negative(self, bits: u32) -> Self {
-        self + (-1 << (bits - 1))
-    }
+    fn is_negative(self) -> bool {self < 0}
+    #[inline(always)]
+    fn as_negative(self, bits: u32) -> Self {self + (-1 << (bits - 1))}
+    #[inline(always)]
+    fn as_unsigned(self, bits: u32) -> Self {self - (-1 << (bits - 1))}
 }
