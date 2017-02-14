@@ -176,7 +176,6 @@ impl<'a> BitRead for BitReaderLE<'a> {
         debug_assert!(bits >= 1);
         let unsigned = self.read::<S>(bits - 1)?;
         let sign = self.read::<S>(1)?;
-        println!("bits : {:?}  sign : {:?}  unsigned : {:?}", bits, sign, unsigned);
         Ok(if sign.to_bit() {unsigned.as_negative(bits)} else {unsigned})
     }
 

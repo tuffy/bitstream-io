@@ -122,7 +122,48 @@ fn test_writer_be() {
     assert_eq!(output.as_slice(), &final_data);
 }
 
-/*FIXME - edge cases - BE*/
+#[test]
+fn test_writer_edge_cases_be() {
+    use bitstream_io::BitWriterBE;
+    use bitstream_io::BitWrite;
+
+    let final_data: Vec<u8> = vec![0, 0, 0, 0, 255, 255, 255, 255,
+                                   128, 0, 0, 0, 127, 255, 255, 255,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   255, 255, 255, 255, 255, 255, 255, 255,
+                                   128, 0, 0, 0, 0, 0, 0, 0,
+                                   127, 255, 255, 255, 255, 255, 255, 255];
+
+    let mut output = Vec::with_capacity(48);
+    {
+        /*unsigned 32 and 64-bit values*/
+        let mut w = BitWriterBE::new(&mut output);
+        w.write(32, 0u32).unwrap();
+        w.write(32, 4294967295u32).unwrap();
+        w.write(32, 2147483648u32).unwrap();
+        w.write(32, 2147483647u32).unwrap();
+        w.write(64, 0u64).unwrap();
+        w.write(64, 0xFFFFFFFFFFFFFFFFu64).unwrap();
+        w.write(64, 9223372036854775808u64).unwrap();
+        w.write(64, 9223372036854775807u64).unwrap();
+    }
+    assert_eq!(output, final_data);
+
+    /*signed 32 and 64-bit values*/
+    let mut output = Vec::with_capacity(48);
+    {
+        let mut w = BitWriterBE::new(&mut output);
+        w.write(32, 0i64).unwrap();
+        w.write(32, -1i64).unwrap();
+        w.write(32, -2147483648i64).unwrap();
+        w.write(32, 2147483647i64).unwrap();
+        w.write(64, 0i64).unwrap();
+        w.write(64, -1i64).unwrap();
+        w.write(64, -9223372036854775808i64).unwrap();
+        w.write(64, 9223372036854775807i64).unwrap();
+    }
+    assert_eq!(output, final_data);
+}
 
 #[test]
 fn test_writer_le() {
@@ -246,4 +287,45 @@ fn test_writer_le() {
     assert_eq!(output.as_slice(), &final_data);
 }
 
-/*FIXME - edge cases - LE*/
+#[test]
+fn test_writer_edge_cases_le() {
+    use bitstream_io::BitWriterLE;
+    use bitstream_io::BitWrite;
+
+    let final_data: Vec<u8> = vec![0, 0, 0, 0, 255, 255, 255, 255,
+                                   0, 0, 0, 128, 255, 255, 255, 127,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   255, 255, 255, 255, 255, 255, 255, 255,
+                                   0, 0, 0, 0, 0, 0, 0, 128,
+                                   255, 255, 255, 255, 255, 255, 255, 127];
+
+    let mut output = Vec::with_capacity(48);
+    {
+        /*unsigned 32 and 64-bit values*/
+        let mut w = BitWriterLE::new(&mut output);
+        w.write(32, 0u32).unwrap();
+        w.write(32, 4294967295u32).unwrap();
+        w.write(32, 2147483648u32).unwrap();
+        w.write(32, 2147483647u32).unwrap();
+        w.write(64, 0u64).unwrap();
+        w.write(64, 0xFFFFFFFFFFFFFFFFu64).unwrap();
+        w.write(64, 9223372036854775808u64).unwrap();
+        w.write(64, 9223372036854775807u64).unwrap();
+    }
+    assert_eq!(output, final_data);
+
+    /*signed 32 and 64-bit values*/
+    let mut output = Vec::with_capacity(48);
+    {
+        let mut w = BitWriterLE::new(&mut output);
+        w.write(32, 0i64).unwrap();
+        w.write(32, -1i64).unwrap();
+        w.write(32, -2147483648i64).unwrap();
+        w.write(32, 2147483647i64).unwrap();
+        w.write(64, 0i64).unwrap();
+        w.write(64, -1i64).unwrap();
+        w.write(64, -9223372036854775808i64).unwrap();
+        w.write(64, 9223372036854775807i64).unwrap();
+    }
+    assert_eq!(output, final_data);
+}
