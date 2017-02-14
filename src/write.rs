@@ -78,18 +78,24 @@ impl<'a> BitWrite for BitWriterBE<'a> {
         }
     }
 
-    fn write_unary0(&mut self, value: u32) -> Result<(), io::Error> {
-        /*FIXME - optimize this*/
-        for _ in 0..value {
-            self.write(1, 1u8)?;
+    fn write_unary0(&mut self, mut value: u32) -> Result<(), io::Error> {
+        while value > 8 {
+            self.write(8, 0xFFu8)?;
+            value -= 8;
+        }
+        if value > 0 {
+            self.write(value, (1 << value) - 1)?;
         }
         self.write(1, 0u8)
     }
 
-    fn write_unary1(&mut self, value: u32) -> Result<(), io::Error> {
-        /*FIXME - optimize this*/
-        for _ in 0..value {
-            self.write(1, 0u8)?;
+    fn write_unary1(&mut self, mut value: u32) -> Result<(), io::Error> {
+        while value > 8 {
+            self.write(8, 0u8)?;
+            value -= 8;
+        }
+        if value > 0 {
+            self.write(value, 0)?;
         }
         self.write(1, 1u8)
     }
@@ -165,18 +171,24 @@ impl<'a> BitWrite for BitWriterLE<'a> {
         }
     }
 
-    fn write_unary0(&mut self, value: u32) -> Result<(), io::Error> {
-        /*FIXME - optimize this*/
-        for _ in 0..value {
-            self.write(1, 1u8)?;
+    fn write_unary0(&mut self, mut value: u32) -> Result<(), io::Error> {
+        while value > 8 {
+            self.write(8, 0xFFu8)?;
+            value -= 8;
+        }
+        if value > 0 {
+            self.write(value, (1 << value) - 1)?;
         }
         self.write(1, 0u8)
     }
 
-    fn write_unary1(&mut self, value: u32) -> Result<(), io::Error> {
-        /*FIXME - optimize this*/
-        for _ in 0..value {
-            self.write(1, 0u8)?;
+    fn write_unary1(&mut self, mut value: u32) -> Result<(), io::Error> {
+        while value > 8 {
+            self.write(8, 0u8)?;
+            value -= 8;
+        }
+        if value > 0 {
+            self.write(value, 0)?;
         }
         self.write(1, 1u8)
     }
