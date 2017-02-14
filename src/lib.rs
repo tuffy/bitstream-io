@@ -20,37 +20,37 @@ pub trait Numeric: Sized + Copy + Default +
 }
 
 impl Numeric for u8 {
-    #[inline]
+    #[inline(always)]
     fn one() -> Self {1}
-    #[inline]
+    #[inline(always)]
     fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline]
+    #[inline(always)]
     fn to_bit(self) -> bool {self != 0}
 }
 
 impl Numeric for u16 {
-    #[inline]
+    #[inline(always)]
     fn one() -> Self {1}
-    #[inline]
+    #[inline(always)]
     fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline]
+    #[inline(always)]
     fn to_bit(self) -> bool {self != 0}
 }
 
 impl Numeric for u32 {
-    #[inline]
+    #[inline(always)]
     fn one() -> Self {1}
-    #[inline]
+    #[inline(always)]
     fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline]
+    #[inline(always)]
     fn to_bit(self) -> bool {self != 0}
 }
 
 impl Numeric for u64 {
-    #[inline]
+    #[inline(always)]
     fn one() -> Self {1}
-    #[inline]
+    #[inline(always)]
     fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
-    #[inline]
+    #[inline(always)]
     fn to_bit(self) -> bool {self != 0}
 }
