@@ -2,6 +2,54 @@ extern crate bitstream_io;
 use std::io::Cursor;
 
 #[test]
+fn test_queue_be() {
+    use bitstream_io::BitQueue;
+    let mut q: BitQueue<u32> = BitQueue::new();
+    assert!(q.empty());
+    assert_eq!(q.len(), 0);
+    q.push_be(8, 0xB1);
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop_be(2), 2);
+    assert_eq!(q.len(), 6);
+    assert_eq!(q.pop_be(3), 6);
+    assert_eq!(q.len(), 3);
+    q.push_be(8, 0xED);
+    assert_eq!(q.len(), 11);
+    assert_eq!(q.pop_be(5), 7);
+    assert_eq!(q.len(), 6);
+    assert_eq!(q.pop_be(3), 5);
+    q.push_be(8, 0x3B);
+    q.push_be(8, 0xC1);
+    assert_eq!(q.pop_be(19), 342977);
+    assert!(q.empty());
+    assert_eq!(q.value(), 0);
+}
+
+#[test]
+fn test_queue_le() {
+    use bitstream_io::BitQueue;
+    let mut q: BitQueue<u32> = BitQueue::new();
+    assert!(q.empty());
+    assert_eq!(q.len(), 0);
+    q.push_le(8, 0xB1);
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop_le(2), 1);
+    assert_eq!(q.len(), 6);
+    assert_eq!(q.pop_le(3), 4);
+    assert_eq!(q.len(), 3);
+    q.push_le(8, 0xED);
+    assert_eq!(q.len(), 11);
+    assert_eq!(q.pop_le(5), 13);
+    assert_eq!(q.len(), 6);
+    assert_eq!(q.pop_le(3), 3);
+    q.push_le(8, 0x3B);
+    q.push_le(8, 0xC1);
+    assert_eq!(q.pop_le(19), 395743);
+    assert!(q.empty());
+    assert_eq!(q.value(), 0);
+}
+
+#[test]
 fn test_reader_be() {
     use bitstream_io::BitReaderBE;
     use bitstream_io::BitRead;

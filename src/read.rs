@@ -77,7 +77,7 @@ impl<'a> BitRead for BitReaderBE<'a> {
         /*FIXME - optimize this*/
         let mut acc = U::default();
         while bits > 0 {
-            acc <<= U::one();
+            acc <<= 1;
             acc |= U::from_bit(self.next_bit()?);
             bits -= 1;
         }

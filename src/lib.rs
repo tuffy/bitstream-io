@@ -1,4 +1,5 @@
-use std::ops::{BitOrAssign, Shl, ShlAssign, ShrAssign, BitAnd};
+use std::ops::{BitOrAssign, Shl, Shr, ShlAssign, ShrAssign, BitAnd,
+               Rem, RemAssign};
 use std::fmt::Debug;
 
 pub mod read;
@@ -13,8 +14,10 @@ pub use write::BitWriterBE;
 pub use write::BitWriterLE;
 
 pub trait Numeric: Sized + Copy + Default + Debug +
-    ShlAssign<Self> + ShrAssign<Self> + Shl<u32,Output=Self> +
-    BitOrAssign<Self> + BitAnd<Self,Output=Self> {
+    ShlAssign<u32> + ShrAssign<u32> +
+    Shl<u32,Output=Self> + Shr<u32,Output=Self> +
+    BitOrAssign<Self> + BitAnd<Self,Output=Self> +
+    Rem<Self,Output=Self> + RemAssign<Self> {
     fn one() -> Self;
     fn from_bit(bit: bool) -> Self;
     fn to_bit(self) -> bool;
@@ -65,3 +68,46 @@ define_signed_numeric!(i8);
 define_signed_numeric!(i16);
 define_signed_numeric!(i32);
 define_signed_numeric!(i64);
+
+pub struct BitQueue<A: Numeric> {value: A, bits: u32}
+
+impl<A: Numeric> BitQueue<A> {
+    #[inline]
+    pub fn new() -> BitQueue<A> {BitQueue{value: A::default(), bits: 0}}
+
+    #[inline(always)]
+    pub fn value(self) -> A {self.value}
+
+    #[inline(always)]
+    pub fn len(&self) -> u32 {self.bits}
+
+    #[inline(always)]
+    pub fn empty(&self) -> bool {self.bits == 0}
+
+    pub fn push_be(&mut self, bits: u32, value: A) {
+        self.value <<= bits;
+        self.value |= value;
+        self.bits += bits;
+    }
+
+    pub fn pop_be(&mut self, bits: u32) -> A {
+        let offset = self.bits - bits;
+        let to_return = self.value >> offset;
+        self.value %= A::one() << offset;
+        self.bits -= bits;
+        to_return
+    }
+
+    pub fn push_le(&mut self, bits: u32, mut value: A) {
+        value <<= self.bits;
+        self.value |= value;
+        self.bits += bits;
+    }
+
+    pub fn pop_le(&mut self, bits: u32) -> A {
+        let to_return = self.value % (A::one() << bits);
+        self.value >>= bits;
+        self.bits -= bits;
+        to_return
+    }
+}

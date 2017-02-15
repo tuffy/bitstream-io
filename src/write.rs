@@ -158,7 +158,7 @@ impl<'a> BitWrite for BitWriterLE<'a> {
         /*FIXME - optimize this*/
         while bits > 0 {
             self.write_bit((value & U::one()).to_bit())?;
-            value >>= U::one();
+            value >>= 1;
             bits -= 1;
         }
         Ok(())
