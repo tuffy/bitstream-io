@@ -2,6 +2,8 @@ use std::io;
 
 use super::{Numeric, SignedNumeric, BitQueueBE, BitQueueLE, BitQueue};
 
+/// For reading bit values from an underlying stream
+/// in a given endianness.
 pub trait BitRead {
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
@@ -24,7 +26,7 @@ pub trait BitRead {
 
     /// Completely fills the given buffer with whole bytes.
     /// If the stream is already byte-aligned, it will map
-    /// to a faster read_exact call.  Otherwise it will read
+    /// to a faster `read_exact` call.  Otherwise it will read
     /// bytes individually in 8-bit increments.
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error>;
 
@@ -57,12 +59,19 @@ pub trait BitRead {
     /*FIXME - add support for reading Huffman codes*/
 }
 
+/// A wrapper for reading values from a big-endian stream.
 pub struct BitReaderBE<'a> {
     reader: &'a mut io::BufRead,
     bitqueue: BitQueueBE<u8>
 }
 
 impl<'a> BitReaderBE<'a> {
+    /// Wraps a big-endian reader around a `BufRead` reference.
+    ///
+    /// A `BufRead` is required because this reader is liable
+    /// to make many small reads to the stream in normal operation,
+    /// so reading from the buffer directly is preferable
+    /// to making many calls to `read_exact`.
     pub fn new(reader: &mut io::BufRead) -> BitReaderBE {
         BitReaderBE{reader: reader, bitqueue: BitQueueBE::new()}
     }
@@ -125,12 +134,19 @@ impl<'a> BitRead for BitReaderBE<'a> {
     }
 }
 
+/// A wrapper for reading values from a little-endian stream.
 pub struct BitReaderLE<'a> {
     reader: &'a mut io::BufRead,
     bitqueue: BitQueueLE<u8>
 }
 
 impl<'a> BitReaderLE<'a> {
+    /// Wraps a little-endian reader around a `BufRead` reference.
+    ///
+    /// A `BufRead` is required because this reader is liable
+    /// to make many small reads to the stream in normal operation,
+    /// so reading from the buffer directly is preferable
+    /// to making many calls to `read_exact`.
     pub fn new(reader: &mut io::BufRead) -> BitReaderLE {
         BitReaderLE{reader: reader, bitqueue: BitQueueLE::new()}
     }

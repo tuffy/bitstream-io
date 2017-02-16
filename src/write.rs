@@ -2,6 +2,8 @@ use std::io;
 
 use super::{Numeric, SignedNumeric, BitQueue, BitQueueBE, BitQueueLE};
 
+/// For writing bit values to an underlying stream
+/// in a given endianness.
 pub trait BitWrite {
     /// Writes an unsigned value to the stream using the given
     /// number of bits.  This method assumes that value's type
@@ -60,12 +62,18 @@ pub trait BitWrite {
     /*FIXME - add support for writing Huffman codes*/
 }
 
+/// A wrapper for writing values to a big-endian stream.
 pub struct BitWriterBE<'a> {
     writer: &'a mut io::Write,
     bitqueue: BitQueueBE<u8>
 }
 
 impl<'a> BitWriterBE<'a> {
+    /// Wraps a big-endian writer around a `Write` reference.
+    ///
+    /// Because this is liable to make many small writes
+    /// in the course of normal operation, a `BufWrite` is preferable
+    /// for better performance.
     pub fn new(writer: &mut io::Write) -> BitWriterBE {
         BitWriterBE{writer: writer, bitqueue: BitQueueBE::new()}
     }
@@ -108,12 +116,18 @@ impl<'a> BitWrite for BitWriterBE<'a> {
     }
 }
 
+/// A wrapper for writing values to a little-endian stream.
 pub struct BitWriterLE<'a> {
     writer: &'a mut io::Write,
     bitqueue: BitQueueLE<u8>
 }
 
 impl<'a> BitWriterLE<'a> {
+    /// Wraps a little-endian writer around a `Write` reference.
+    ///
+    /// Because this is liable to make many small writes
+    /// in the course of normal operation, a `BufWrite` is preferable
+    /// for better performance.
     pub fn new(writer: &mut io::Write) -> BitWriterLE {
         BitWriterLE{writer: writer, bitqueue: BitQueueLE::new()}
     }
