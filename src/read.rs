@@ -1,7 +1,7 @@
 use std::io;
 use std::collections::VecDeque;
 
-use super::{Numeric, SignedNumeric};
+use super::{Numeric, SignedNumeric, BitQueueBE};
 
 pub trait BitRead {
     /// Reads an unsigned value from the stream with
@@ -45,43 +45,85 @@ pub trait BitRead {
 }
 
 pub struct BitReaderBE<'a> {
-    reader: &'a mut io::Read,
-    buffer: VecDeque<bool>
+    reader: &'a mut io::BufRead,
+    bitqueue: BitQueueBE<u8>
 }
 
 impl<'a> BitReaderBE<'a> {
-    pub fn new(reader: &mut io::Read) -> BitReaderBE {
-        BitReaderBE{reader: reader, buffer: VecDeque::with_capacity(8)}
+    pub fn new(reader: &mut io::BufRead) -> BitReaderBE {
+        BitReaderBE{reader: reader, bitqueue: BitQueueBE::new(0, 0)}
     }
 
-    fn next_bit(&mut self) -> Result<bool, io::Error> {
-        if self.buffer.len() == 0 {
-            let mut buf = [0; 1];
-            self.reader.read_exact(&mut buf)?;
-            self.buffer.push_back(((buf[0] >> 7) & 1) != 0);
-            self.buffer.push_back(((buf[0] >> 6) & 1) != 0);
-            self.buffer.push_back(((buf[0] >> 5) & 1) != 0);
-            self.buffer.push_back(((buf[0] >> 4) & 1) != 0);
-            self.buffer.push_back(((buf[0] >> 3) & 1) != 0);
-            self.buffer.push_back(((buf[0] >> 2) & 1) != 0);
-            self.buffer.push_back(((buf[0] >> 1) & 1) != 0);
-            self.buffer.push_back(((buf[0] >> 0) & 1) != 0);
+    fn read_aligned<U>(&mut self,
+                       mut bytes: u32,
+                       acc: &mut BitQueueBE<U>) -> Result<(), io::Error>
+        where U: Numeric {
+        use std::cmp::min;
+
+        while bytes > 0 {
+            let processed = {
+                let buf = self.reader.fill_buf()?;
+                let to_process = min(bytes as usize, buf.len());
+                for b in &buf[0..to_process] {
+                    acc.push(8, U::from_u8(*b));
+                }
+                to_process
+            };
+            if processed > 0 {
+                self.reader.consume(processed);
+                bytes -= processed as u32;
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof, "EOF in stream"));
+            }
         }
-        Ok(self.buffer.pop_front().unwrap())
+        Ok(())
+    }
+
+    fn read_unaligned<U>(&mut self,
+                         bits: u32,
+                         acc: &mut BitQueueBE<U>) -> Result<(), io::Error>
+        where U: Numeric {
+        debug_assert!(bits <= 8);
+
+        if bits > 0 {
+            let length = {
+                let buf = self.reader.fill_buf()?;
+                if buf.len() > 0 {
+                    self.bitqueue = BitQueueBE::new(buf[0], 8);
+                    acc.push(bits, U::from_u8(self.bitqueue.pop(bits)));
+                    1
+                } else {0}
+			};
+            if length > 0 {
+                Ok(self.reader.consume(length))
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof, "EOF in stream"))
+            }
+        } else {
+            Ok(())
+        }
     }
 }
 
 impl<'a> BitRead for BitReaderBE<'a> {
     fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
         where U: Numeric {
-        /*FIXME - optimize this*/
-        let mut acc = U::default();
-        while bits > 0 {
-            acc <<= 1;
-            acc |= U::from_bit(self.next_bit()?);
-            bits -= 1;
+        use std::cmp::min;
+        let mut acc: BitQueueBE<U> = BitQueueBE::new(U::default(), 0);
+
+        /*transfer un-processed bits from queue to accumulator*/
+        let queue_len = self.bitqueue.len();
+        if queue_len > 0 {
+            let to_transfer = min(queue_len, bits);
+            acc.push(to_transfer, U::from_u8(self.bitqueue.pop(to_transfer)));
+            bits -= to_transfer;
         }
-        Ok(acc)
+
+        self.read_aligned(bits / 8, &mut acc)
+            .and_then(|()| self.read_unaligned(bits % 8, &mut acc))
+            .map(|()| acc.value())
     }
 
     fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
@@ -126,12 +168,14 @@ impl<'a> BitRead for BitReaderBE<'a> {
         Ok(acc)
     }
 
+    #[inline]
     fn byte_aligned(&self) -> bool {
-        self.buffer.is_empty()
+        self.bitqueue.is_empty()
     }
 
+    #[inline]
     fn byte_align(&mut self) {
-        self.buffer.clear()
+        self.bitqueue.clear()
     }
 }
 

@@ -21,6 +21,8 @@ pub trait Numeric: Sized + Copy + Default + Debug +
     fn one() -> Self;
     fn from_bit(bit: bool) -> Self;
     fn to_bit(self) -> bool;
+    fn from_u8(u: u8) -> Self;
+    fn to_u8(self) -> u8;
 }
 
 macro_rules! define_numeric {
@@ -32,6 +34,10 @@ macro_rules! define_numeric {
             fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
             #[inline(always)]
             fn to_bit(self) -> bool {self != 0}
+            #[inline(always)]
+            fn from_u8(u: u8) -> Self {u as $t}
+            #[inline(always)]
+            fn to_u8(self) -> u8 {self as u8}
         }
     }
 }
@@ -71,12 +77,19 @@ define_signed_numeric!(i64);
 
 pub struct BitQueueBE<A: Numeric> {value: A, bits: u32}
 
-impl<A: Numeric> BitQueueBE<A> {
+impl<N: Numeric> BitQueueBE<N> {
     #[inline]
-    pub fn new() -> BitQueueBE<A> {BitQueueBE{value: A::default(), bits: 0}}
+    pub fn new(value: N, bits: u32) -> BitQueueBE<N> {
+        BitQueueBE{value: value, bits: bits}
+    }
+
+    #[inline]
+    pub fn from_u8(b: u8) -> BitQueueBE<N> {
+        BitQueueBE{value: N::from_u8(b), bits: 8}
+    }
 
     #[inline(always)]
-    pub fn value(self) -> A {self.value}
+    pub fn value(self) -> N {self.value}
 
     #[inline(always)]
     pub fn len(&self) -> u32 {self.bits}
@@ -84,18 +97,21 @@ impl<A: Numeric> BitQueueBE<A> {
     #[inline(always)]
     pub fn is_empty(&self) -> bool {self.bits == 0}
 
-    pub fn clear(&mut self) {self.value = A::default(); self.bits = 0;}
+    pub fn clear(&mut self) {
+        self.value = N::default();
+        self.bits = 0;
+    }
 
-    pub fn push(&mut self, bits: u32, value: A) {
+    pub fn push(&mut self, bits: u32, value: N) {
         self.value <<= bits;
         self.value |= value;
         self.bits += bits;
     }
 
-    pub fn pop(&mut self, bits: u32) -> A {
+    pub fn pop(&mut self, bits: u32) -> N {
         let offset = self.bits - bits;
         let to_return = self.value >> offset;
-        self.value %= A::one() << offset;
+        self.value %= N::one() << offset;
         self.bits -= bits;
         to_return
     }
@@ -103,12 +119,14 @@ impl<A: Numeric> BitQueueBE<A> {
 
 pub struct BitQueueLE<A: Numeric> {value: A, bits: u32}
 
-impl<A: Numeric> BitQueueLE<A> {
+impl<N: Numeric> BitQueueLE<N> {
     #[inline]
-    pub fn new() -> BitQueueLE<A> {BitQueueLE{value: A::default(), bits: 0}}
+    pub fn new(value: N, bits: u32) -> BitQueueLE<N> {
+        BitQueueLE{value: value, bits: bits}
+    }
 
     #[inline(always)]
-    pub fn value(self) -> A {self.value}
+    pub fn value(self) -> N {self.value}
 
     #[inline(always)]
     pub fn len(&self) -> u32 {self.bits}
@@ -116,16 +134,19 @@ impl<A: Numeric> BitQueueLE<A> {
     #[inline(always)]
     pub fn is_empty(&self) -> bool {self.bits == 0}
 
-    pub fn clear(&mut self) {self.value = A::default(); self.bits = 0;}
+    pub fn clear(&mut self) {
+        self.value = N::default();
+        self.bits = 0;
+    }
 
-    pub fn push(&mut self, bits: u32, mut value: A) {
+    pub fn push(&mut self, bits: u32, mut value: N) {
         value <<= self.bits;
         self.value |= value;
         self.bits += bits;
     }
 
-    pub fn pop(&mut self, bits: u32) -> A {
-        let to_return = self.value % (A::one() << bits);
+    pub fn pop(&mut self, bits: u32) -> N {
+        let to_return = self.value % (N::one() << bits);
         self.value >>= bits;
         self.bits -= bits;
         to_return
