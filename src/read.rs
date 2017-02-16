@@ -22,6 +22,11 @@ pub trait BitRead {
     /// Skips the given number of bits in the stream.
     /// Since this method does not need an accumulator,
     /// it may be slightly faster than reading to an empty variable.
+    /// In addition, since there is no accumulator,
+    /// there is no upper limit on the number of bytes
+    /// which may be skipped.
+    /// These bytes are still read from the stream, however,
+    /// and are never skipped via a `seek` method.
     fn skip(&mut self, bits: u32) -> Result<(), io::Error>;
 
     /// Completely fills the given buffer with whole bytes.
@@ -99,17 +104,28 @@ impl<'a> BitRead for BitReaderBE<'a> {
         .map(|()| acc.value())
     }
 
+    fn skip(&mut self, mut bits: u32) -> Result<(), io::Error> {
+        use std::cmp::min;
+
+        let queue_len = self.bitqueue.len();
+        if queue_len > 0 {
+            let to_drop = min(queue_len, bits);
+            self.bitqueue.pop(to_drop);
+            bits -= to_drop;
+        }
+
+        skip_aligned(&mut self.reader, bits / 8)
+        .and_then(|()| skip_unaligned(&mut self.reader,
+                                      bits % 8,
+                                      &mut self.bitqueue))
+    }
+
     fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric {
         debug_assert!(bits >= 1);
         let sign = self.read::<S>(1)?;
         let unsigned = self.read::<S>(bits - 1)?;
         Ok(if sign.is_zero() {unsigned} else{unsigned.as_negative(bits)})
-    }
-
-    fn skip(&mut self, bits: u32) -> Result<(), io::Error> {
-        /*FIXME - optimize this*/
-        self.read::<u32>(bits).map(|_| ())
     }
 
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
@@ -175,17 +191,28 @@ impl<'a> BitRead for BitReaderLE<'a> {
         .map(|()| acc.value())
     }
 
+    fn skip(&mut self, mut bits: u32) -> Result<(), io::Error> {
+        use std::cmp::min;
+
+        let queue_len = self.bitqueue.len();
+        if queue_len > 0 {
+            let to_drop = min(queue_len, bits);
+            self.bitqueue.pop(to_drop);
+            bits -= to_drop;
+        }
+
+        skip_aligned(&mut self.reader, bits / 8)
+        .and_then(|()| skip_unaligned(&mut self.reader,
+                                      bits % 8,
+                                      &mut self.bitqueue))
+    }
+
     fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric {
         debug_assert!(bits >= 1);
         let unsigned = self.read::<S>(bits - 1)?;
         let sign = self.read::<S>(1)?;
         Ok(if sign.is_zero() {unsigned} else {unsigned.as_negative(bits)})
-    }
-
-    fn skip(&mut self, bits: u32) -> Result<(), io::Error> {
-        /*FIXME - optimize this*/
-        self.read::<u32>(bits).map(|_| ())
     }
 
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
@@ -250,6 +277,52 @@ fn read_unaligned<N>(reader: &mut io::BufRead,
             if buf.len() > 0 {
                 rem.set(buf[0], 8);
                 acc.push(bits, N::from_u8(rem.pop(bits)));
+                1
+            } else {0}
+        };
+        if length > 0 {
+            Ok(reader.consume(length))
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof, "EOF in stream"))
+        }
+    } else {
+        Ok(())
+    }
+}
+
+fn skip_aligned(reader: &mut io::BufRead,
+                mut bytes: u32) -> Result<(), io::Error> {
+    use std::cmp::min;
+
+    while bytes > 0 {
+        let processed = {
+            let buf = reader.fill_buf()?;
+            let to_process = min(bytes as usize, buf.len());
+            to_process
+        };
+        if processed > 0 {
+            reader.consume(processed);
+            bytes -= processed as u32;
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof, "EOF in stream"));
+        }
+    }
+    Ok(())
+}
+
+fn skip_unaligned(reader: &mut io::BufRead,
+                  bits: u32,
+                  rem: &mut BitQueue<u8>) -> Result<(), io::Error> {
+    debug_assert!(bits <= 8);
+
+    if bits > 0 {
+        let length = {
+            let buf = reader.fill_buf()?;
+            if buf.len() > 0 {
+                rem.set(buf[0], 8);
+                rem.pop(bits);
                 1
             } else {0}
         };
