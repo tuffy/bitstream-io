@@ -113,6 +113,11 @@ pub struct BitQueueBE<N: Numeric> {value: N, bits: u32}
 
 impl<N: Numeric> BitQueueBE<N> {
     #[inline]
+    pub fn from_value(value: N, bits: u32) -> BitQueueBE<N> {
+        BitQueueBE{value: value, bits: bits}
+    }
+
+    #[inline]
     pub fn new() -> BitQueueBE<N> {
         BitQueueBE{value: N::default(), bits: 0}
     }
@@ -131,23 +136,38 @@ impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
     fn len(&self) -> u32 {self.bits}
 
     fn push(&mut self, bits: u32, value: N) {
-        self.value <<= bits;
+        /*FIXME - optimize this in release?*/
+        if !self.value.is_zero() {
+            self.value <<= bits;
+        }
         self.value |= value;
         self.bits += bits;
     }
 
     fn pop(&mut self, bits: u32) -> N {
-        let offset = self.bits - bits;
-        let to_return = self.value >> offset;
-        self.value %= N::one() << offset;
-        self.bits -= bits;
-        to_return
+        if bits < self.bits {
+            let offset = self.bits - bits;
+            let to_return = self.value >> offset;
+            self.value %= N::one() << offset;
+            self.bits -= bits;
+            to_return
+        } else {
+            let to_return = self.value;
+            self.value = N::default();
+            self.bits = 0;
+            to_return
+        }
     }
 }
 
 pub struct BitQueueLE<N: Numeric> {value: N, bits: u32}
 
 impl<N: Numeric> BitQueueLE<N> {
+    #[inline]
+    pub fn from_value(value: N, bits: u32) -> BitQueueLE<N> {
+        BitQueueLE{value: value, bits: bits}
+    }
+
     #[inline]
     pub fn new() -> BitQueueLE<N> {
         BitQueueLE{value: N::default(), bits: 0}
@@ -173,9 +193,16 @@ impl<N: Numeric> BitQueue<N> for BitQueueLE<N> {
     }
 
     fn pop(&mut self, bits: u32) -> N {
-        let to_return = self.value % (N::one() << bits);
-        self.value >>= bits;
-        self.bits -= bits;
-        to_return
+        if bits < self.bits {
+            let to_return = self.value % (N::one() << bits);
+            self.value >>= bits;
+            self.bits -= bits;
+            to_return
+        } else {
+            let to_return = self.value;
+            self.value = N::default();
+            self.bits = 0;
+            to_return
+        }
     }
 }

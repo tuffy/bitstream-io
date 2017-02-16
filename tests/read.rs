@@ -2,7 +2,7 @@ extern crate bitstream_io;
 use std::io::Cursor;
 
 #[test]
-fn test_queue_be() {
+fn test_read_queue_be() {
     use bitstream_io::{BitQueueBE, BitQueue};
     let mut q: BitQueueBE<u32> = BitQueueBE::new();
     assert!(q.is_empty());
@@ -26,7 +26,7 @@ fn test_queue_be() {
 }
 
 #[test]
-fn test_queue_le() {
+fn test_read_queue_le() {
     use bitstream_io::{BitQueueLE, BitQueue};
     let mut q: BitQueueLE<u32> = BitQueueLE::new();
     assert!(q.is_empty());

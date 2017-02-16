@@ -1,6 +1,64 @@
 extern crate bitstream_io;
 
 #[test]
+fn test_write_queue_be() {
+    use bitstream_io::{BitQueueBE, BitQueue, Numeric};
+    let mut q: BitQueueBE<u8> = BitQueueBE::new();
+    let mut v = BitQueueBE::from_value(2u8, 2);
+    q.push(2, v.pop(2).to_u8());
+    let mut v = BitQueueBE::from_value(6u8, 3);
+    q.push(3, v.pop(3).to_u8());
+    let mut v = BitQueueBE::from_value(7u8, 5);
+    q.push(3, v.pop(3).to_u8());
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop(8), 0xB1);
+    q.push(2, v.pop(2).to_u8());
+    let mut v = BitQueueBE::from_value(5u8, 3);
+    q.push(3, v.pop(3).to_u8());
+    let mut v = BitQueueBE::from_value(342977u32, 19);
+    q.push(3, v.pop(3).to_u8());
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop(8), 0xED);
+    q.push(8, v.pop(8).to_u8());
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop(8), 0x3B);
+    q.push(8, v.pop(8).to_u8());
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop(8), 0xC1);
+    assert!(v.is_empty());
+    assert!(q.is_empty());
+}
+
+#[test]
+fn test_write_queue_le() {
+    use bitstream_io::{BitQueueLE, BitQueue, Numeric};
+    let mut q: BitQueueLE<u8> = BitQueueLE::new();
+    let mut v = BitQueueLE::from_value(1u8, 2);
+    q.push(2, v.pop(2).to_u8());
+    let mut v = BitQueueLE::from_value(4u8, 3);
+    q.push(3, v.pop(3).to_u8());
+    let mut v = BitQueueLE::from_value(13u8, 5);
+    q.push(3, v.pop(3).to_u8());
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop(8), 0xB1);
+    q.push(2, v.pop(2).to_u8());
+    let mut v = BitQueueLE::from_value(3u8, 3);
+    q.push(3, v.pop(3).to_u8());
+    let mut v = BitQueueLE::from_value(395743u32, 19);
+    q.push(3, v.pop(3).to_u8());
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop(8), 0xED);
+    q.push(8, v.pop(8).to_u8());
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop(8), 0x3B);
+    q.push(8, v.pop(8).to_u8());
+    assert_eq!(q.len(), 8);
+    assert_eq!(q.pop(8), 0xC1);
+    assert!(v.is_empty());
+    assert!(q.is_empty());
+}
+
+#[test]
 fn test_writer_be() {
     use bitstream_io::BitWriterBE;
     use bitstream_io::BitWrite;
