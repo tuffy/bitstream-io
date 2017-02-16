@@ -75,40 +75,65 @@ define_signed_numeric!(i16);
 define_signed_numeric!(i32);
 define_signed_numeric!(i64);
 
-pub struct BitQueueBE<A: Numeric> {value: A, bits: u32}
+pub trait BitQueue<N: Numeric> {
+    /// Creates new queue in this type with bits and value
+    /// initialized to 0
+    fn new() -> Self;
 
-impl<N: Numeric> BitQueueBE<N> {
+    /// Discards queue's current status and sets it to new bits and value
+    fn set(&mut self, value: N, bits: u32);
+
+    /// Consumes queue and returns its internal value
+    fn value(self) -> N;
+
+    /// Current length of queue, in bits
+    fn len(&self) -> u32;
+
+    /// Whether or not the queue is empty
+    #[inline(always)]
+    fn is_empty(&self) -> bool {self.len() == 0}
+
+    /// Discards queue's current status and sets bits and value to 0
+    #[inline(always)]
+    fn clear(&mut self) {self.set(N::default(), 0)}
+
+    /// Pushes a new value onto the back of the queue
+    /// using the given number of bits.
+    /// May panic if the total number of bits exceeds
+    /// the size of the type being pushed onto.
+    fn push(&mut self, bits: u32, value: N);
+
+    /// Pops a value from the front of the queue
+    /// with the given number of bits.
+    /// May panic if the total number of bytes popped
+    /// exceeds the length of the queue.
+    fn pop(&mut self, bits: u32) -> N;
+}
+
+pub struct BitQueueBE<N: Numeric> {value: N, bits: u32}
+
+impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
     #[inline]
-    pub fn new(value: N, bits: u32) -> BitQueueBE<N> {
-        BitQueueBE{value: value, bits: bits}
-    }
+    fn new() -> BitQueueBE<N> {BitQueueBE{value: N::default(), bits: 0}}
 
     #[inline]
-    pub fn from_u8(b: u8) -> BitQueueBE<N> {
-        BitQueueBE{value: N::from_u8(b), bits: 8}
+    fn set(&mut self, value: N, bits: u32) {
+        self.value = value; self.bits = bits;
     }
 
     #[inline(always)]
-    pub fn value(self) -> N {self.value}
+    fn value(self) -> N {self.value}
 
     #[inline(always)]
-    pub fn len(&self) -> u32 {self.bits}
+    fn len(&self) -> u32 {self.bits}
 
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {self.bits == 0}
-
-    pub fn clear(&mut self) {
-        self.value = N::default();
-        self.bits = 0;
-    }
-
-    pub fn push(&mut self, bits: u32, value: N) {
+    fn push(&mut self, bits: u32, value: N) {
         self.value <<= bits;
         self.value |= value;
         self.bits += bits;
     }
 
-    pub fn pop(&mut self, bits: u32) -> N {
+    fn pop(&mut self, bits: u32) -> N {
         let offset = self.bits - bits;
         let to_return = self.value >> offset;
         self.value %= N::one() << offset;
@@ -117,35 +142,30 @@ impl<N: Numeric> BitQueueBE<N> {
     }
 }
 
-pub struct BitQueueLE<A: Numeric> {value: A, bits: u32}
+pub struct BitQueueLE<N: Numeric> {value: N, bits: u32}
 
-impl<N: Numeric> BitQueueLE<N> {
+impl<N: Numeric> BitQueue<N> for BitQueueLE<N> {
     #[inline]
-    pub fn new(value: N, bits: u32) -> BitQueueLE<N> {
-        BitQueueLE{value: value, bits: bits}
+    fn new() -> BitQueueLE<N> {BitQueueLE{value: N::default(), bits: 0}}
+
+    #[inline]
+    fn set(&mut self, value: N, bits: u32) {
+        self.value = value; self.bits = bits;
     }
 
     #[inline(always)]
-    pub fn value(self) -> N {self.value}
+    fn value(self) -> N {self.value}
 
     #[inline(always)]
-    pub fn len(&self) -> u32 {self.bits}
+    fn len(&self) -> u32 {self.bits}
 
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {self.bits == 0}
-
-    pub fn clear(&mut self) {
-        self.value = N::default();
-        self.bits = 0;
-    }
-
-    pub fn push(&mut self, bits: u32, mut value: N) {
+    fn push(&mut self, bits: u32, mut value: N) {
         value <<= self.bits;
         self.value |= value;
         self.bits += bits;
     }
 
-    pub fn pop(&mut self, bits: u32) -> N {
+    fn pop(&mut self, bits: u32) -> N {
         let to_return = self.value % (N::one() << bits);
         self.value >>= bits;
         self.bits -= bits;

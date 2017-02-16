@@ -1,7 +1,7 @@
 use std::io;
 use std::collections::VecDeque;
 
-use super::{Numeric, SignedNumeric, BitQueueBE};
+use super::{Numeric, SignedNumeric, BitQueueBE, BitQueue};
 
 pub trait BitRead {
     /// Reads an unsigned value from the stream with
@@ -51,7 +51,7 @@ pub struct BitReaderBE<'a> {
 
 impl<'a> BitReaderBE<'a> {
     pub fn new(reader: &mut io::BufRead) -> BitReaderBE {
-        BitReaderBE{reader: reader, bitqueue: BitQueueBE::new(0, 0)}
+        BitReaderBE{reader: reader, bitqueue: BitQueueBE::new()}
     }
 
     fn read_aligned<U>(&mut self,
@@ -90,7 +90,7 @@ impl<'a> BitReaderBE<'a> {
             let length = {
                 let buf = self.reader.fill_buf()?;
                 if buf.len() > 0 {
-                    self.bitqueue = BitQueueBE::new(buf[0], 8);
+                    self.bitqueue.set(buf[0], 8);
                     acc.push(bits, U::from_u8(self.bitqueue.pop(bits)));
                     1
                 } else {0}
@@ -111,7 +111,7 @@ impl<'a> BitRead for BitReaderBE<'a> {
     fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
         where U: Numeric {
         use std::cmp::min;
-        let mut acc: BitQueueBE<U> = BitQueueBE::new(U::default(), 0);
+        let mut acc: BitQueueBE<U> = BitQueueBE::new();
 
         /*transfer un-processed bits from queue to accumulator*/
         let queue_len = self.bitqueue.len();

@@ -3,8 +3,8 @@ use std::io::Cursor;
 
 #[test]
 fn test_queue_be() {
-    use bitstream_io::BitQueueBE;
-    let mut q: BitQueueBE<u32> = BitQueueBE::new(0, 0);
+    use bitstream_io::{BitQueueBE, BitQueue};
+    let mut q: BitQueueBE<u32> = BitQueueBE::new();
     assert!(q.is_empty());
     assert_eq!(q.len(), 0);
     q.push(8, 0xB1);
@@ -27,8 +27,8 @@ fn test_queue_be() {
 
 #[test]
 fn test_queue_le() {
-    use bitstream_io::BitQueueLE;
-    let mut q: BitQueueLE<u32> = BitQueueLE::new(0, 0);
+    use bitstream_io::{BitQueueLE, BitQueue};
+    let mut q: BitQueueLE<u32> = BitQueueLE::new();
     assert!(q.is_empty());
     assert_eq!(q.len(), 0);
     q.push(8, 0xB1);
