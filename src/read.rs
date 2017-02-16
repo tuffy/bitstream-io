@@ -29,10 +29,24 @@ pub trait BitRead {
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error>;
 
     /// Reads an unsigned unary value with a stop bit of 0.
-    fn read_unary0(&mut self) -> Result<u32, io::Error>;
+    fn read_unary0(&mut self) -> Result<u32, io::Error> {
+        /*FIXME - optimize this*/
+        let mut acc = 0;
+        while self.read::<u32>(1)? != 0 {
+            acc += 1;
+        }
+        Ok(acc)
+    }
 
     /// Reads an unsigned unary value with a stop bit of 1.
-    fn read_unary1(&mut self) -> Result<u32, io::Error>;
+    fn read_unary1(&mut self) -> Result<u32, io::Error> {
+        /*FIXME - optimize this*/
+        let mut acc = 0;
+        while self.read::<u32>(1)? != 1 {
+            acc += 1;
+        }
+        Ok(acc)
+    }
 
     /// Returns true if the stream is aligned at a whole byte.
     fn byte_aligned(&self) -> bool;
@@ -98,24 +112,6 @@ impl<'a> BitRead for BitReaderBE<'a> {
             }
             Ok(())
         }
-    }
-
-    fn read_unary0(&mut self) -> Result<u32, io::Error> {
-        /*FIXME - optimize this*/
-        let mut acc = 0;
-        while self.read::<u32>(1)? != 0 {
-            acc += 1;
-        }
-        Ok(acc)
-    }
-
-    fn read_unary1(&mut self) -> Result<u32, io::Error> {
-        /*FIXME - optimize this*/
-        let mut acc = 0;
-        while self.read::<u32>(1)? != 1 {
-            acc += 1;
-        }
-        Ok(acc)
     }
 
     #[inline]
@@ -185,24 +181,6 @@ impl<'a> BitRead for BitReaderLE<'a> {
             }
             Ok(())
         }
-    }
-
-    fn read_unary0(&mut self) -> Result<u32, io::Error> {
-        /*FIXME - optimize this*/
-        let mut acc = 0;
-        while self.read::<u32>(1)? != 0 {
-            acc += 1;
-        }
-        Ok(acc)
-    }
-
-    fn read_unary1(&mut self) -> Result<u32, io::Error> {
-        /*FIXME - optimize this*/
-        let mut acc = 0;
-        while self.read::<u32>(1)? != 1 {
-            acc += 1;
-        }
-        Ok(acc)
     }
 
     #[inline]
