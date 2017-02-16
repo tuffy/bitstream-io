@@ -53,58 +53,6 @@ impl<'a> BitReaderBE<'a> {
     pub fn new(reader: &mut io::BufRead) -> BitReaderBE {
         BitReaderBE{reader: reader, bitqueue: BitQueueBE::new()}
     }
-
-    fn read_aligned<U>(&mut self,
-                       mut bytes: u32,
-                       acc: &mut BitQueueBE<U>) -> Result<(), io::Error>
-        where U: Numeric {
-        use std::cmp::min;
-
-        while bytes > 0 {
-            let processed = {
-                let buf = self.reader.fill_buf()?;
-                let to_process = min(bytes as usize, buf.len());
-                for b in &buf[0..to_process] {
-                    acc.push(8, U::from_u8(*b));
-                }
-                to_process
-            };
-            if processed > 0 {
-                self.reader.consume(processed);
-                bytes -= processed as u32;
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof, "EOF in stream"));
-            }
-        }
-        Ok(())
-    }
-
-    fn read_unaligned<U>(&mut self,
-                         bits: u32,
-                         acc: &mut BitQueueBE<U>) -> Result<(), io::Error>
-        where U: Numeric {
-        debug_assert!(bits <= 8);
-
-        if bits > 0 {
-            let length = {
-                let buf = self.reader.fill_buf()?;
-                if buf.len() > 0 {
-                    self.bitqueue.set(buf[0], 8);
-                    acc.push(bits, U::from_u8(self.bitqueue.pop(bits)));
-                    1
-                } else {0}
-			};
-            if length > 0 {
-                Ok(self.reader.consume(length))
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof, "EOF in stream"))
-            }
-        } else {
-            Ok(())
-        }
-    }
 }
 
 impl<'a> BitRead for BitReaderBE<'a> {
@@ -121,9 +69,12 @@ impl<'a> BitRead for BitReaderBE<'a> {
             bits -= to_transfer;
         }
 
-        self.read_aligned(bits / 8, &mut acc)
-            .and_then(|()| self.read_unaligned(bits % 8, &mut acc))
-            .map(|()| acc.value())
+        read_aligned(&mut self.reader, bits / 8, &mut acc)
+        .and_then(|()| read_unaligned(&mut self.reader,
+                                      bits % 8,
+                                      &mut acc,
+                                      &mut self.bitqueue))
+        .map(|()| acc.value())
     }
 
     fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
@@ -265,5 +216,59 @@ impl<'a> BitRead for BitReaderLE<'a> {
 
     fn byte_align(&mut self) {
         self.buffer.clear()
+    }
+}
+
+fn read_aligned<N>(reader: &mut io::BufRead,
+                   mut bytes: u32,
+                   acc: &mut BitQueue<N>) -> Result<(), io::Error>
+    where N: Numeric {
+    use std::cmp::min;
+
+    while bytes > 0 {
+        let processed = {
+            let buf = reader.fill_buf()?;
+            let to_process = min(bytes as usize, buf.len());
+            for b in &buf[0..to_process] {
+                acc.push(8, N::from_u8(*b));
+            }
+            to_process
+        };
+        if processed > 0 {
+            reader.consume(processed);
+            bytes -= processed as u32;
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof, "EOF in stream"));
+        }
+    }
+    Ok(())
+}
+
+fn read_unaligned<N>(reader: &mut io::BufRead,
+                     bits: u32,
+                     acc: &mut BitQueue<N>,
+                     rem: &mut BitQueue<u8>) -> Result<(), io::Error>
+    where N: Numeric {
+
+    debug_assert!(bits <= 8);
+
+    if bits > 0 {
+        let length = {
+            let buf = reader.fill_buf()?;
+            if buf.len() > 0 {
+                rem.set(buf[0], 8);
+                acc.push(bits, N::from_u8(rem.pop(bits)));
+                1
+            } else {0}
+        };
+        if length > 0 {
+            Ok(reader.consume(length))
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof, "EOF in stream"))
+        }
+    } else {
+        Ok(())
     }
 }

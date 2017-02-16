@@ -76,10 +76,6 @@ define_signed_numeric!(i32);
 define_signed_numeric!(i64);
 
 pub trait BitQueue<N: Numeric> {
-    /// Creates new queue in this type with bits and value
-    /// initialized to 0
-    fn new() -> Self;
-
     /// Discards queue's current status and sets it to new bits and value
     fn set(&mut self, value: N, bits: u32);
 
@@ -112,10 +108,14 @@ pub trait BitQueue<N: Numeric> {
 
 pub struct BitQueueBE<N: Numeric> {value: N, bits: u32}
 
-impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
+impl<N: Numeric> BitQueueBE<N> {
     #[inline]
-    fn new() -> BitQueueBE<N> {BitQueueBE{value: N::default(), bits: 0}}
+    pub fn new() -> BitQueueBE<N> {
+        BitQueueBE{value: N::default(), bits: 0}
+    }
+}
 
+impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
     #[inline]
     fn set(&mut self, value: N, bits: u32) {
         self.value = value; self.bits = bits;
@@ -144,10 +144,14 @@ impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
 
 pub struct BitQueueLE<N: Numeric> {value: N, bits: u32}
 
-impl<N: Numeric> BitQueue<N> for BitQueueLE<N> {
+impl<N: Numeric> BitQueueLE<N> {
     #[inline]
-    fn new() -> BitQueueLE<N> {BitQueueLE{value: N::default(), bits: 0}}
+    pub fn new() -> BitQueueLE<N> {
+        BitQueueLE{value: N::default(), bits: 0}
+    }
+}
 
+impl<N: Numeric> BitQueue<N> for BitQueueLE<N> {
     #[inline]
     fn set(&mut self, value: N, bits: u32) {
         self.value = value; self.bits = bits;
