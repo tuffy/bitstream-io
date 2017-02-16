@@ -82,7 +82,9 @@ impl<A: Numeric> BitQueueBE<A> {
     pub fn len(&self) -> u32 {self.bits}
 
     #[inline(always)]
-    pub fn empty(&self) -> bool {self.bits == 0}
+    pub fn is_empty(&self) -> bool {self.bits == 0}
+
+    pub fn clear(&mut self) {self.value = A::default(); self.bits = 0;}
 
     pub fn push(&mut self, bits: u32, value: A) {
         self.value <<= bits;
@@ -112,7 +114,9 @@ impl<A: Numeric> BitQueueLE<A> {
     pub fn len(&self) -> u32 {self.bits}
 
     #[inline(always)]
-    pub fn empty(&self) -> bool {self.bits == 0}
+    pub fn is_empty(&self) -> bool {self.bits == 0}
+
+    pub fn clear(&mut self) {self.value = A::default(); self.bits = 0;}
 
     pub fn push(&mut self, bits: u32, mut value: A) {
         value <<= self.bits;
