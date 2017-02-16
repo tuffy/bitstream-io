@@ -4,6 +4,54 @@ use super::{Numeric, SignedNumeric, BitQueueBE, BitQueueLE, BitQueue};
 
 /// For reading bit values from an underlying stream
 /// in a given endianness.
+///
+/// ## Example
+/// ```
+/// use std::io::Cursor;
+/// use bitstream_io::{BitRead, BitReaderBE};
+///
+/// let flac: Vec<u8> = vec![0x66,0x4C,0x61,0x43,0x00,0x00,0x00,0x22,
+///                          0x10,0x00,0x10,0x00,0x00,0x06,0x06,0x00,
+///                          0x21,0x62,0x0A,0xC4,0x42,0xF0,0x00,0x04,
+///                          0xA6,0xCC,0xFA,0xF2,0x69,0x2F,0xFD,0xEC,
+///                          0x2D,0x5B,0x30,0x01,0x76,0xB4,0x62,0x88,
+///                          0x7D,0x92];
+///
+/// let mut cursor = Cursor::new(&flac);
+/// let mut reader = BitReaderBE::new(&mut cursor);
+/// let mut file_header: [u8; 4] = [0, 0, 0, 0];
+/// reader.read_bytes(&mut file_header).unwrap();
+/// assert_eq!(&file_header, b"fLaC");
+///
+/// let last_block: u8 = reader.read(1).unwrap();
+/// let block_type: u8 = reader.read(7).unwrap();
+/// let block_size: u32 = reader.read(24).unwrap();
+/// assert_eq!(last_block, 0);
+/// assert_eq!(block_type, 0);
+/// assert_eq!(block_size, 34);
+///
+/// let minimum_block_size: u16 = reader.read(16).unwrap();
+/// let maximum_block_size: u16 = reader.read(16).unwrap();
+/// let minimum_frame_size: u32 = reader.read(24).unwrap();
+/// let maximum_frame_size: u32 = reader.read(24).unwrap();
+/// let sample_rate: u32 = reader.read(20).unwrap();
+/// let channels = reader.read::<u8>(3).unwrap() + 1;
+/// let bits_per_sample = reader.read::<u8>(5).unwrap() + 1;
+/// let total_samples: u64 = reader.read(36).unwrap();
+/// assert_eq!(minimum_block_size, 4096);
+/// assert_eq!(maximum_block_size, 4096);
+/// assert_eq!(minimum_frame_size, 1542);
+/// assert_eq!(maximum_frame_size, 8546);
+/// assert_eq!(sample_rate, 44100);
+/// assert_eq!(channels, 2);
+/// assert_eq!(bits_per_sample, 16);
+/// assert_eq!(total_samples, 304844);
+///
+/// let mut md5: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+/// reader.read_bytes(&mut md5).unwrap();
+/// assert_eq!(&md5,
+///     b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92");
+/// ```
 pub trait BitRead {
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
