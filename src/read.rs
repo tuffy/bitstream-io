@@ -81,7 +81,7 @@ impl<'a> BitRead for BitReaderBE<'a> {
         debug_assert!(bits >= 1);
         let sign = self.read::<S>(1)?;
         let unsigned = self.read::<S>(bits - 1)?;
-        Ok(if sign.to_bit() {unsigned.as_negative(bits)} else {unsigned})
+        Ok(if sign.is_zero() {unsigned} else{unsigned.as_negative(bits)})
     }
 
     fn skip(&mut self, bits: u32) -> Result<(), io::Error> {
@@ -168,7 +168,7 @@ impl<'a> BitRead for BitReaderLE<'a> {
         debug_assert!(bits >= 1);
         let unsigned = self.read::<S>(bits - 1)?;
         let sign = self.read::<S>(1)?;
-        Ok(if sign.to_bit() {unsigned.as_negative(bits)} else {unsigned})
+        Ok(if sign.is_zero() {unsigned} else {unsigned.as_negative(bits)})
     }
 
     fn skip(&mut self, bits: u32) -> Result<(), io::Error> {

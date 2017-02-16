@@ -21,6 +21,7 @@ pub trait Numeric: Sized + Copy + Default + Debug +
     fn one() -> Self;
     fn from_bit(bit: bool) -> Self;
     fn to_bit(self) -> bool;
+    fn is_zero(self) -> bool;
     fn from_u8(u: u8) -> Self;
     fn to_u8(self) -> u8;
 }
@@ -34,6 +35,8 @@ macro_rules! define_numeric {
             fn from_bit(bit: bool) -> Self {if bit {1} else {0}}
             #[inline(always)]
             fn to_bit(self) -> bool {self != 0}
+            #[inline(always)]
+            fn is_zero(self) -> bool {self == 0}
             #[inline(always)]
             fn from_u8(u: u8) -> Self {u as $t}
             #[inline(always)]
