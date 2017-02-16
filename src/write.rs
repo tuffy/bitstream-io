@@ -4,6 +4,51 @@ use super::{Numeric, SignedNumeric, BitQueue, BitQueueBE, BitQueueLE};
 
 /// For writing bit values to an underlying stream
 /// in a given endianness.
+///
+/// ## Example
+/// ```
+/// use bitstream_io::{BitWrite, BitWriterBE};
+///
+/// let mut flac: Vec<u8> = Vec::new();
+/// {
+///     let mut writer = BitWriterBE::new(&mut flac);
+///     writer.write_bytes(b"fLaC").unwrap();
+///
+///     let last_block: u8 = 0;
+///     let block_type: u8 = 0;
+///     let block_size: u32 = 34;
+///     writer.write(1, last_block).unwrap();
+///     writer.write(7, block_type).unwrap();
+///     writer.write(24, block_size).unwrap();
+///
+///     let minimum_block_size: u16 = 4096;
+///     let maximum_block_size: u16 = 4096;
+///     let minimum_frame_size: u32 = 1542;
+///     let maximum_frame_size: u32 = 8546;
+///     let sample_rate: u32 = 44100;
+///     let channels: u8 = 2;
+///     let bits_per_sample: u8 = 16;
+///     let total_samples: u64 = 304844;
+///     writer.write(16, minimum_block_size).unwrap();
+///     writer.write(16, maximum_block_size).unwrap();
+///     writer.write(24, minimum_frame_size).unwrap();
+///     writer.write(24, maximum_frame_size).unwrap();
+///     writer.write(20, sample_rate).unwrap();
+///     writer.write(3, channels - 1).unwrap();
+///     writer.write(5, bits_per_sample - 1).unwrap();
+///     writer.write(36, total_samples).unwrap();
+///
+///     writer.write_bytes(
+///         b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92")
+///           .unwrap();
+/// }
+/// assert_eq!(flac, vec![0x66,0x4C,0x61,0x43,0x00,0x00,0x00,0x22,
+///                       0x10,0x00,0x10,0x00,0x00,0x06,0x06,0x00,
+///                       0x21,0x62,0x0A,0xC4,0x42,0xF0,0x00,0x04,
+///                       0xA6,0xCC,0xFA,0xF2,0x69,0x2F,0xFD,0xEC,
+///                       0x2D,0x5B,0x30,0x01,0x76,0xB4,0x62,0x88,
+///                       0x7D,0x92]);
+/// ```
 pub trait BitWrite {
     /// Writes an unsigned value to the stream using the given
     /// number of bits.  This method assumes that value's type

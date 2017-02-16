@@ -29,8 +29,8 @@
 //! is harmless.
 //! But reading 32 bits from the stream to an 8-bit variable
 //! may result in a panic.
-//! Similarly, writing a 32-bit variable in 8 bits is harmless.
-//! But writing an 8-bit variable in 32 bits may also cause a panic.
+//! Similarly, writing a 32-bit variable in 8 bits is harmless
+//! only so long as the topmost 24 bits are unoccupied.
 
 use std::ops::{BitOrAssign, Shl, Shr, ShlAssign, ShrAssign, BitAnd,
                Rem, RemAssign};
