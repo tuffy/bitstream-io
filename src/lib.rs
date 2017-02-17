@@ -1,12 +1,15 @@
 //! Traits and helpers for bitstream handling functionality
 //!
-//! Bitstream readers and bitstream writers are designed
-//! for reading potentially un-aligned binary values
-//! into unsigned or signed integers from an underlying binary stream.
+//! Bitstream readers are for reading signed and unsigned integer
+//! values from a stream whose sizes may not be whole bytes.
+//! Bitstream writers are for writing signed and unsigned integer
+//! values to a stream, also potentially un-aligned at a whole byte.
 //!
-//! The only requirement for reader streams is that they must
-//! implement the [`BufRead`] trait, and the only requirement
-//! for writer streams is that they must implement the [`Write`] trait.
+//! Both big-endian and little-endian streams are supported.
+//!
+//! The only requirement for wrapped reader streams is that they must
+//! implement the `BufRead` trait, and the only requirement
+//! for writer streams is that they must implement the `Write` trait.
 //!
 //! In addition, reader streams do not consume any more bytes
 //! from the underlying reader than necessary, buffering only a
@@ -26,14 +29,14 @@
 //! Otherwise, an overflow error panic may occur.
 //!
 //! For example, reading 8 bits from the stream to a 32-bit variable
-//! is harmless.
-//! But reading 32 bits from the stream to an 8-bit variable
+//! is harmless (the topmost 24 bits are left empty),
+//! but reading 32 bits from the stream to an 8-bit variable
 //! may result in a panic.
-//! Similarly, writing a 32-bit variable in 8 bits is harmless
-//! only so long as the topmost 24 bits are unoccupied.
+//! Similarly, writing a 32-bit variable to 8 bits is also harmless
+//! (the topmost 24 bits are ignored), but writing an 8-bit variable
+//! to 32 bits in the stream may cause a panic.
 
-use std::ops::{BitOrAssign, Shl, Shr, ShlAssign, ShrAssign, BitAnd,
-               Rem, RemAssign};
+use std::ops::{Shl, ShlAssign, Shr, ShrAssign, Rem, RemAssign, BitOrAssign};
 use std::fmt::Debug;
 
 pub mod read;
@@ -52,10 +55,10 @@ pub use write::BitWriterLE;
 /// with a few trivial methods so that they can be used
 /// with the bitstream handling traits.
 pub trait Numeric: Sized + Copy + Default + Debug +
-    ShlAssign<u32> + ShrAssign<u32> +
-    Shl<u32,Output=Self> + Shr<u32,Output=Self> +
-    BitOrAssign<Self> + BitAnd<Self,Output=Self> +
-    Rem<Self,Output=Self> + RemAssign<Self> {
+    Shl<u32,Output=Self> + ShlAssign<u32> +
+    Shr<u32,Output=Self> + ShrAssign<u32> +
+    Rem<Self,Output=Self> + RemAssign<Self> +
+    BitOrAssign<Self> {
 
     /// The value of 1 in this type
     fn one() -> Self;
@@ -63,10 +66,10 @@ pub trait Numeric: Sized + Copy + Default + Debug +
     /// Returns true if this value is 0, in its type
     fn is_zero(self) -> bool;
 
-    /// Returns a u8 value in this type.
+    /// Returns a `u8` value in this type
     fn from_u8(u: u8) -> Self;
 
-    /// Assuming 0 <= value < 256, returns this value as a u8 type.
+    /// Assuming 0 <= value < 256, returns this value as a `u8` type
     fn to_u8(self) -> u8;
 }
 
@@ -156,13 +159,12 @@ pub trait BitQueue<N: Numeric> {
 
     /// Pops a value from the front of the queue
     /// with the given number of bits.
-    /// May panic if the total number of bytes popped
-    /// exceeds the length of the queue.
+    /// Returns queue's whole contents if the requested number of bits
+    /// exceeds the size of the queue.
     fn pop(&mut self, bits: u32) -> N;
 }
 
-/// This is a wrapper around some unsigned type
-/// to turn it into a big-endian queue.
+/// A wrapper around some unsigned type to turn it into a big-endian queue.
 pub struct BitQueueBE<N: Numeric> {value: N, bits: u32}
 
 impl<N: Numeric> BitQueueBE<N> {
@@ -195,7 +197,6 @@ impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
     fn len(&self) -> u32 {self.bits}
 
     fn push(&mut self, bits: u32, value: N) {
-        /*FIXME - optimize this in release?*/
         if !self.value.is_zero() {
             self.value <<= bits;
         }
@@ -219,8 +220,7 @@ impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
     }
 }
 
-/// This is a wrapper around some unsigned type
-/// to turn it into a big-endian queue.
+/// A wrapper around some unsigned type to turn it into a little-endian queue.
 pub struct BitQueueLE<N: Numeric> {value: N, bits: u32}
 
 impl<N: Numeric> BitQueueLE<N> {

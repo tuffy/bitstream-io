@@ -1,57 +1,63 @@
+//! Traits and implementations for reading bits from a stream.
+//!
+//! ## Example
+//! ```
+//! use std::io::Cursor;
+//! use std::io::Read;
+//! use bitstream_io::{BitRead, BitReaderBE};
+//!
+//! let flac: Vec<u8> = vec![0x66,0x4C,0x61,0x43,0x00,0x00,0x00,0x22,
+//!                          0x10,0x00,0x10,0x00,0x00,0x06,0x06,0x00,
+//!                          0x21,0x62,0x0A,0xC4,0x42,0xF0,0x00,0x04,
+//!                          0xA6,0xCC,0xFA,0xF2,0x69,0x2F,0xFD,0xEC,
+//!                          0x2D,0x5B,0x30,0x01,0x76,0xB4,0x62,0x88,
+//!                          0x7D,0x92];
+//!
+//! let mut cursor = Cursor::new(&flac);
+//! {
+//!     let mut reader = BitReaderBE::new(&mut cursor);
+//!     let mut file_header: [u8; 4] = [0, 0, 0, 0];
+//!     reader.read_bytes(&mut file_header).unwrap();
+//!     assert_eq!(&file_header, b"fLaC");
+//!
+//!     let last_block: u8 = reader.read(1).unwrap();
+//!     let block_type: u8 = reader.read(7).unwrap();
+//!     let block_size: u32 = reader.read(24).unwrap();
+//!     assert_eq!(last_block, 0);
+//!     assert_eq!(block_type, 0);
+//!     assert_eq!(block_size, 34);
+//!
+//!     let minimum_block_size: u16 = reader.read(16).unwrap();
+//!     let maximum_block_size: u16 = reader.read(16).unwrap();
+//!     let minimum_frame_size: u32 = reader.read(24).unwrap();
+//!     let maximum_frame_size: u32 = reader.read(24).unwrap();
+//!     let sample_rate: u32 = reader.read(20).unwrap();
+//!     let channels = reader.read::<u8>(3).unwrap() + 1;
+//!     let bits_per_sample = reader.read::<u8>(5).unwrap() + 1;
+//!     let total_samples: u64 = reader.read(36).unwrap();
+//!     assert_eq!(minimum_block_size, 4096);
+//!     assert_eq!(maximum_block_size, 4096);
+//!     assert_eq!(minimum_frame_size, 1542);
+//!     assert_eq!(maximum_frame_size, 8546);
+//!     assert_eq!(sample_rate, 44100);
+//!     assert_eq!(channels, 2);
+//!     assert_eq!(bits_per_sample, 16);
+//!     assert_eq!(total_samples, 304844);
+//! }
+//!
+//! // the wrapped reader can be used once bitstream reading is finished
+//! // at exactly the position one would expect
+//! let mut md5: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+//! cursor.read_exact(&mut md5).unwrap();
+//! assert_eq!(&md5,
+//!     b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92");
+//! ```
+
 use std::io;
 
 use super::{Numeric, SignedNumeric, BitQueueBE, BitQueueLE, BitQueue};
 
-/// For reading bit values from an underlying stream
-/// in a given endianness.
-///
-/// ## Example
-/// ```
-/// use std::io::Cursor;
-/// use bitstream_io::{BitRead, BitReaderBE};
-///
-/// let flac: Vec<u8> = vec![0x66,0x4C,0x61,0x43,0x00,0x00,0x00,0x22,
-///                          0x10,0x00,0x10,0x00,0x00,0x06,0x06,0x00,
-///                          0x21,0x62,0x0A,0xC4,0x42,0xF0,0x00,0x04,
-///                          0xA6,0xCC,0xFA,0xF2,0x69,0x2F,0xFD,0xEC,
-///                          0x2D,0x5B,0x30,0x01,0x76,0xB4,0x62,0x88,
-///                          0x7D,0x92];
-///
-/// let mut cursor = Cursor::new(&flac);
-/// let mut reader = BitReaderBE::new(&mut cursor);
-/// let mut file_header: [u8; 4] = [0, 0, 0, 0];
-/// reader.read_bytes(&mut file_header).unwrap();
-/// assert_eq!(&file_header, b"fLaC");
-///
-/// let last_block: u8 = reader.read(1).unwrap();
-/// let block_type: u8 = reader.read(7).unwrap();
-/// let block_size: u32 = reader.read(24).unwrap();
-/// assert_eq!(last_block, 0);
-/// assert_eq!(block_type, 0);
-/// assert_eq!(block_size, 34);
-///
-/// let minimum_block_size: u16 = reader.read(16).unwrap();
-/// let maximum_block_size: u16 = reader.read(16).unwrap();
-/// let minimum_frame_size: u32 = reader.read(24).unwrap();
-/// let maximum_frame_size: u32 = reader.read(24).unwrap();
-/// let sample_rate: u32 = reader.read(20).unwrap();
-/// let channels = reader.read::<u8>(3).unwrap() + 1;
-/// let bits_per_sample = reader.read::<u8>(5).unwrap() + 1;
-/// let total_samples: u64 = reader.read(36).unwrap();
-/// assert_eq!(minimum_block_size, 4096);
-/// assert_eq!(maximum_block_size, 4096);
-/// assert_eq!(minimum_frame_size, 1542);
-/// assert_eq!(maximum_frame_size, 8546);
-/// assert_eq!(sample_rate, 44100);
-/// assert_eq!(channels, 2);
-/// assert_eq!(bits_per_sample, 16);
-/// assert_eq!(total_samples, 304844);
-///
-/// let mut md5: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-/// reader.read_bytes(&mut md5).unwrap();
-/// assert_eq!(&md5,
-///     b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92");
-/// ```
+/// For reading bit values from an underlying stream in a given endianness.
 pub trait BitRead {
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
@@ -71,9 +77,9 @@ pub trait BitRead {
     /// Since this method does not need an accumulator,
     /// it may be slightly faster than reading to an empty variable.
     /// In addition, since there is no accumulator,
-    /// there is no upper limit on the number of bytes
+    /// there is no upper limit on the number of bits
     /// which may be skipped.
-    /// These bytes are still read from the stream, however,
+    /// These bits are still read from the stream, however,
     /// and are never skipped via a `seek` method.
     fn skip(&mut self, bits: u32) -> Result<(), io::Error>;
 
@@ -83,21 +89,27 @@ pub trait BitRead {
     /// bytes individually in 8-bit increments.
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error>;
 
-    /// Reads an unsigned unary value with a stop bit of 0.
+    /// Counts the number of 1 bits in the stream until the next
+    /// 0 bit and returns the amount read.
+    /// Because this field is variably-sized and may be large,
+    /// its output is always a `u32` type.
     fn read_unary0(&mut self) -> Result<u32, io::Error> {
         /*FIXME - optimize this*/
         let mut acc = 0;
-        while self.read::<u32>(1)? != 0 {
+        while self.read::<u8>(1)? != 0 {
             acc += 1;
         }
         Ok(acc)
     }
 
-    /// Reads an unsigned unary value with a stop bit of 1.
+    /// Counts the number of 0 bits in the stream until the next
+    /// 1 bit and returns the amount read.
+    /// Because this field is variably-sized and may be large,
+    /// its output is always a `u32` type.
     fn read_unary1(&mut self) -> Result<u32, io::Error> {
         /*FIXME - optimize this*/
         let mut acc = 0;
-        while self.read::<u32>(1)? != 1 {
+        while self.read::<u8>(1)? != 1 {
             acc += 1;
         }
         Ok(acc)
