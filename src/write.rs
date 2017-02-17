@@ -123,7 +123,8 @@ pub trait BitWrite {
 /// A wrapper for writing values to a big-endian stream.
 pub struct BitWriterBE<'a> {
     writer: &'a mut io::Write,
-    bitqueue: BitQueueBE<u8>
+    bitqueue: BitQueueBE<u8>,
+    byte_buf: Vec<u8>
 }
 
 impl<'a> BitWriterBE<'a> {
@@ -133,7 +134,9 @@ impl<'a> BitWriterBE<'a> {
     /// in the course of normal operation, a `BufWrite` is preferable
     /// for better performance.
     pub fn new(writer: &mut io::Write) -> BitWriterBE {
-        BitWriterBE{writer: writer, bitqueue: BitQueueBE::new()}
+        BitWriterBE{writer: writer,
+                    bitqueue: BitQueueBE::new(),
+                    byte_buf: Vec::new()}
     }
 }
 
@@ -142,7 +145,8 @@ impl<'a> BitWrite for BitWriterBE<'a> {
         where U: Numeric {
         let mut acc = BitQueueBE::from_value(value, bits);
         write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
-        .and_then(|()| write_aligned(&mut self.writer, &mut acc))
+        .and_then(|()|
+            write_aligned(&mut self.writer, &mut self.byte_buf, &mut acc))
         .and_then(|()| Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
     }
 
@@ -177,7 +181,8 @@ impl<'a> BitWrite for BitWriterBE<'a> {
 /// A wrapper for writing values to a little-endian stream.
 pub struct BitWriterLE<'a> {
     writer: &'a mut io::Write,
-    bitqueue: BitQueueLE<u8>
+    bitqueue: BitQueueLE<u8>,
+    byte_buf: Vec<u8>
 }
 
 impl<'a> BitWriterLE<'a> {
@@ -187,7 +192,9 @@ impl<'a> BitWriterLE<'a> {
     /// in the course of normal operation, a `BufWrite` is preferable
     /// for better performance.
     pub fn new(writer: &mut io::Write) -> BitWriterLE {
-        BitWriterLE{writer: writer, bitqueue: BitQueueLE::new()}
+        BitWriterLE{writer: writer,
+                    bitqueue: BitQueueLE::new(),
+                    byte_buf: Vec::new()}
     }
 }
 
@@ -196,7 +203,8 @@ impl<'a> BitWrite for BitWriterLE<'a> {
         where U: Numeric {
         let mut acc = BitQueueLE::from_value(value, bits);
         write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
-        .and_then(|()| write_aligned(&mut self.writer, &mut acc))
+        .and_then(|()|
+            write_aligned(&mut self.writer, &mut self.byte_buf, &mut acc))
         .and_then(|()| Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
     }
 
@@ -249,19 +257,12 @@ fn write_unaligned<N>(writer: &mut io::Write,
 }
 
 fn write_aligned<N>(writer: &mut io::Write,
+                    byte_buf: &mut Vec<u8>,
                     acc: &mut BitQueue<N>) -> Result<(), io::Error>
     where N: Numeric {
     let bytes_to_write = (acc.len() / 8) as usize;
     if bytes_to_write > 0 {
-        let mut byte_buf: Vec<u8> = Vec::with_capacity(bytes_to_write);
-        unsafe {
-            /*no sense in initializing the buffer with 0s
-              only to overwrite each byte from the accumulator
-              in the very next step, so this should be okay*/
-            byte_buf.set_len(bytes_to_write);
-            // safe version
-            // byte_buf.resize(bytes_to_write, 0);
-        }
+        byte_buf.resize(bytes_to_write, 0);
         for byte in byte_buf.iter_mut() {
             *byte = acc.pop(8).to_u8();
         }
