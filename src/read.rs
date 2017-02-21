@@ -101,27 +101,13 @@ pub trait BitRead {
     /// 0 bit and returns the amount read.
     /// Because this field is variably-sized and may be large,
     /// its output is always a `u32` type.
-    fn read_unary0(&mut self) -> Result<u32, io::Error> {
-        /*FIXME - optimize this*/
-        let mut acc = 0;
-        while self.read::<u8>(1)? != 0 {
-            acc += 1;
-        }
-        Ok(acc)
-    }
+    fn read_unary0(&mut self) -> Result<u32, io::Error>;
 
     /// Counts the number of 0 bits in the stream until the next
     /// 1 bit and returns the amount read.
     /// Because this field is variably-sized and may be large,
     /// its output is always a `u32` type.
-    fn read_unary1(&mut self) -> Result<u32, io::Error> {
-        /*FIXME - optimize this*/
-        let mut acc = 0;
-        while self.read::<u8>(1)? != 1 {
-            acc += 1;
-        }
-        Ok(acc)
-    }
+    fn read_unary1(&mut self) -> Result<u32, io::Error>;
 
     /// Returns true if the stream is aligned at a whole byte.
     fn byte_aligned(&self) -> bool;
@@ -130,6 +116,25 @@ pub trait BitRead {
     fn byte_align(&mut self);
 
     /*FIXME - add support for reading Huffman codes*/
+}
+
+
+macro_rules! define_read_unary {
+    ($method_name:ident, $stop_bit:expr) => {
+        fn $method_name(&mut self) -> Result<u32, io::Error> {
+            let mut acc = 0;
+            if self.bitqueue.is_empty() {
+                self.bitqueue.set(read_byte(&mut self.reader)?, 8);
+            }
+            while self.bitqueue.pop(1) == $stop_bit {
+                acc += 1;
+                if self.bitqueue.is_empty() {
+                    self.bitqueue.set(read_byte(&mut self.reader)?, 8);
+                }
+            }
+            Ok(acc)
+        }
+    }
 }
 
 /// A wrapper for reading values from a big-endian stream.
@@ -206,6 +211,9 @@ impl<'a> BitRead for BitReaderBE<'a> {
             Ok(())
         }
     }
+
+	define_read_unary!(read_unary0, 1);
+	define_read_unary!(read_unary1, 0);
 
     #[inline]
     fn byte_aligned(&self) -> bool {
@@ -293,6 +301,9 @@ impl<'a> BitRead for BitReaderLE<'a> {
             Ok(())
         }
     }
+
+	define_read_unary!(read_unary0, 1);
+	define_read_unary!(read_unary1, 0);
 
     #[inline]
     fn byte_aligned(&self) -> bool {
@@ -403,4 +414,18 @@ fn skip_unaligned(reader: &mut io::BufRead,
     } else {
         Ok(())
     }
+}
+
+fn read_byte(reader: &mut io::BufRead) -> Result<u8,io::Error> {
+	let byte = {
+        let buf = reader.fill_buf()?;
+        if buf.len() > 0 {
+            buf[0]
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof, "EOF in stream"));
+        }
+    };
+    reader.consume(1);
+    Ok(byte)
 }
