@@ -270,10 +270,8 @@ fn write_aligned<N>(writer: &mut io::Write,
     where N: Numeric {
     let bytes_to_write = (acc.len() / 8) as usize;
     if bytes_to_write > 0 {
-        byte_buf.resize(bytes_to_write, 0);
-        for byte in byte_buf.iter_mut() {
-            *byte = acc.pop(8).to_u8();
-        }
+        byte_buf.clear();
+        byte_buf.extend((0..bytes_to_write).map(|_| acc.pop(8).to_u8()));
         writer.write_all(&byte_buf)
     } else {
         Ok(())
