@@ -139,18 +139,13 @@ macro_rules! define_read_unary {
 
 /// A wrapper for reading values from a big-endian stream.
 pub struct BitReaderBE<'a> {
-    reader: &'a mut io::BufRead,
+    reader: &'a mut io::Read,
     bitqueue: BitQueueBE<u8>
 }
 
 impl<'a> BitReaderBE<'a> {
-    /// Wraps a big-endian reader around a `BufRead` reference.
-    ///
-    /// A `BufRead` is required because this reader is liable
-    /// to make many small reads to the stream in normal operation,
-    /// so reading from the buffer directly is preferable
-    /// to making many calls to `read_exact`.
-    pub fn new(reader: &mut io::BufRead) -> BitReaderBE {
+    /// Wraps a big-endian reader around a `Read` reference.
+    pub fn new(reader: &mut io::Read) -> BitReaderBE {
         BitReaderBE{reader: reader, bitqueue: BitQueueBE::new()}
     }
 }
@@ -228,18 +223,13 @@ impl<'a> BitRead for BitReaderBE<'a> {
 
 /// A wrapper for reading values from a little-endian stream.
 pub struct BitReaderLE<'a> {
-    reader: &'a mut io::BufRead,
+    reader: &'a mut io::Read,
     bitqueue: BitQueueLE<u8>
 }
 
 impl<'a> BitReaderLE<'a> {
-    /// Wraps a little-endian reader around a `BufRead` reference.
-    ///
-    /// A `BufRead` is required because this reader is liable
-    /// to make many small reads to the stream in normal operation,
-    /// so reading from the buffer directly is preferable
-    /// to making many calls to `read_exact`.
-    pub fn new(reader: &mut io::BufRead) -> BitReaderLE {
+    /// Wraps a little-endian reader around a `Read` reference.
+    pub fn new(reader: &mut io::Read) -> BitReaderLE {
         BitReaderLE{reader: reader, bitqueue: BitQueueLE::new()}
     }
 }
@@ -316,33 +306,50 @@ impl<'a> BitRead for BitReaderLE<'a> {
     }
 }
 
-fn read_aligned<N>(reader: &mut io::BufRead,
+#[inline]
+fn read_byte(reader: &mut io::Read) -> Result<u8,io::Error> {
+	let mut buf = [0; 1];
+    reader.read_exact(&mut buf).map(|()| buf[0])
+}
+
+fn read_aligned<N>(reader: &mut io::Read,
                    mut bytes: u32,
                    acc: &mut BitQueue<N>) -> Result<(), io::Error>
     where N: Numeric {
     use std::cmp::min;
 
+    // for native types, it's difficult to imagine a situation
+    // in which this would require more than a single pass
+    let mut buf = [0; 8];
     while bytes > 0 {
-        let processed = {
-            let buf = reader.fill_buf()?;
-            let to_process = min(bytes as usize, buf.len());
-            for b in &buf[0..to_process] {
-                acc.push(8, N::from_u8(*b));
-            }
-            to_process
-        };
-        if processed > 0 {
-            reader.consume(processed);
-            bytes -= processed as u32;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof, "EOF in stream"));
+        let to_read = min(8, bytes);
+        reader.read_exact(&mut buf[0..to_read as usize])?;
+        for b in buf.iter().take(to_read as usize) {
+            acc.push(8, N::from_u8(*b));
         }
+        bytes -= to_read;
     }
     Ok(())
 }
 
-fn read_unaligned<N>(reader: &mut io::BufRead,
+fn skip_aligned(reader: &mut io::Read,
+                mut bytes: u32) -> Result<(), io::Error> {
+    use std::cmp::min;
+
+    // for native types, it's difficult to imagine a situation
+    // in which this would require more than a single pass
+    let mut buf = [0; 8];
+    while bytes > 0 {
+        let to_read = min(8, bytes);
+        reader.read_exact(&mut buf[0..to_read as usize])?;
+        bytes -= to_read;
+    }
+    Ok(())
+}
+
+
+#[inline]
+fn read_unaligned<N>(reader: &mut io::Read,
                      bits: u32,
                      acc: &mut BitQueue<N>,
                      rem: &mut BitQueue<u8>) -> Result<(), io::Error>
@@ -351,81 +358,21 @@ fn read_unaligned<N>(reader: &mut io::BufRead,
     debug_assert!(bits <= 8);
 
     if bits > 0 {
-        let length = {
-            let buf = reader.fill_buf()?;
-            if buf.len() > 0 {
-                rem.set(buf[0], 8);
-                acc.push(bits, N::from_u8(rem.pop(bits)));
-                1
-            } else {0}
-        };
-        if length > 0 {
-            Ok(reader.consume(length))
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof, "EOF in stream"))
-        }
-    } else {
-        Ok(())
-    }
-}
-
-fn skip_aligned(reader: &mut io::BufRead,
-                mut bytes: u32) -> Result<(), io::Error> {
-    use std::cmp::min;
-
-    while bytes > 0 {
-        let processed = {
-            let buf = reader.fill_buf()?;
-            let to_process = min(bytes as usize, buf.len());
-            to_process
-        };
-        if processed > 0 {
-            reader.consume(processed);
-            bytes -= processed as u32;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof, "EOF in stream"));
-        }
+        rem.set(read_byte(reader)?, 8);
+        acc.push(bits, N::from_u8(rem.pop(bits)));
     }
     Ok(())
 }
 
-fn skip_unaligned(reader: &mut io::BufRead,
+#[inline]
+fn skip_unaligned(reader: &mut io::Read,
                   bits: u32,
                   rem: &mut BitQueue<u8>) -> Result<(), io::Error> {
     debug_assert!(bits <= 8);
 
     if bits > 0 {
-        let length = {
-            let buf = reader.fill_buf()?;
-            if buf.len() > 0 {
-                rem.set(buf[0], 8);
-                rem.pop(bits);
-                1
-            } else {0}
-        };
-        if length > 0 {
-            Ok(reader.consume(length))
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof, "EOF in stream"))
-        }
-    } else {
-        Ok(())
+        rem.set(read_byte(reader)?, 8);
+        rem.pop(bits);
     }
-}
-
-fn read_byte(reader: &mut io::BufRead) -> Result<u8,io::Error> {
-	let byte = {
-        let buf = reader.fill_buf()?;
-        if buf.len() > 0 {
-            buf[0]
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof, "EOF in stream"));
-        }
-    };
-    reader.consume(1);
-    Ok(byte)
+    Ok(())
 }
