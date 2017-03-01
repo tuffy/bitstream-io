@@ -228,6 +228,14 @@ impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
     }
 }
 
+impl BitQueueBE<u8> {
+    #[inline(always)]
+    fn all_0(&self) -> bool {self.value == 0}
+
+    #[inline(always)]
+    fn all_1(&self) -> bool {self.value == ((1u16 << self.bits) - 1) as u8}
+}
+
 /// A wrapper around some unsigned type to turn it into a little-endian queue.
 pub struct BitQueueLE<N: Numeric> {value: N, bits: u32}
 
@@ -279,4 +287,12 @@ impl<N: Numeric> BitQueue<N> for BitQueueLE<N> {
             to_return
         }
     }
+}
+
+impl BitQueueLE<u8> {
+    #[inline(always)]
+    fn all_0(&self) -> bool {self.value == 0}
+
+    #[inline(always)]
+    fn all_1(&self) -> bool {self.value == ((1u16 << self.bits) - 1) as u8}
 }
