@@ -120,22 +120,24 @@ pub trait BitRead {
 
 macro_rules! define_read_unary {
     ($method_name:ident,
-     $aligned_func:ident,
-     $unaligned_func: ident,
-     $bitqueue_check: ident) => {
+     $aligned_cont_val: expr,
+     $bitqueue_check: ident,
+     $bitqueue_pop: ident) => {
         fn $method_name(&mut self) -> Result<u32, io::Error> {
             if self.bitqueue.is_empty() {
-                $aligned_func(
-                    &mut self.reader, &mut self.bitqueue).map(
-                    |u| u + $unaligned_func(&mut self.bitqueue))
+                read_aligned_unary(&mut self.reader,
+                                   $aligned_cont_val,
+                                   &mut self.bitqueue).map(
+                    |u| u + self.bitqueue.$bitqueue_pop())
             } else if self.bitqueue.$bitqueue_check() {
                 let base = self.bitqueue.len();
                 self.bitqueue.clear();
-                $aligned_func(
-                    &mut self.reader, &mut self.bitqueue).map(
-                    |u| base + u + $unaligned_func(&mut self.bitqueue))
+                read_aligned_unary(&mut self.reader,
+                                   $aligned_cont_val,
+                                   &mut self.bitqueue).map(
+                    |u| base + u + self.bitqueue.$bitqueue_pop())
             } else {
-                Ok($unaligned_func(&mut self.bitqueue))
+                Ok(self.bitqueue.$bitqueue_pop())
             }
         }
     }
@@ -211,10 +213,8 @@ impl<'a> BitRead for BitReaderBE<'a> {
         }
     }
 
-    define_read_unary!(
-        read_unary0, read_aligned_unary0, read_unaligned_unary0, all_1);
-    define_read_unary!(
-        read_unary1, read_aligned_unary1, read_unaligned_unary1, all_0);
+    define_read_unary!(read_unary0, 0xFF, all_1, pop_1);
+    define_read_unary!(read_unary1, 0x00, all_0, pop_0);
 
     #[inline]
     fn byte_aligned(&self) -> bool {
@@ -297,10 +297,9 @@ impl<'a> BitRead for BitReaderLE<'a> {
             Ok(())
         }
     }
-    define_read_unary!(
-        read_unary0, read_aligned_unary0, read_unaligned_unary0, all_1);
-    define_read_unary!(
-        read_unary1, read_aligned_unary1, read_unaligned_unary1, all_0);
+
+    define_read_unary!(read_unary0, 0xFF, all_1, pop_1);
+    define_read_unary!(read_unary1, 0x00, all_0, pop_0);
 
     #[inline]
     fn byte_aligned(&self) -> bool {
@@ -385,45 +384,15 @@ fn skip_unaligned(reader: &mut io::Read,
 }
 
 #[inline]
-fn read_aligned_unary1(reader: &mut io::Read,
-                       rem: &mut BitQueue<u8>) -> Result<u32,io::Error> {
+fn read_aligned_unary(reader: &mut io::Read,
+                      continue_val: u8,
+                      rem: &mut BitQueue<u8>) -> Result<u32,io::Error> {
     let mut acc = 0;
     let mut byte = read_byte(reader)?;
-    while byte == 0 {
+    while byte == continue_val {
         acc += 8;
         byte = read_byte(reader)?;
     }
     rem.set(byte, 8);
     Ok(acc)
-}
-
-#[inline]
-fn read_unaligned_unary1(queue: &mut BitQueue<u8>) -> u32 {
-    let mut acc = 0;
-    while queue.pop(1) == 0 {
-        acc += 1;
-    }
-    acc
-}
-
-#[inline]
-fn read_aligned_unary0(reader: &mut io::Read,
-                       rem: &mut BitQueue<u8>) -> Result<u32,io::Error> {
-    let mut acc = 0;
-    let mut byte = read_byte(reader)?;
-    while byte == 0xFF {
-        acc += 8;
-        byte = read_byte(reader)?;
-    }
-    rem.set(byte, 8);
-    Ok(acc)
-}
-
-#[inline]
-fn read_unaligned_unary0(queue: &mut BitQueue<u8>) -> u32 {
-    let mut acc = 0;
-    while queue.pop(1) == 1 {
-        acc += 1;
-    }
-    acc
 }
