@@ -60,7 +60,7 @@
 use std::io;
 
 use super::{Numeric, SignedNumeric, BitQueue, BitQueueBE, BitQueueLE};
-use huffman::WriteHuffmanTree;
+use huffman::{WriteHuffmanTreeBE, WriteHuffmanTreeLE};
 
 /// For writing bit values to an underlying stream in a given endianness.
 ///
@@ -91,6 +91,7 @@ pub trait BitWrite {
     /// Writes `value` number of 1 bits to the stream
     /// and then writes a 0 bit.  This field is variably-sized.
     fn write_unary0(&mut self, mut value: u32) -> Result<(), io::Error> {
+        /*FIXME - optimize this*/
         while value > 8 {
             self.write(8, 0xFFu8)?;
             value -= 8;
@@ -104,6 +105,7 @@ pub trait BitWrite {
     /// Writes `value` number of 0 bits to the stream
     /// and then writes a 1 bit.  This field is variably-sized.
     fn write_unary1(&mut self, mut value: u32) -> Result<(), io::Error> {
+        /*FIXME - optimize this*/
         while value > 8 {
             self.write(8, 0u8)?;
             value -= 8;
@@ -126,18 +128,6 @@ pub trait BitWrite {
         Ok(())
     }
 
-    /// Given a compiled Huffman tree, writes value to the stream
-    /// with the corresponding bits for that value.
-    /// Panics of the value is not found in the tree.
-    fn write_huffman<T>(&mut self,
-                        tree: &WriteHuffmanTree<T>,
-                        value: T) -> Result<(), io::Error>
-        where T: Ord + Copy {
-        for bit in tree[&value].iter() {
-            self.write(1, *bit)?;
-        }
-        Ok(())
-    }
 }
 
 /// A wrapper for writing values to a big-endian stream.
@@ -157,6 +147,17 @@ impl<'a> BitWriterBE<'a> {
         BitWriterBE{writer: writer,
                     bitqueue: BitQueueBE::new(),
                     byte_buf: Vec::new()}
+    }
+
+    /// Given a compiled Huffman tree, writes value to the stream
+    /// with the corresponding bits for that value.
+    /// Panics of the value is not found in the tree.
+    pub fn write_huffman<T>(&mut self,
+                            tree: &WriteHuffmanTreeBE<T>,
+                            value: T) -> Result<(), io::Error>
+        where T: Ord + Copy {
+        let (bits, value) = tree.get(value);
+        self.write(bits, value)
     }
 }
 
@@ -215,6 +216,17 @@ impl<'a> BitWriterLE<'a> {
         BitWriterLE{writer: writer,
                     bitqueue: BitQueueLE::new(),
                     byte_buf: Vec::new()}
+    }
+
+    /// Given a compiled Huffman tree, writes value to the stream
+    /// with the corresponding bits for that value.
+    /// Panics of the value is not found in the tree.
+    pub fn write_huffman<T>(&mut self,
+                            tree: &WriteHuffmanTreeLE<T>,
+                            value: T) -> Result<(), io::Error>
+        where T: Ord + Copy {
+        let (bits, value) = tree.get(value);
+        self.write(bits, value)
     }
 }
 

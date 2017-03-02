@@ -1,5 +1,7 @@
 extern crate bitstream_io;
-use bitstream_io::huffman::{compile_read, compile_write, HuffmanTreeError};
+use bitstream_io::huffman::{compile_read,
+                            WriteHuffmanTreeBE, WriteHuffmanTreeLE,
+                            HuffmanTreeError};
 
 #[test]
 fn test_huffman_errors() {
@@ -41,8 +43,15 @@ fn test_huffman_errors() {
     );
 
     assert!(
-        if let Err(err) = compile_write(&[(vec![1], 0u32),
-                                          (vec![0, 1], 0u32)]) {
+        if let Err(err) = WriteHuffmanTreeBE::compile(
+            &[(vec![1], 0u32), (vec![0, 1], 0u32)]) {
+            err == HuffmanTreeError::DuplicateValue
+        } else {false}
+    );
+
+    assert!(
+        if let Err(err) = WriteHuffmanTreeLE::compile(
+            &[(vec![1], 0u32), (vec![0, 1], 0u32)]) {
             err == HuffmanTreeError::DuplicateValue
         } else {false}
     );

@@ -142,19 +142,43 @@ pub fn compile_read<T: Copy>(values: &[(Vec<u8>, T)]) ->
     tree.into_read_tree()
 }
 
-pub type WriteHuffmanTree<T> = BTreeMap<T,Vec<u8>>;
-
-pub fn compile_write<T: Ord + Copy>(values: &[(Vec<u8>, T)]) ->
-    Result<WriteHuffmanTree<T>,HuffmanTreeError> {
-    use std::collections::btree_map::Entry;
-
-    let mut tree = BTreeMap::new();
-
-    for &(ref bits, ref value) in values {
-        match tree.entry(*value) {
-            Entry::Vacant(entry) => {entry.insert(bits.clone());}
-            Entry::Occupied(_) => {return Err(HuffmanTreeError::DuplicateValue)}
-        }
-    }
-    Ok(tree)
+macro_rules! define_huffman_type {
+    ($huff_type:ident, $bitqueue_type:ident) => {
+pub struct $huff_type<T: Ord> {
+    map: BTreeMap<T,(u32,u64)>
 }
+
+impl<T: Ord + Copy> $huff_type<T> {
+    #[inline(always)]
+    pub fn get(&self, value: T) -> (u32,u64) {self.map[&value]}
+
+    pub fn compile(values: &[(Vec<u8>, T)]) ->
+        Result<$huff_type<T>,HuffmanTreeError> {
+        use std::collections::btree_map::Entry;
+        use super::{$bitqueue_type, BitQueue};
+
+        let mut tree = BTreeMap::new();
+
+        for &(ref bits, ref value) in values {
+            assert!(bits.len() <= 64);
+            match tree.entry(*value) {
+                Entry::Vacant(entry) => {
+                    let mut value = $bitqueue_type::new();
+                    for bit in bits {
+                        value.push(1, *bit as u64);
+                    }
+                    entry.insert((bits.len() as u32, value.value()));
+                }
+                Entry::Occupied(_) => {
+                    return Err(HuffmanTreeError::DuplicateValue)
+                }
+            }
+        }
+        Ok($huff_type{map: tree})
+    }
+}
+    }
+}
+
+define_huffman_type!(WriteHuffmanTreeBE, BitQueueBE);
+define_huffman_type!(WriteHuffmanTreeLE, BitQueueLE);

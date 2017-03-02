@@ -235,14 +235,15 @@ fn test_writer_edge_cases_be() {
 fn test_writer_huffman_be() {
     use bitstream_io::BitWriterBE;
     use bitstream_io::BitWrite;
-    use bitstream_io::huffman::compile_write;
+    use bitstream_io::huffman::WriteHuffmanTreeBE;
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let table = compile_write(&[(vec![1, 1], 0),
-                                (vec![1, 0], 1),
-                                (vec![0, 1], 2),
-                                (vec![0, 0, 1], 3),
-                                (vec![0, 0, 0], 4)]).unwrap();
+    let table = WriteHuffmanTreeBE::compile(
+        &[(vec![1, 1], 0),
+          (vec![1, 0], 1),
+          (vec![0, 1], 2),
+          (vec![0, 0, 1], 3),
+          (vec![0, 0, 0], 4)]).unwrap();
     let mut output = Vec::with_capacity(4);
     {
         let mut w = BitWriterBE::new(&mut output);
@@ -435,14 +436,15 @@ fn test_writer_edge_cases_le() {
 fn test_writer_huffman_le() {
     use bitstream_io::BitWriterLE;
     use bitstream_io::BitWrite;
-    use bitstream_io::huffman::compile_write;
+    use bitstream_io::huffman::WriteHuffmanTreeLE;
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let table = compile_write(&[(vec![1, 1], 0),
-                                (vec![1, 0], 1),
-                                (vec![0, 1], 2),
-                                (vec![0, 0, 1], 3),
-                                (vec![0, 0, 0], 4)]).unwrap();
+    let table = WriteHuffmanTreeLE::compile(
+        &[(vec![1, 1], 0),
+          (vec![1, 0], 1),
+          (vec![0, 1], 2),
+          (vec![0, 0, 1], 3),
+          (vec![0, 0, 0], 4)]).unwrap();
     let mut output = Vec::with_capacity(4);
     {
         let mut w = BitWriterLE::new(&mut output);
