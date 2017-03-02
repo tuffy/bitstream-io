@@ -64,6 +64,7 @@
 use std::io;
 
 use super::{Numeric, SignedNumeric, BitQueueBE, BitQueueLE, BitQueue};
+use huffman::ReadHuffmanTree;
 
 /// For reading bit values from an underlying stream in a given endianness.
 pub trait BitRead {
@@ -115,7 +116,20 @@ pub trait BitRead {
     /// Throws away all unread bit values until the next whole byte.
     fn byte_align(&mut self);
 
-    /*FIXME - add support for reading Huffman codes*/
+    /// Given a compile Huffman tree, reads bits from the stream
+    /// until a leaf node value is encountered and returns it.
+    fn read_huffman<T>(&mut self,
+                       mut tree: &ReadHuffmanTree<T>) -> Result<T,io::Error>
+        where T: Copy {
+        loop {
+            match tree {
+                &ReadHuffmanTree::Leaf(ref v) => {return Ok(*v);}
+                &ReadHuffmanTree::Tree(ref subtree) => {
+                    tree = &subtree[self.read::<usize>(1)?];
+                }
+            }
+        }
+    }
 }
 
 macro_rules! define_read_unary {

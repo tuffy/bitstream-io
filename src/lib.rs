@@ -49,6 +49,7 @@ use std::fmt::Debug;
 
 pub mod read;
 pub mod write;
+pub mod huffman;
 
 pub use read::BitRead;
 pub use read::BitReaderBE;
@@ -132,6 +133,7 @@ define_numeric!(u32);
 define_numeric!(i32);
 define_numeric!(u64);
 define_numeric!(i64);
+define_numeric!(usize);
 
 define_signed_numeric!(i8);
 define_signed_numeric!(i16);
