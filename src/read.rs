@@ -116,7 +116,7 @@ pub trait BitRead {
     /// Throws away all unread bit values until the next whole byte.
     fn byte_align(&mut self);
 
-    /// Given a compile Huffman tree, reads bits from the stream
+    /// Given a compiled Huffman tree, reads bits from the stream
     /// until a leaf node value is encountered and returns it.
     fn read_huffman<T>(&mut self,
                        mut tree: &ReadHuffmanTree<T>) -> Result<T,io::Error>

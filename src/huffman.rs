@@ -13,6 +13,7 @@
  * real files.*/
 
 use std::fmt;
+use std::collections::BTreeMap;
 
 pub enum ReadHuffmanTree<T: Copy> {
     Leaf(T),
@@ -92,7 +93,8 @@ pub enum HuffmanTreeError {
     InvalidBit,
     MissingLeaf,
     DuplicateLeaf,
-    OrphanedLeaf
+    OrphanedLeaf,
+    DuplicateValue
 }
 
 impl fmt::Display for HuffmanTreeError {
@@ -109,6 +111,9 @@ impl fmt::Display for HuffmanTreeError {
             }
             HuffmanTreeError::OrphanedLeaf => {
                 write!(f, "orphaned leaf node in specification")
+            }
+            HuffmanTreeError::DuplicateValue => {
+                write!(f, "duplicate value in specification")
             }
         }
     }
@@ -135,4 +140,21 @@ pub fn compile_read<T: Copy>(values: &[(Vec<u8>, T)]) ->
     }
 
     tree.into_read_tree()
+}
+
+pub type WriteHuffmanTree<T> = BTreeMap<T,Vec<u8>>;
+
+pub fn compile_write<T: Ord + Copy>(values: &[(Vec<u8>, T)]) ->
+    Result<WriteHuffmanTree<T>,HuffmanTreeError> {
+    use std::collections::btree_map::Entry;
+
+    let mut tree = BTreeMap::new();
+
+    for &(ref bits, ref value) in values {
+        match tree.entry(*value) {
+            Entry::Vacant(entry) => {entry.insert(bits.clone());}
+            Entry::Occupied(_) => {return Err(HuffmanTreeError::DuplicateValue)}
+        }
+    }
+    Ok(tree)
 }

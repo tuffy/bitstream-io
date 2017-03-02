@@ -60,6 +60,7 @@
 use std::io;
 
 use super::{Numeric, SignedNumeric, BitQueue, BitQueueBE, BitQueueLE};
+use huffman::WriteHuffmanTree;
 
 /// For writing bit values to an underlying stream in a given endianness.
 ///
@@ -125,7 +126,18 @@ pub trait BitWrite {
         Ok(())
     }
 
-    /*FIXME - add support for writing Huffman codes*/
+    /// Given a compiled Huffman tree, writes value to the stream
+    /// with the corresponding bits for that value.
+    /// Panics of the value is not found in the tree.
+    fn write_huffman<T>(&mut self,
+                        tree: &WriteHuffmanTree<T>,
+                        value: T) -> Result<(), io::Error>
+        where T: Ord + Copy {
+        for bit in tree[&value].iter() {
+            self.write(1, *bit)?;
+        }
+        Ok(())
+    }
 }
 
 /// A wrapper for writing values to a big-endian stream.

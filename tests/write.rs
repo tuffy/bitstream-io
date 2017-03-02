@@ -232,6 +232,41 @@ fn test_writer_edge_cases_be() {
 }
 
 #[test]
+fn test_writer_huffman_be() {
+    use bitstream_io::BitWriterBE;
+    use bitstream_io::BitWrite;
+    use bitstream_io::huffman::compile_write;
+
+    let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
+    let table = compile_write(&[(vec![1, 1], 0),
+                                (vec![1, 0], 1),
+                                (vec![0, 1], 2),
+                                (vec![0, 0, 1], 3),
+                                (vec![0, 0, 0], 4)]).unwrap();
+    let mut output = Vec::with_capacity(4);
+    {
+        let mut w = BitWriterBE::new(&mut output);
+        w.write_huffman(&table, 1).unwrap();
+        w.write_huffman(&table, 0).unwrap();
+        w.write_huffman(&table, 4).unwrap();
+        w.write_huffman(&table, 0).unwrap();
+        w.write_huffman(&table, 0).unwrap();
+        w.write_huffman(&table, 2).unwrap();
+        w.write_huffman(&table, 1).unwrap();
+        w.write_huffman(&table, 1).unwrap();
+        w.write_huffman(&table, 2).unwrap();
+        w.write_huffman(&table, 0).unwrap();
+        w.write_huffman(&table, 2).unwrap();
+        w.write_huffman(&table, 0).unwrap();
+        w.write_huffman(&table, 1).unwrap();
+        w.write_huffman(&table, 4).unwrap();
+        w.write_huffman(&table, 2).unwrap();
+        w.byte_align().unwrap();
+    }
+    assert_eq!(output.as_slice(), &final_data);
+}
+
+#[test]
 fn test_writer_le() {
     use bitstream_io::BitWriterLE;
     use bitstream_io::BitWrite;
@@ -394,4 +429,38 @@ fn test_writer_edge_cases_le() {
         w.write(64, 9223372036854775807i64).unwrap();
     }
     assert_eq!(output, final_data);
+}
+
+#[test]
+fn test_writer_huffman_le() {
+    use bitstream_io::BitWriterLE;
+    use bitstream_io::BitWrite;
+    use bitstream_io::huffman::compile_write;
+
+    let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
+    let table = compile_write(&[(vec![1, 1], 0),
+                                (vec![1, 0], 1),
+                                (vec![0, 1], 2),
+                                (vec![0, 0, 1], 3),
+                                (vec![0, 0, 0], 4)]).unwrap();
+    let mut output = Vec::with_capacity(4);
+    {
+        let mut w = BitWriterLE::new(&mut output);
+        w.write_huffman(&table, 1).unwrap();
+        w.write_huffman(&table, 3).unwrap();
+        w.write_huffman(&table, 1).unwrap();
+        w.write_huffman(&table, 0).unwrap();
+        w.write_huffman(&table, 2).unwrap();
+        w.write_huffman(&table, 1).unwrap();
+        w.write_huffman(&table, 0).unwrap();
+        w.write_huffman(&table, 0).unwrap();
+        w.write_huffman(&table, 1).unwrap();
+        w.write_huffman(&table, 0).unwrap();
+        w.write_huffman(&table, 1).unwrap();
+        w.write_huffman(&table, 2).unwrap();
+        w.write_huffman(&table, 4).unwrap();
+        w.write_huffman(&table, 3).unwrap();
+        w.write(1, 1).unwrap();
+    }
+    assert_eq!(output.as_slice(), &final_data);
 }
