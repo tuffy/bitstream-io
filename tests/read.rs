@@ -65,6 +65,27 @@ fn test_reader_be() {
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
 
     {
+        /*reading individual bits*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReaderBE::new(&mut c);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), true);
+    }
+    {
         /*reading unsigned values*/
         let mut c = Cursor::new(&actual_data);
         let mut r = BitReaderBE::new(&mut c);
@@ -234,6 +255,27 @@ fn test_reader_le() {
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
 
+    {
+        /*reading individual bits*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReaderLE::new(&mut c);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), false);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+        assert_eq!(r.read_bit().unwrap(), true);
+    }
     {
         /*reading unsigned values*/
         let mut c = Cursor::new(&actual_data);

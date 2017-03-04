@@ -18,10 +18,10 @@
 //!     let mut writer = BitWriterBE::new(&mut flac);
 //!     writer.write_bytes(b"fLaC").unwrap();
 //!
-//!     let last_block: u8 = 0;
+//!     let last_block: bool = false;
 //!     let block_type: u8 = 0;
 //!     let block_size: u32 = 34;
-//!     writer.write(1, last_block).unwrap();
+//!     writer.write_bit(last_block).unwrap();
 //!     writer.write(7, block_type).unwrap();
 //!     writer.write(24, block_size).unwrap();
 //!
@@ -70,6 +70,14 @@ use huffman::{WriteHuffmanTreeBE, WriteHuffmanTreeLE};
 /// **Partial bytes will be lost** if the writer is disposed of
 /// before they can be written.
 pub trait BitWrite {
+    /// Writes a single bit to the stream.
+    /// `true` indicates 1, `false` indicates 0
+    #[inline(always)]
+    fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
+        /*FIXME - optimize this*/
+        self.write(1, if bit {1} else {0})
+    }
+
     /// Writes an unsigned value to the stream using the given
     /// number of bits.  This method assumes that value's type
     /// is sufficiently large to hold those bits.
@@ -99,7 +107,7 @@ pub trait BitWrite {
         if value > 0 {
             self.write(value, (1 << value) - 1)?;
         }
-        self.write(1, 0u8)
+        self.write_bit(false)
     }
 
     /// Writes `value` number of 0 bits to the stream
@@ -113,7 +121,7 @@ pub trait BitWrite {
         if value > 0 {
             self.write(value, 0)?;
         }
-        self.write(1, 1u8)
+        self.write_bit(true)
     }
 
     /// Returns true if the stream is aligned at a whole byte.
@@ -123,7 +131,7 @@ pub trait BitWrite {
     /// Does nothing if the stream is already aligned.
     fn byte_align(&mut self) -> Result<(), io::Error> {
         while !self.byte_aligned() {
-            self.write(1, 0u8)?;
+            self.write_bit(false)?;
         }
         Ok(())
     }
@@ -174,10 +182,10 @@ impl<'a> BitWrite for BitWriterBE<'a> {
     fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
         where S: SignedNumeric {
         if value.is_negative() {
-            self.write(1, 1u8)
+            self.write_bit(true)
                 .and_then(|()| self.write(bits - 1, value.as_unsigned(bits)))
         } else {
-            self.write(1, 0u8)
+            self.write_bit(false)
                 .and_then(|()| self.write(bits - 1, value))
         }
     }
@@ -244,10 +252,10 @@ impl<'a> BitWrite for BitWriterLE<'a> {
         where S: SignedNumeric {
         if value.is_negative() {
             self.write(bits - 1, value.as_unsigned(bits))
-                .and_then(|()| self.write(1, 1u8))
+                .and_then(|()| self.write_bit(true))
         } else {
             self.write(bits - 1, value)
-                .and_then(|()| self.write(1, 0u8))
+                .and_then(|()| self.write_bit(false))
         }
     }
 

@@ -48,10 +48,10 @@ impl<T: Copy> WipHuffmanTree<T> {
             WipHuffmanTree::Leaf(v) => {
                 Ok(ReadHuffmanTree::Leaf(v))
             }
-            WipHuffmanTree::Tree(l, r) => {
-                let l = l.into_read_tree()?;
-                let r = r.into_read_tree()?;
-                Ok(ReadHuffmanTree::Tree(Box::new(l), Box::new(r)))
+            WipHuffmanTree::Tree(zero, one) => {
+                let zero = zero.into_read_tree()?;
+                let one = one.into_read_tree()?;
+                Ok(ReadHuffmanTree::Tree(Box::new(zero), Box::new(one)))
             }
         }
     }
@@ -74,13 +74,13 @@ impl<T: Copy> WipHuffmanTree<T> {
                     HuffmanTreeError::OrphanedLeaf
                 })
             }
-            &mut WipHuffmanTree::Tree(ref mut l, ref mut r) => {
+            &mut WipHuffmanTree::Tree(ref mut zero, ref mut one) => {
                 if bits.len() == 0 {
                     Err(HuffmanTreeError::DuplicateLeaf)
                 } else {
                     match bits[0] {
-                        0 => {l.add(&bits[1..], value)}
-                        1 => {r.add(&bits[1..], value)}
+                        0 => {zero.add(&bits[1..], value)}
+                        1 => {one.add(&bits[1..], value)}
                         _ => {Err(HuffmanTreeError::InvalidBit)}
                     }
                 }

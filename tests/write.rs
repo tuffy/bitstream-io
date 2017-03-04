@@ -73,6 +73,29 @@ fn test_writer_be() {
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
 
+    /*writing individual bits*/
+    let mut output = Vec::with_capacity(2);
+    {
+        let mut w = BitWriterBE::new(&mut output);
+        w.write_bit(true).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(true).unwrap();
+    }
+    assert_eq!(output.as_slice(), &final_data[0..2]);
+
     /*writing unsigned values*/
     let mut output = Vec::with_capacity(4);
     {
@@ -274,6 +297,28 @@ fn test_writer_le() {
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
 
+    /*writing individual bits*/
+    let mut output = Vec::with_capacity(2);
+    {
+        let mut w = BitWriterLE::new(&mut output);
+        w.write_bit(true).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(false).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+        w.write_bit(true).unwrap();
+    }
+    assert_eq!(output.as_slice(), &final_data[0..2]);
     /*writing unsigned values*/
     let mut output = Vec::with_capacity(4);
     {

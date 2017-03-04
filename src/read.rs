@@ -28,10 +28,10 @@
 //!     reader.read_bytes(&mut file_header).unwrap();
 //!     assert_eq!(&file_header, b"fLaC");
 //!
-//!     let last_block: u8 = reader.read(1).unwrap();
+//!     let last_block: bool = reader.read_bit().unwrap();
 //!     let block_type: u8 = reader.read(7).unwrap();
 //!     let block_size: u32 = reader.read(24).unwrap();
-//!     assert_eq!(last_block, 0);
+//!     assert_eq!(last_block, false);
 //!     assert_eq!(block_type, 0);
 //!     assert_eq!(block_size, 34);
 //!
@@ -68,6 +68,14 @@ use huffman::ReadHuffmanTree;
 
 /// For reading bit values from an underlying stream in a given endianness.
 pub trait BitRead {
+    /// Reads a single bit from the stream.
+    /// `true` indicates 1, `false` indicates 0
+    #[inline(always)]
+    fn read_bit(&mut self) -> Result<bool, io::Error> {
+        /*FIXME - optimize this*/
+        self.read::<u32>(1).map(|v| v == 1)
+    }
+
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
     /// that the programmer is using an output type
@@ -124,11 +132,10 @@ pub trait BitRead {
         loop {
             match tree {
                 &ReadHuffmanTree::Leaf(ref v) => {return Ok(*v);}
-                &ReadHuffmanTree::Tree(ref l, ref r) => {
-                    tree = match self.read(1) {
-                        Ok(0) => {l}
-                        Ok(1) => {r}
-                        Ok(_) => {panic!("invalid bit");}
+                &ReadHuffmanTree::Tree(ref zero, ref one) => {
+                    tree = match self.read_bit() {
+                        Ok(false) => {zero}
+                        Ok(true) => {one}
                         Err(err) => {return Err(err);}
                     };
                 }
