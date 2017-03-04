@@ -70,11 +70,7 @@ use huffman::ReadHuffmanTree;
 pub trait BitRead {
     /// Reads a single bit from the stream.
     /// `true` indicates 1, `false` indicates 0
-    #[inline(always)]
-    fn read_bit(&mut self) -> Result<bool, io::Error> {
-        /*FIXME - optimize this*/
-        self.read::<u32>(1).map(|v| v == 1)
-    }
+    fn read_bit(&mut self) -> Result<bool, io::Error>;
 
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
@@ -183,6 +179,14 @@ impl<'a> BitReaderBE<'a> {
 }
 
 impl<'a> BitRead for BitReaderBE<'a> {
+    #[inline(always)]
+    fn read_bit(&mut self) -> Result<bool, io::Error> {
+        if self.bitqueue.is_empty() {
+            self.bitqueue.set(read_byte(self.reader)?, 8);
+        }
+        Ok(self.bitqueue.pop(1) == 1)
+    }
+
     fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
         where U: Numeric {
         use std::cmp::min;
@@ -267,6 +271,14 @@ impl<'a> BitReaderLE<'a> {
 }
 
 impl<'a> BitRead for BitReaderLE<'a> {
+    #[inline(always)]
+    fn read_bit(&mut self) -> Result<bool, io::Error> {
+        if self.bitqueue.is_empty() {
+            self.bitqueue.set(read_byte(self.reader)?, 8);
+        }
+        Ok(self.bitqueue.pop(1) == 1)
+    }
+
     fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
         where U: Numeric {
         use std::cmp::min;

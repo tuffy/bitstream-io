@@ -72,11 +72,7 @@ use huffman::{WriteHuffmanTreeBE, WriteHuffmanTreeLE};
 pub trait BitWrite {
     /// Writes a single bit to the stream.
     /// `true` indicates 1, `false` indicates 0
-    #[inline(always)]
-    fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
-        /*FIXME - optimize this*/
-        self.write(1, if bit {1} else {0})
-    }
+    fn write_bit(&mut self, bit: bool) -> Result<(), io::Error>;
 
     /// Writes an unsigned value to the stream using the given
     /// number of bits.  This method assumes that value's type
@@ -170,6 +166,16 @@ impl<'a> BitWriterBE<'a> {
 }
 
 impl<'a> BitWrite for BitWriterBE<'a> {
+    #[inline(always)]
+    fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
+        self.bitqueue.push(1, if bit {1} else {0});
+        if self.bitqueue.len() == 8 {
+            write_byte(self.writer, self.bitqueue.pop(8))
+        } else {
+            Ok(())
+        }
+    }
+
     fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
         where U: Numeric {
         let mut acc = BitQueueBE::from_value(value, bits);
@@ -239,6 +245,16 @@ impl<'a> BitWriterLE<'a> {
 }
 
 impl<'a> BitWrite for BitWriterLE<'a> {
+    #[inline(always)]
+    fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
+        self.bitqueue.push(1, if bit {1} else {0});
+        if self.bitqueue.len() == 8 {
+            write_byte(self.writer, self.bitqueue.pop(8))
+        } else {
+            Ok(())
+        }
+    }
+
     fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
         where U: Numeric {
         let mut acc = BitQueueLE::from_value(value, bits);
@@ -276,6 +292,12 @@ impl<'a> BitWrite for BitWriterLE<'a> {
     }
 }
 
+#[inline]
+fn write_byte(writer: &mut io::Write, byte: u8) -> Result<(),io::Error> {
+    let buf = [byte];
+    writer.write_all(&buf)
+}
+
 fn write_unaligned<N>(writer: &mut io::Write,
                       acc: &mut BitQueue<N>,
                       rem: &mut BitQueue<u8>) -> Result<(), io::Error>
@@ -288,8 +310,7 @@ fn write_unaligned<N>(writer: &mut io::Write,
         let bits_to_transfer = min(8 - rem.len(), acc.len());
         rem.push(bits_to_transfer, acc.pop(bits_to_transfer).to_u8());
         if rem.len() == 8 {
-            let buf: [u8;1] = [rem.pop(8)];
-            writer.write_all(&buf)
+            write_byte(writer, rem.pop(8))
         } else {
             Ok(())
         }
