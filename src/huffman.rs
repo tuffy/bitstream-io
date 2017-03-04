@@ -17,13 +17,13 @@ use std::collections::BTreeMap;
 
 pub enum ReadHuffmanTree<T: Copy> {
     Leaf(T),
-    Tree(Box<[ReadHuffmanTree<T>;2]>)
+    Tree(Box<ReadHuffmanTree<T>>, Box<ReadHuffmanTree<T>>)
 }
 
 enum WipHuffmanTree<T: Copy> {
     Empty,
     Leaf(T),
-    Tree((Box<WipHuffmanTree<T>>, Box<WipHuffmanTree<T>>))
+    Tree(Box<WipHuffmanTree<T>>, Box<WipHuffmanTree<T>>)
 }
 
 impl<T: Copy> WipHuffmanTree<T> {
@@ -36,8 +36,8 @@ impl<T: Copy> WipHuffmanTree<T> {
     }
 
     fn new_tree() -> WipHuffmanTree<T> {
-        WipHuffmanTree::Tree((Box::new(Self::new_empty()),
-                              Box::new(Self::new_empty())))
+        WipHuffmanTree::Tree(Box::new(Self::new_empty()),
+                             Box::new(Self::new_empty()))
     }
 
     fn into_read_tree(self) -> Result<ReadHuffmanTree<T>,HuffmanTreeError> {
@@ -48,9 +48,10 @@ impl<T: Copy> WipHuffmanTree<T> {
             WipHuffmanTree::Leaf(v) => {
                 Ok(ReadHuffmanTree::Leaf(v))
             }
-            WipHuffmanTree::Tree((l, r)) => {
-                let new_tree = [l.into_read_tree()?, r.into_read_tree()?];
-                Ok(ReadHuffmanTree::Tree(Box::new(new_tree)))
+            WipHuffmanTree::Tree(l, r) => {
+                let l = l.into_read_tree()?;
+                let r = r.into_read_tree()?;
+                Ok(ReadHuffmanTree::Tree(Box::new(l), Box::new(r)))
             }
         }
     }
@@ -73,7 +74,7 @@ impl<T: Copy> WipHuffmanTree<T> {
                     HuffmanTreeError::OrphanedLeaf
                 })
             }
-            &mut WipHuffmanTree::Tree((ref mut l, ref mut r)) => {
+            &mut WipHuffmanTree::Tree(ref mut l, ref mut r) => {
                 if bits.len() == 0 {
                     Err(HuffmanTreeError::DuplicateLeaf)
                 } else {

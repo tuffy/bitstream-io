@@ -124,8 +124,13 @@ pub trait BitRead {
         loop {
             match tree {
                 &ReadHuffmanTree::Leaf(ref v) => {return Ok(*v);}
-                &ReadHuffmanTree::Tree(ref subtree) => {
-                    tree = &subtree[self.read::<usize>(1)?];
+                &ReadHuffmanTree::Tree(ref l, ref r) => {
+                    tree = match self.read(1) {
+                        Ok(0) => {l}
+                        Ok(1) => {r}
+                        Ok(_) => {panic!("invalid bit");}
+                        Err(err) => {return Err(err);}
+                    };
                 }
             }
         }
