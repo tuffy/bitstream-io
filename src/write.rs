@@ -60,7 +60,7 @@
 use std::io;
 
 use super::{Numeric, SignedNumeric, BitQueue, BitQueueBE, BitQueueLE};
-use huffman::{WriteHuffmanTreeBE, WriteHuffmanTreeLE};
+use huffman::WriteHuffmanTree;
 
 /// For writing bit values to an underlying stream in a given endianness.
 ///
@@ -91,6 +91,19 @@ pub trait BitWrite {
     /// map to a faster `write_all` call.  Otherwise it will
     /// write bytes individually in 8-bit increments.
     fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error>;
+
+    /// Writes Huffman code from the given lookup table to the stream.
+    fn write_huffman<T>(&mut self,
+                        tree: &WriteHuffmanTree<T>,
+                        value: T) ->
+        Result<(), io::Error> where T: Ord + Copy {
+
+        /*FIXME - optimize this*/
+        for bit in tree.get(value) {
+            self.write(1, *bit)?;
+        }
+        Ok(())
+    }
 
     /// Writes `value` number of 1 bits to the stream
     /// and then writes a 0 bit.  This field is variably-sized.
@@ -131,7 +144,6 @@ pub trait BitWrite {
         }
         Ok(())
     }
-
 }
 
 macro_rules! define_write_bit {
@@ -195,17 +207,6 @@ impl<'a> BitWriterBE<'a> {
                     bitqueue: BitQueueBE::new(),
                     byte_buf: Vec::new()}
     }
-
-    /// Given a compiled Huffman tree, writes value to the stream
-    /// with the corresponding bits for that value.
-    /// Panics of the value is not found in the tree.
-    pub fn write_huffman<T>(&mut self,
-                            tree: &WriteHuffmanTreeBE<T>,
-                            value: T) -> Result<(), io::Error>
-        where T: Ord + Copy {
-        let (bits, value) = tree.get(value);
-        self.write(bits, value)
-    }
 }
 
 impl<'a> BitWrite for BitWriterBE<'a> {
@@ -245,17 +246,6 @@ impl<'a> BitWriterLE<'a> {
         BitWriterLE{writer: writer,
                     bitqueue: BitQueueLE::new(),
                     byte_buf: Vec::new()}
-    }
-
-    /// Given a compiled Huffman tree, writes value to the stream
-    /// with the corresponding bits for that value.
-    /// Panics of the value is not found in the tree.
-    pub fn write_huffman<T>(&mut self,
-                            tree: &WriteHuffmanTreeLE<T>,
-                            value: T) -> Result<(), io::Error>
-        where T: Ord + Copy {
-        let (bits, value) = tree.get(value);
-        self.write(bits, value)
     }
 }
 

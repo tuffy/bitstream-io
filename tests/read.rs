@@ -219,13 +219,14 @@ fn test_edge_cases_be() {
 fn test_reader_huffman_be() {
     use bitstream_io::BitReaderBE;
     use bitstream_io::BitRead;
-    use bitstream_io::huffman::compile_read;
+    use bitstream_io::huffman::ReadHuffmanTree;
 
-    let table = compile_read(&[(vec![1, 1], 0),
-                               (vec![1, 0], 1),
-                               (vec![0, 1], 2),
-                               (vec![0, 0, 1], 3),
-                               (vec![0, 0, 0], 4)]).unwrap();
+    let table = ReadHuffmanTree::new(
+        &[(vec![1, 1], 0),
+          (vec![1, 0], 1),
+          (vec![0, 1], 2),
+          (vec![0, 0, 1], 3),
+          (vec![0, 0, 0], 4)]).unwrap();
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut c = Cursor::new(&actual_data);
@@ -408,13 +409,14 @@ fn test_edge_cases_le() {
 fn test_reader_huffman_le() {
     use bitstream_io::BitReaderLE;
     use bitstream_io::BitRead;
-    use bitstream_io::huffman::compile_read;
+    use bitstream_io::huffman::ReadHuffmanTree;
 
-    let table = compile_read(&[(vec![1, 1], 0),
-                               (vec![1, 0], 1),
-                               (vec![0, 1], 2),
-                               (vec![0, 0, 1], 3),
-                               (vec![0, 0, 0], 4)]).unwrap();
+    let table = ReadHuffmanTree::new(
+        &[(vec![1, 1], 0),
+          (vec![1, 0], 1),
+          (vec![0, 1], 2),
+          (vec![0, 0, 1], 3),
+          (vec![0, 0, 0], 4)]).unwrap();
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut c = Cursor::new(&actual_data);

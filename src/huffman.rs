@@ -20,6 +20,33 @@ pub enum ReadHuffmanTree<T: Copy> {
     Tree(Box<ReadHuffmanTree<T>>, Box<ReadHuffmanTree<T>>)
 }
 
+impl<T: Copy> ReadHuffmanTree<T> {
+    /// Given a slice of bits/value pairs, compiles a Huffman tree
+    /// for reading.
+    /// Bits must be 0 or 1 and are always consumed from the stream
+    /// from least-significant in the list to most signficant
+    /// (which makes them easier to read for humans).
+    /// Value can be anything that implements the Copy trait.
+    ///
+    /// ## Example
+    /// ```
+    /// use bitstream_io::huffman::ReadHuffmanTree;
+    /// assert!(ReadHuffmanTree::new(&[(vec![0], 1i32),
+    ///                                (vec![1, 0], 2i32),
+    ///                                (vec![1, 1], 3i32)]).is_ok());
+    /// ```
+    pub fn new(values: &[(Vec<u8>, T)]) ->
+        Result<ReadHuffmanTree<T>,HuffmanTreeError> {
+        let mut tree = WipHuffmanTree::new_empty();
+
+        for &(ref bits, ref value) in values {
+            tree.add(bits.as_slice(), *value)?;
+        }
+
+        tree.into_read_tree()
+    }
+}
+
 enum WipHuffmanTree<T: Copy> {
     Empty,
     Leaf(T),
@@ -94,8 +121,7 @@ pub enum HuffmanTreeError {
     InvalidBit,
     MissingLeaf,
     DuplicateLeaf,
-    OrphanedLeaf,
-    DuplicateValue
+    OrphanedLeaf
 }
 
 impl fmt::Display for HuffmanTreeError {
@@ -113,73 +139,30 @@ impl fmt::Display for HuffmanTreeError {
             HuffmanTreeError::OrphanedLeaf => {
                 write!(f, "orphaned leaf node in specification")
             }
-            HuffmanTreeError::DuplicateValue => {
-                write!(f, "duplicate value in specification")
-            }
         }
     }
 }
-/// Given a slice of bits/value pairs, compiles a Huffman tree for reading.
-/// Bits must be 0 or 1 and are always consumed from the stream
-/// from least-significant in the list to most signficant
-/// (which makes them easier to read for humans).
-/// Value can be anything that implements the Copy trait.
-///
-/// ## Example
-/// ```
-/// use bitstream_io::huffman::compile_read;
-/// assert!(compile_read(&[(vec![0], 1i32),
-///                        (vec![1, 0], 2i32),
-///                        (vec![1, 1], 3i32)]).is_ok());
-/// ```
-pub fn compile_read<T: Copy>(values: &[(Vec<u8>, T)]) ->
-    Result<ReadHuffmanTree<T>,HuffmanTreeError> {
-    let mut tree = WipHuffmanTree::new_empty();
 
-    for &(ref bits, ref value) in values {
-        tree.add(bits.as_slice(), *value)?;
-    }
-
-    tree.into_read_tree()
+pub struct WriteHuffmanTree<T: Ord> {
+    map: BTreeMap<T,Vec<u8>>
 }
 
-macro_rules! define_huffman_type {
-    ($huff_type:ident, $bitqueue_type:ident) => {
-pub struct $huff_type<T: Ord> {
-    map: BTreeMap<T,(u32,u64)>
-}
-
-impl<T: Ord + Copy> $huff_type<T> {
-    #[inline(always)]
-    pub fn get(&self, value: T) -> (u32,u64) {self.map[&value]}
-
-    pub fn compile(values: &[(Vec<u8>, T)]) ->
-        Result<$huff_type<T>,HuffmanTreeError> {
-        use std::collections::btree_map::Entry;
-        use super::{$bitqueue_type, BitQueue};
-
-        let mut tree = BTreeMap::new();
+impl<T: Ord + Copy> WriteHuffmanTree<T> {
+    pub fn new(values: &[(Vec<u8>, T)]) ->
+        Result<WriteHuffmanTree<T>,HuffmanTreeError> {
+        let mut map = BTreeMap::new();
 
         for &(ref bits, ref value) in values {
-            assert!(bits.len() <= 64);
-            match tree.entry(*value) {
-                Entry::Vacant(entry) => {
-                    let mut value = $bitqueue_type::new();
-                    for bit in bits {
-                        value.push(1, *bit as u64);
-                    }
-                    entry.insert((bits.len() as u32, value.value()));
-                }
-                Entry::Occupied(_) => {
-                    return Err(HuffmanTreeError::DuplicateValue)
-                }
+            if bits.iter().find(|&&bit| (bit != 0) && (bit != 1)).is_some() {
+                return Err(HuffmanTreeError::InvalidBit);
             }
+            map.entry(*value).or_insert(bits.clone());
         }
-        Ok($huff_type{map: tree})
-    }
-}
-    }
-}
 
-define_huffman_type!(WriteHuffmanTreeBE, BitQueueBE);
-define_huffman_type!(WriteHuffmanTreeLE, BitQueueLE);
+        Ok(WriteHuffmanTree{map: map})
+    }
+
+    pub fn get(&self, value: T) -> &[u8] {
+        self.map[&value].as_slice()
+    }
+}

@@ -258,10 +258,10 @@ fn test_writer_edge_cases_be() {
 fn test_writer_huffman_be() {
     use bitstream_io::BitWriterBE;
     use bitstream_io::BitWrite;
-    use bitstream_io::huffman::WriteHuffmanTreeBE;
+    use bitstream_io::huffman::WriteHuffmanTree;
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let table = WriteHuffmanTreeBE::compile(
+    let table = WriteHuffmanTree::new(
         &[(vec![1, 1], 0),
           (vec![1, 0], 1),
           (vec![0, 1], 2),
@@ -481,10 +481,10 @@ fn test_writer_edge_cases_le() {
 fn test_writer_huffman_le() {
     use bitstream_io::BitWriterLE;
     use bitstream_io::BitWrite;
-    use bitstream_io::huffman::WriteHuffmanTreeLE;
+    use bitstream_io::huffman::WriteHuffmanTree;
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let table = WriteHuffmanTreeLE::compile(
+    let table = WriteHuffmanTree::new(
         &[(vec![1, 1], 0),
           (vec![1, 0], 1),
           (vec![0, 1], 2),
