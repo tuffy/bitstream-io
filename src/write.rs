@@ -96,14 +96,7 @@ pub trait BitWrite {
     fn write_huffman<T>(&mut self,
                         tree: &WriteHuffmanTree<T>,
                         value: T) ->
-        Result<(), io::Error> where T: Ord + Copy {
-
-        /*FIXME - optimize this*/
-        for bit in tree.get(value) {
-            self.write(1, *bit)?;
-        }
-        Ok(())
-    }
+        Result<(), io::Error> where T: Ord + Copy;
 
     /// Writes `value` number of 1 bits to the stream
     /// and then writes a 0 bit.  This field is variably-sized.
@@ -226,6 +219,15 @@ impl<'a> BitWrite for BitWriterBE<'a> {
     }
 
     #[inline]
+    fn write_huffman<T>(&mut self,
+                        tree: &WriteHuffmanTree<T>,
+                        value: T) ->
+        Result<(), io::Error> where T: Ord + Copy {
+        let (bits, value) = tree.get_be(value);
+        self.write(bits, value)
+    }
+
+    #[inline]
     fn byte_aligned(&self) -> bool {self.bitqueue.is_empty()}
 }
 
@@ -263,6 +265,15 @@ impl<'a> BitWrite for BitWriterLE<'a> {
             self.write(bits - 1, value)
                 .and_then(|()| self.write_bit(false))
         }
+    }
+
+    #[inline]
+    fn write_huffman<T>(&mut self,
+                        tree: &WriteHuffmanTree<T>,
+                        value: T) ->
+        Result<(), io::Error> where T: Ord + Copy {
+        let (bits, value) = tree.get_le(value);
+        self.write(bits, value)
     }
 
     #[inline]

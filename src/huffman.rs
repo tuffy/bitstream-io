@@ -144,25 +144,47 @@ impl fmt::Display for HuffmanTreeError {
 }
 
 pub struct WriteHuffmanTree<T: Ord> {
-    map: BTreeMap<T,Vec<u8>>
+    big_endian: BTreeMap<T,(u32,u64)>,
+    little_endian: BTreeMap<T,(u32,u64)>
 }
 
 impl<T: Ord + Copy> WriteHuffmanTree<T> {
     pub fn new(values: &[(Vec<u8>, T)]) ->
         Result<WriteHuffmanTree<T>,HuffmanTreeError> {
-        let mut map = BTreeMap::new();
+        use super::{BitQueueBE, BitQueueLE, BitQueue};
+
+        // This current implementation is limited to Huffman codes
+        // that generate up to 64 bits.  It may need to be updated
+        // if I can find anything larger.
+
+        let mut big_endian = BTreeMap::new();
+        let mut little_endian = BTreeMap::new();
 
         for &(ref bits, ref value) in values {
             if bits.iter().find(|&&bit| (bit != 0) && (bit != 1)).is_some() {
                 return Err(HuffmanTreeError::InvalidBit);
             }
-            map.entry(*value).or_insert(bits.clone());
+            let mut be_encoded = BitQueueBE::new();
+            let mut le_encoded = BitQueueLE::new();
+            for bit in bits {
+                be_encoded.push(1, *bit as u64);
+                le_encoded.push(1, *bit as u64);
+            }
+            big_endian.entry(*value)
+                      .or_insert((bits.len() as u32, be_encoded.value()));
+            little_endian.entry(*value)
+                         .or_insert((bits.len() as u32, le_encoded.value()));
         }
 
-        Ok(WriteHuffmanTree{map: map})
+        Ok(WriteHuffmanTree{big_endian: big_endian,
+                            little_endian: little_endian})
     }
 
-    pub fn get(&self, value: T) -> &[u8] {
-        self.map[&value].as_slice()
+    pub fn get_be(&self, value: T) -> (u32, u64) {
+        self.big_endian[&value]
+    }
+
+    pub fn get_le(&self, value: T) -> (u32, u64) {
+        self.little_endian[&value]
     }
 }
