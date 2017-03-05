@@ -122,9 +122,8 @@ pub trait BitRead {
 
     /// Given a compiled Huffman tree, reads bits from the stream
     /// until a leaf node value is encountered and returns it.
-    fn read_huffman<T>(&mut self,
-                       mut tree: &ReadHuffmanTree<T>) -> Result<T,io::Error>
-        where T: Copy {
+    fn read_huffman<T>(&mut self, mut tree: &ReadHuffmanTree<T>) ->
+        Result<T,io::Error> where T: Copy {
         loop {
             match tree {
                 &ReadHuffmanTree::Leaf(ref v) => {return Ok(*v);}
@@ -135,6 +134,79 @@ pub trait BitRead {
                         Err(err) => {return Err(err);}
                     };
                 }
+            }
+        }
+    }
+}
+
+macro_rules! define_read_bit {
+    () => {
+        #[inline(always)]
+        fn read_bit(&mut self) -> Result<bool, io::Error> {
+            if self.bitqueue.is_empty() {
+                self.bitqueue.set(read_byte(self.reader)?, 8);
+            }
+            Ok(self.bitqueue.pop(1) == 1)
+        }
+    }
+}
+
+macro_rules! define_read {
+    ($bitqueue:ident) => {
+        fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
+            where U: Numeric {
+            use std::cmp::min;
+            let mut acc: $bitqueue<U> = $bitqueue::new();
+
+            /*transfer un-processed bits from queue to accumulator*/
+            let queue_len = self.bitqueue.len();
+            if queue_len > 0 {
+                let to_transfer = min(queue_len, bits);
+                acc.push(to_transfer,
+                         U::from_u8(self.bitqueue.pop(to_transfer)));
+                bits -= to_transfer;
+            }
+
+            read_aligned(&mut self.reader, bits / 8, &mut acc)
+            .and_then(|()| read_unaligned(&mut self.reader,
+                                          bits % 8,
+                                          &mut acc,
+                                          &mut self.bitqueue))
+            .map(|()| acc.value())
+        }
+    }
+}
+
+macro_rules! define_skip {
+    () => {
+        fn skip(&mut self, mut bits: u32) -> Result<(), io::Error> {
+            use std::cmp::min;
+
+            let queue_len = self.bitqueue.len();
+            if queue_len > 0 {
+                let to_drop = min(queue_len, bits);
+                self.bitqueue.drop(to_drop);
+                bits -= to_drop;
+            }
+
+            skip_aligned(&mut self.reader, bits / 8)
+            .and_then(|()| skip_unaligned(&mut self.reader,
+                                          bits % 8,
+                                          &mut self.bitqueue))
+        }
+    }
+}
+
+macro_rules! define_read_bytes {
+    () => {
+        fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
+            if self.byte_aligned() {
+                self.reader.read_exact(buf)
+            } else {
+                for b in buf.iter_mut() {
+                    *b = self.read::<u8>(8)?;
+                }
+                Ok(())
             }
         }
     }
@@ -179,82 +251,26 @@ impl<'a> BitReaderBE<'a> {
 }
 
 impl<'a> BitRead for BitReaderBE<'a> {
-    #[inline(always)]
-    fn read_bit(&mut self) -> Result<bool, io::Error> {
-        if self.bitqueue.is_empty() {
-            self.bitqueue.set(read_byte(self.reader)?, 8);
-        }
-        Ok(self.bitqueue.pop(1) == 1)
-    }
-
-    fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
-        where U: Numeric {
-        use std::cmp::min;
-        let mut acc: BitQueueBE<U> = BitQueueBE::new();
-
-        /*transfer un-processed bits from queue to accumulator*/
-        let queue_len = self.bitqueue.len();
-        if queue_len > 0 {
-            let to_transfer = min(queue_len, bits);
-            acc.push(to_transfer, U::from_u8(self.bitqueue.pop(to_transfer)));
-            bits -= to_transfer;
-        }
-
-        read_aligned(&mut self.reader, bits / 8, &mut acc)
-        .and_then(|()| read_unaligned(&mut self.reader,
-                                      bits % 8,
-                                      &mut acc,
-                                      &mut self.bitqueue))
-        .map(|()| acc.value())
-    }
-
-    fn skip(&mut self, mut bits: u32) -> Result<(), io::Error> {
-        use std::cmp::min;
-
-        let queue_len = self.bitqueue.len();
-        if queue_len > 0 {
-            let to_drop = min(queue_len, bits);
-            self.bitqueue.pop(to_drop);
-            bits -= to_drop;
-        }
-
-        skip_aligned(&mut self.reader, bits / 8)
-        .and_then(|()| skip_unaligned(&mut self.reader,
-                                      bits % 8,
-                                      &mut self.bitqueue))
-    }
+    define_read_bit!();
+    define_read!(BitQueueBE);
+    define_skip!();
+    define_read_bytes!();
+    define_read_unary!(read_unary0, 0xFF, all_1, pop_1);
+    define_read_unary!(read_unary1, 0x00, all_0, pop_0);
 
     fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric {
         debug_assert!(bits >= 1);
-        let sign = self.read::<S>(1)?;
+        let is_negative = self.read_bit()?;
         let unsigned = self.read::<S>(bits - 1)?;
-        Ok(if sign.is_zero() {unsigned} else{unsigned.as_negative(bits)})
-    }
-
-    fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
-        if self.byte_aligned() {
-            self.reader.read_exact(buf)
-        } else {
-            for b in buf.iter_mut() {
-                *b = self.read::<u8>(8)?;
-            }
-            Ok(())
-        }
-    }
-
-    define_read_unary!(read_unary0, 0xFF, all_1, pop_1);
-    define_read_unary!(read_unary1, 0x00, all_0, pop_0);
-
-    #[inline]
-    fn byte_aligned(&self) -> bool {
-        self.bitqueue.is_empty()
+        Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
     }
 
     #[inline]
-    fn byte_align(&mut self) {
-        self.bitqueue.clear()
-    }
+    fn byte_aligned(&self) -> bool {self.bitqueue.is_empty()}
+
+    #[inline]
+    fn byte_align(&mut self) {self.bitqueue.clear()}
 }
 
 /// A wrapper for reading values from a little-endian stream.
@@ -271,83 +287,26 @@ impl<'a> BitReaderLE<'a> {
 }
 
 impl<'a> BitRead for BitReaderLE<'a> {
-    #[inline(always)]
-    fn read_bit(&mut self) -> Result<bool, io::Error> {
-        if self.bitqueue.is_empty() {
-            self.bitqueue.set(read_byte(self.reader)?, 8);
-        }
-        Ok(self.bitqueue.pop(1) == 1)
-    }
-
-    fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
-        where U: Numeric {
-        use std::cmp::min;
-
-        let mut acc: BitQueueLE<U> = BitQueueLE::new();
-
-        /*transfer un-processed bits from queue to accumulator*/
-        let queue_len = self.bitqueue.len();
-        if queue_len > 0 {
-            let to_transfer = min(queue_len, bits);
-            acc.push(to_transfer, U::from_u8(self.bitqueue.pop(to_transfer)));
-            bits -= to_transfer;
-        }
-
-        read_aligned(&mut self.reader, bits / 8, &mut acc)
-        .and_then(|()| read_unaligned(&mut self.reader,
-                                      bits % 8,
-                                      &mut acc,
-                                      &mut self.bitqueue))
-        .map(|()| acc.value())
-    }
-
-    fn skip(&mut self, mut bits: u32) -> Result<(), io::Error> {
-        use std::cmp::min;
-
-        let queue_len = self.bitqueue.len();
-        if queue_len > 0 {
-            let to_drop = min(queue_len, bits);
-            self.bitqueue.pop(to_drop);
-            bits -= to_drop;
-        }
-
-        skip_aligned(&mut self.reader, bits / 8)
-        .and_then(|()| skip_unaligned(&mut self.reader,
-                                      bits % 8,
-                                      &mut self.bitqueue))
-    }
+    define_read_bit!();
+    define_read!(BitQueueLE);
+    define_skip!();
+    define_read_bytes!();
+    define_read_unary!(read_unary0, 0xFF, all_1, pop_1);
+    define_read_unary!(read_unary1, 0x00, all_0, pop_0);
 
     fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric {
         debug_assert!(bits >= 1);
         let unsigned = self.read::<S>(bits - 1)?;
-        let sign = self.read::<S>(1)?;
-        Ok(if sign.is_zero() {unsigned} else {unsigned.as_negative(bits)})
-    }
-
-    fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
-        if self.byte_aligned() {
-            self.reader.read_exact(buf)
-        } else {
-            for b in buf.iter_mut() {
-                *b = self.read::<u8>(8)?;
-            }
-            Ok(())
-        }
-    }
-
-    define_read_unary!(read_unary0, 0xFF, all_1, pop_1);
-    define_read_unary!(read_unary1, 0x00, all_0, pop_0);
-
-    #[inline]
-    fn byte_aligned(&self) -> bool {
-        self.bitqueue.is_empty()
+        let is_negative = self.read_bit()?;
+        Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
     }
 
     #[inline]
-    fn byte_align(&mut self) {
-        self.bitqueue.clear()
-    }
+    fn byte_aligned(&self) -> bool {self.bitqueue.is_empty()}
+
+    #[inline]
+    fn byte_align(&mut self) {self.bitqueue.clear()}
 }
 
 #[inline]

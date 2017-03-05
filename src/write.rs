@@ -134,6 +134,49 @@ pub trait BitWrite {
 
 }
 
+macro_rules! define_write_bit {
+    () => {
+        #[inline(always)]
+        fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
+            self.bitqueue.push(1, if bit {1} else {0});
+            if self.bitqueue.len() == 8 {
+                write_byte(self.writer, self.bitqueue.pop(8))
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
+macro_rules! define_write {
+    ($bitqueue:ident) => {
+        fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
+            where U: Numeric {
+            let mut acc = $bitqueue::from_value(value, bits);
+            write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
+            .and_then(|()|
+                write_aligned(&mut self.writer, &mut self.byte_buf, &mut acc))
+            .and_then(|()|
+                Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
+        }
+    }
+}
+
+macro_rules! define_write_bytes {
+    () => {
+        fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+            if self.byte_aligned() {
+                self.writer.write_all(buf)
+            } else {
+                for b in buf {
+                    self.write(8, *b)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 /// A wrapper for writing values to a big-endian stream.
 pub struct BitWriterBE<'a> {
     writer: &'a mut io::Write,
@@ -166,24 +209,9 @@ impl<'a> BitWriterBE<'a> {
 }
 
 impl<'a> BitWrite for BitWriterBE<'a> {
-    #[inline(always)]
-    fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
-        self.bitqueue.push(1, if bit {1} else {0});
-        if self.bitqueue.len() == 8 {
-            write_byte(self.writer, self.bitqueue.pop(8))
-        } else {
-            Ok(())
-        }
-    }
-
-    fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
-        where U: Numeric {
-        let mut acc = BitQueueBE::from_value(value, bits);
-        write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
-        .and_then(|()|
-            write_aligned(&mut self.writer, &mut self.byte_buf, &mut acc))
-        .and_then(|()| Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
-    }
+    define_write_bit!();
+    define_write!(BitQueueBE);
+    define_write_bytes!();
 
     fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
         where S: SignedNumeric {
@@ -196,21 +224,8 @@ impl<'a> BitWrite for BitWriterBE<'a> {
         }
     }
 
-    fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error> {
-        if self.byte_aligned() {
-            self.writer.write_all(buf)
-        } else {
-            for b in buf {
-                self.write(8, *b)?;
-            }
-            Ok(())
-        }
-    }
-
     #[inline]
-    fn byte_aligned(&self) -> bool {
-        self.bitqueue.is_empty()
-    }
+    fn byte_aligned(&self) -> bool {self.bitqueue.is_empty()}
 }
 
 /// A wrapper for writing values to a little-endian stream.
@@ -245,24 +260,9 @@ impl<'a> BitWriterLE<'a> {
 }
 
 impl<'a> BitWrite for BitWriterLE<'a> {
-    #[inline(always)]
-    fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
-        self.bitqueue.push(1, if bit {1} else {0});
-        if self.bitqueue.len() == 8 {
-            write_byte(self.writer, self.bitqueue.pop(8))
-        } else {
-            Ok(())
-        }
-    }
-
-    fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
-        where U: Numeric {
-        let mut acc = BitQueueLE::from_value(value, bits);
-        write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
-        .and_then(|()|
-            write_aligned(&mut self.writer, &mut self.byte_buf, &mut acc))
-        .and_then(|()| Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
-    }
+    define_write_bit!();
+    define_write!(BitQueueLE);
+    define_write_bytes!();
 
     fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
         where S: SignedNumeric {
@@ -275,21 +275,8 @@ impl<'a> BitWrite for BitWriterLE<'a> {
         }
     }
 
-    fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error> {
-        if self.byte_aligned() {
-            self.writer.write_all(buf)
-        } else {
-            for b in buf {
-                self.write(8, *b)?;
-            }
-            Ok(())
-        }
-    }
-
     #[inline]
-    fn byte_aligned(&self) -> bool {
-        self.bitqueue.is_empty()
-    }
+    fn byte_aligned(&self) -> bool {self.bitqueue.is_empty()}
 }
 
 #[inline]
