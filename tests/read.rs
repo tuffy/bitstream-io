@@ -222,11 +222,11 @@ fn test_reader_huffman_be() {
     use bitstream_io::huffman::ReadHuffmanTree;
 
     let table = ReadHuffmanTree::new(
-        &[(vec![1, 1], 0),
-          (vec![1, 0], 1),
-          (vec![0, 1], 2),
-          (vec![0, 0, 1], 3),
-          (vec![0, 0, 0], 4)]).unwrap();
+        vec![(vec![1, 1], 0),
+             (vec![1, 0], 1),
+             (vec![0, 1], 2),
+             (vec![0, 0, 1], 3),
+             (vec![0, 0, 0], 4)]).unwrap();
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut c = Cursor::new(&actual_data);
@@ -412,11 +412,11 @@ fn test_reader_huffman_le() {
     use bitstream_io::huffman::ReadHuffmanTree;
 
     let table = ReadHuffmanTree::new(
-        &[(vec![1, 1], 0),
-          (vec![1, 0], 1),
-          (vec![0, 1], 2),
-          (vec![0, 0, 1], 3),
-          (vec![0, 0, 0], 4)]).unwrap();
+        vec![(vec![1, 1], 0),
+             (vec![1, 0], 1),
+             (vec![0, 1], 2),
+             (vec![0, 0, 1], 3),
+             (vec![0, 0, 0], 4)]).unwrap();
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut c = Cursor::new(&actual_data);

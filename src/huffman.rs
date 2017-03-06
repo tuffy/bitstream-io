@@ -15,45 +15,45 @@
 use std::fmt;
 use std::collections::BTreeMap;
 
-pub enum ReadHuffmanTree<T: Copy> {
+pub enum ReadHuffmanTree<T: Clone> {
     Leaf(T),
     Tree(Box<ReadHuffmanTree<T>>, Box<ReadHuffmanTree<T>>)
 }
 
-impl<T: Copy> ReadHuffmanTree<T> {
+impl<T: Clone> ReadHuffmanTree<T> {
     /// Given a slice of bits/value pairs, compiles a Huffman tree
     /// for reading.
     /// Bits must be 0 or 1 and are always consumed from the stream
     /// from least-significant in the list to most signficant
     /// (which makes them easier to read for humans).
-    /// Value can be anything that implements the Copy trait.
+    /// Value can be anything that implements the Clone trait.
     ///
     /// ## Example
     /// ```
     /// use bitstream_io::huffman::ReadHuffmanTree;
-    /// assert!(ReadHuffmanTree::new(&[(vec![0], 1i32),
-    ///                                (vec![1, 0], 2i32),
-    ///                                (vec![1, 1], 3i32)]).is_ok());
+    /// assert!(ReadHuffmanTree::new(vec![(vec![0], 1i32),
+    ///                                   (vec![1, 0], 2i32),
+    ///                                   (vec![1, 1], 3i32)]).is_ok());
     /// ```
-    pub fn new(values: &[(Vec<u8>, T)]) ->
+    pub fn new(values: Vec<(Vec<u8>, T)>) ->
         Result<ReadHuffmanTree<T>,HuffmanTreeError> {
         let mut tree = WipHuffmanTree::new_empty();
 
-        for &(ref bits, ref value) in values {
-            tree.add(bits.as_slice(), *value)?;
+        for (bits, value) in values.into_iter() {
+            tree.add(bits.as_slice(), value)?;
         }
 
         tree.into_read_tree()
     }
 }
 
-enum WipHuffmanTree<T: Copy> {
+enum WipHuffmanTree<T: Clone> {
     Empty,
     Leaf(T),
     Tree(Box<WipHuffmanTree<T>>, Box<WipHuffmanTree<T>>)
 }
 
-impl<T: Copy> WipHuffmanTree<T> {
+impl<T: Clone> WipHuffmanTree<T> {
     fn new_empty() -> WipHuffmanTree<T> {
         WipHuffmanTree::Empty
     }
@@ -148,8 +148,8 @@ pub struct WriteHuffmanTree<T: Ord> {
     little_endian: BTreeMap<T,(u32,u64)>
 }
 
-impl<T: Ord + Copy> WriteHuffmanTree<T> {
-    pub fn new(values: &[(Vec<u8>, T)]) ->
+impl<T: Ord + Clone> WriteHuffmanTree<T> {
+    pub fn new(values: Vec<(Vec<u8>, T)>) ->
         Result<WriteHuffmanTree<T>,HuffmanTreeError> {
         use super::{BitQueueBE, BitQueueLE, BitQueue};
 
@@ -160,20 +160,21 @@ impl<T: Ord + Copy> WriteHuffmanTree<T> {
         let mut big_endian = BTreeMap::new();
         let mut little_endian = BTreeMap::new();
 
-        for &(ref bits, ref value) in values {
+        for (bits, value) in values.into_iter() {
             if bits.iter().find(|&&bit| (bit != 0) && (bit != 1)).is_some() {
                 return Err(HuffmanTreeError::InvalidBit);
             }
             let mut be_encoded = BitQueueBE::new();
             let mut le_encoded = BitQueueLE::new();
+            let bits_len = bits.len() as u32;
             for bit in bits {
-                be_encoded.push(1, *bit as u64);
-                le_encoded.push(1, *bit as u64);
+                be_encoded.push(1, bit as u64);
+                le_encoded.push(1, bit as u64);
             }
-            big_endian.entry(*value)
-                      .or_insert((bits.len() as u32, be_encoded.value()));
-            little_endian.entry(*value)
-                         .or_insert((bits.len() as u32, le_encoded.value()));
+            big_endian.entry(value.clone())
+                      .or_insert((bits_len, be_encoded.value()));
+            little_endian.entry(value)
+                         .or_insert((bits_len, le_encoded.value()));
         }
 
         Ok(WriteHuffmanTree{big_endian: big_endian,

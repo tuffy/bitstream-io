@@ -262,11 +262,11 @@ fn test_writer_huffman_be() {
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let table = WriteHuffmanTree::new(
-        &[(vec![1, 1], 0),
-          (vec![1, 0], 1),
-          (vec![0, 1], 2),
-          (vec![0, 0, 1], 3),
-          (vec![0, 0, 0], 4)]).unwrap();
+        vec![(vec![1, 1], 0),
+             (vec![1, 0], 1),
+             (vec![0, 1], 2),
+             (vec![0, 0, 1], 3),
+             (vec![0, 0, 0], 4)]).unwrap();
     let mut output = Vec::with_capacity(4);
     {
         let mut w = BitWriterBE::new(&mut output);
@@ -485,11 +485,11 @@ fn test_writer_huffman_le() {
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let table = WriteHuffmanTree::new(
-        &[(vec![1, 1], 0),
-          (vec![1, 0], 1),
-          (vec![0, 1], 2),
-          (vec![0, 0, 1], 3),
-          (vec![0, 0, 0], 4)]).unwrap();
+        vec![(vec![1, 1], 0),
+             (vec![1, 0], 1),
+             (vec![0, 1], 2),
+             (vec![0, 0, 1], 3),
+             (vec![0, 0, 0], 4)]).unwrap();
     let mut output = Vec::with_capacity(4);
     {
         let mut w = BitWriterLE::new(&mut output);

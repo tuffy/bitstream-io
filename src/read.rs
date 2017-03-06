@@ -123,10 +123,10 @@ pub trait BitRead {
     /// Given a compiled Huffman tree, reads bits from the stream
     /// until a leaf node value is encountered and returns it.
     fn read_huffman<T>(&mut self, mut tree: &ReadHuffmanTree<T>) ->
-        Result<T,io::Error> where T: Copy {
+        Result<T,io::Error> where T: Clone {
         loop {
             match tree {
-                &ReadHuffmanTree::Leaf(ref v) => {return Ok(*v);}
+                &ReadHuffmanTree::Leaf(ref v) => {return Ok(v.clone());}
                 &ReadHuffmanTree::Tree(ref zero, ref one) => {
                     tree = match self.read_bit() {
                         Ok(false) => {zero}
