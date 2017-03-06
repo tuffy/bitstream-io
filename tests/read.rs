@@ -221,32 +221,32 @@ fn test_reader_huffman_be() {
     use bitstream_io::BitRead;
     use bitstream_io::huffman::ReadHuffmanTree;
 
-    let table = ReadHuffmanTree::new(
-        vec![(vec![1, 1], 0),
-             (vec![1, 0], 1),
-             (vec![0, 1], 2),
-             (vec![0, 0, 1], 3),
-             (vec![0, 0, 0], 4)]).unwrap();
+    let tree = ReadHuffmanTree::new(
+        vec![(0, vec![1, 1]),
+             (1, vec![1, 0]),
+             (2, vec![0, 1]),
+             (3, vec![0, 0, 1]),
+             (4, vec![0, 0, 0])]).unwrap();
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut c = Cursor::new(&actual_data);
     let mut r = BitReaderBE::new(&mut c);
 
-    assert_eq!(r.read_huffman(&table).unwrap(), 1);
-    assert_eq!(r.read_huffman(&table).unwrap(), 0);
-    assert_eq!(r.read_huffman(&table).unwrap(), 4);
-    assert_eq!(r.read_huffman(&table).unwrap(), 0);
-    assert_eq!(r.read_huffman(&table).unwrap(), 0);
-    assert_eq!(r.read_huffman(&table).unwrap(), 2);
-    assert_eq!(r.read_huffman(&table).unwrap(), 1);
-    assert_eq!(r.read_huffman(&table).unwrap(), 1);
-    assert_eq!(r.read_huffman(&table).unwrap(), 2);
-    assert_eq!(r.read_huffman(&table).unwrap(), 0);
-    assert_eq!(r.read_huffman(&table).unwrap(), 2);
-    assert_eq!(r.read_huffman(&table).unwrap(), 0);
-    assert_eq!(r.read_huffman(&table).unwrap(), 1);
-    assert_eq!(r.read_huffman(&table).unwrap(), 4);
-    assert_eq!(r.read_huffman(&table).unwrap(), 2);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 1);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 0);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 4);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 0);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 0);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 2);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 1);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 1);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 2);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 0);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 2);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 0);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 1);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 4);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 2);
 }
 
 #[test]
@@ -411,29 +411,29 @@ fn test_reader_huffman_le() {
     use bitstream_io::BitRead;
     use bitstream_io::huffman::ReadHuffmanTree;
 
-    let table = ReadHuffmanTree::new(
-        vec![(vec![1, 1], 0),
-             (vec![1, 0], 1),
-             (vec![0, 1], 2),
-             (vec![0, 0, 1], 3),
-             (vec![0, 0, 0], 4)]).unwrap();
+    let tree = ReadHuffmanTree::new(
+        vec![(0, vec![1, 1]),
+             (1, vec![1, 0]),
+             (2, vec![0, 1]),
+             (3, vec![0, 0, 1]),
+             (4, vec![0, 0, 0])]).unwrap();
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut c = Cursor::new(&actual_data);
     let mut r = BitReaderLE::new(&mut c);
 
-    assert_eq!(r.read_huffman(&table).unwrap(), 1);
-    assert_eq!(r.read_huffman(&table).unwrap(), 3);
-    assert_eq!(r.read_huffman(&table).unwrap(), 1);
-    assert_eq!(r.read_huffman(&table).unwrap(), 0);
-    assert_eq!(r.read_huffman(&table).unwrap(), 2);
-    assert_eq!(r.read_huffman(&table).unwrap(), 1);
-    assert_eq!(r.read_huffman(&table).unwrap(), 0);
-    assert_eq!(r.read_huffman(&table).unwrap(), 0);
-    assert_eq!(r.read_huffman(&table).unwrap(), 1);
-    assert_eq!(r.read_huffman(&table).unwrap(), 0);
-    assert_eq!(r.read_huffman(&table).unwrap(), 1);
-    assert_eq!(r.read_huffman(&table).unwrap(), 2);
-    assert_eq!(r.read_huffman(&table).unwrap(), 4);
-    assert_eq!(r.read_huffman(&table).unwrap(), 3);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 1);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 3);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 1);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 0);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 2);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 1);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 0);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 0);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 1);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 0);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 1);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 2);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 4);
+    assert_eq!(r.read_huffman(&tree).unwrap(), 3);
 }

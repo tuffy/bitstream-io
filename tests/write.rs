@@ -261,30 +261,30 @@ fn test_writer_huffman_be() {
     use bitstream_io::huffman::WriteHuffmanTree;
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let table = WriteHuffmanTree::new(
-        vec![(vec![1, 1], 0),
-             (vec![1, 0], 1),
-             (vec![0, 1], 2),
-             (vec![0, 0, 1], 3),
-             (vec![0, 0, 0], 4)]).unwrap();
+    let tree = WriteHuffmanTree::new(
+        vec![(0, vec![1, 1]),
+             (1, vec![1, 0]),
+             (2, vec![0, 1]),
+             (3, vec![0, 0, 1]),
+             (4, vec![0, 0, 0])]).unwrap();
     let mut output = Vec::with_capacity(4);
     {
         let mut w = BitWriterBE::new(&mut output);
-        w.write_huffman(&table, 1).unwrap();
-        w.write_huffman(&table, 0).unwrap();
-        w.write_huffman(&table, 4).unwrap();
-        w.write_huffman(&table, 0).unwrap();
-        w.write_huffman(&table, 0).unwrap();
-        w.write_huffman(&table, 2).unwrap();
-        w.write_huffman(&table, 1).unwrap();
-        w.write_huffman(&table, 1).unwrap();
-        w.write_huffman(&table, 2).unwrap();
-        w.write_huffman(&table, 0).unwrap();
-        w.write_huffman(&table, 2).unwrap();
-        w.write_huffman(&table, 0).unwrap();
-        w.write_huffman(&table, 1).unwrap();
-        w.write_huffman(&table, 4).unwrap();
-        w.write_huffman(&table, 2).unwrap();
+        w.write_huffman(&tree, 1).unwrap();
+        w.write_huffman(&tree, 0).unwrap();
+        w.write_huffman(&tree, 4).unwrap();
+        w.write_huffman(&tree, 0).unwrap();
+        w.write_huffman(&tree, 0).unwrap();
+        w.write_huffman(&tree, 2).unwrap();
+        w.write_huffman(&tree, 1).unwrap();
+        w.write_huffman(&tree, 1).unwrap();
+        w.write_huffman(&tree, 2).unwrap();
+        w.write_huffman(&tree, 0).unwrap();
+        w.write_huffman(&tree, 2).unwrap();
+        w.write_huffman(&tree, 0).unwrap();
+        w.write_huffman(&tree, 1).unwrap();
+        w.write_huffman(&tree, 4).unwrap();
+        w.write_huffman(&tree, 2).unwrap();
         w.byte_align().unwrap();
     }
     assert_eq!(output.as_slice(), &final_data);
@@ -484,29 +484,29 @@ fn test_writer_huffman_le() {
     use bitstream_io::huffman::WriteHuffmanTree;
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let table = WriteHuffmanTree::new(
-        vec![(vec![1, 1], 0),
-             (vec![1, 0], 1),
-             (vec![0, 1], 2),
-             (vec![0, 0, 1], 3),
-             (vec![0, 0, 0], 4)]).unwrap();
+    let tree = WriteHuffmanTree::new(
+        vec![(0, vec![1, 1]),
+             (1, vec![1, 0]),
+             (2, vec![0, 1]),
+             (3, vec![0, 0, 1]),
+             (4, vec![0, 0, 0])]).unwrap();
     let mut output = Vec::with_capacity(4);
     {
         let mut w = BitWriterLE::new(&mut output);
-        w.write_huffman(&table, 1).unwrap();
-        w.write_huffman(&table, 3).unwrap();
-        w.write_huffman(&table, 1).unwrap();
-        w.write_huffman(&table, 0).unwrap();
-        w.write_huffman(&table, 2).unwrap();
-        w.write_huffman(&table, 1).unwrap();
-        w.write_huffman(&table, 0).unwrap();
-        w.write_huffman(&table, 0).unwrap();
-        w.write_huffman(&table, 1).unwrap();
-        w.write_huffman(&table, 0).unwrap();
-        w.write_huffman(&table, 1).unwrap();
-        w.write_huffman(&table, 2).unwrap();
-        w.write_huffman(&table, 4).unwrap();
-        w.write_huffman(&table, 3).unwrap();
+        w.write_huffman(&tree, 1).unwrap();
+        w.write_huffman(&tree, 3).unwrap();
+        w.write_huffman(&tree, 1).unwrap();
+        w.write_huffman(&tree, 0).unwrap();
+        w.write_huffman(&tree, 2).unwrap();
+        w.write_huffman(&tree, 1).unwrap();
+        w.write_huffman(&tree, 0).unwrap();
+        w.write_huffman(&tree, 0).unwrap();
+        w.write_huffman(&tree, 1).unwrap();
+        w.write_huffman(&tree, 0).unwrap();
+        w.write_huffman(&tree, 1).unwrap();
+        w.write_huffman(&tree, 2).unwrap();
+        w.write_huffman(&tree, 4).unwrap();
+        w.write_huffman(&tree, 3).unwrap();
         w.write(1, 1).unwrap();
     }
     assert_eq!(output.as_slice(), &final_data);
