@@ -6,11 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-/* This is the braindead version of Huffman tree parsing
- * which gives each bit its own node in the tree for
- * traversing one-by-one.
- * It'll need to be optimized in order to be viable for reading
- * real files.*/
+//! Traits and implementations for reading or writing Huffman codes
+//! from or to a stream.
 
 use std::fmt;
 use std::collections::BTreeMap;
@@ -21,7 +18,7 @@ pub enum ReadHuffmanTree<T: Clone> {
 }
 
 impl<T: Clone> ReadHuffmanTree<T> {
-    /// Given a slice of symbol/code pairs, compiles a Huffman tree
+    /// Given a vector of symbol/code pairs, compiles a Huffman tree
     /// for reading.
     /// Code must be 0 or 1 bits and are always consumed from the stream
     /// from least-significant in the list to most signficant
@@ -165,7 +162,7 @@ pub struct WriteHuffmanTree<T: Ord> {
 }
 
 impl<T: Ord + Clone> WriteHuffmanTree<T> {
-    /// Given a slice of symbol/code pairs, compiles a Huffman tree
+    /// Given a vector of symbol/code pairs, compiles a Huffman tree
     /// for writing.
     /// Code must be 0 or 1 bits and are always written to the stream
     /// from least-significant in the list to most signficant

@@ -16,7 +16,7 @@
 //! Both big-endian and little-endian streams are supported.
 //!
 //! The only requirement for wrapped reader streams is that they must
-//! implement the `BufRead` trait, and the only requirement
+//! implement the `Read` trait, and the only requirement
 //! for writer streams is that they must implement the `Write` trait.
 //!
 //! In addition, reader streams do not consume any more bytes
@@ -25,8 +25,8 @@
 //! Writer streams also write out all whole bytes as they are accumulated.
 //!
 //! Readers and writers are also designed to work with integer
-//! types of any possible size.  Many of Rust's built-in integer types are
-//! supported by default, but others can be added with minimal effort.
+//! types of any possible size.
+//! Many of Rust's built-in integer types are supported by default.
 //!
 //! ## Type Sizes
 //!

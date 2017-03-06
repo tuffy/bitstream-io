@@ -72,17 +72,106 @@ use huffman::WriteHuffmanTree;
 pub trait BitWrite {
     /// Writes a single bit to the stream.
     /// `true` indicates 1, `false` indicates 0
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(false).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(false).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    /// }
+    /// assert_eq!(data, [0b10110111]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(false).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    ///     writer.write_bit(false).unwrap();
+    ///     writer.write_bit(true).unwrap();
+    /// }
+    /// assert_eq!(data, [0b10110111]);
+    /// ```
     fn write_bit(&mut self, bit: bool) -> Result<(), io::Error>;
 
     /// Writes an unsigned value to the stream using the given
     /// number of bits.  This method assumes that value's type
     /// is sufficiently large to hold those bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     writer.write(1, 0b1).unwrap();
+    ///     writer.write(2, 0b01).unwrap();
+    ///     writer.write(5, 0b10111).unwrap();
+    /// }
+    /// assert_eq!(data, [0b10110111]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     writer.write(1, 0b1).unwrap();
+    ///     writer.write(2, 0b11).unwrap();
+    ///     writer.write(5, 0b10110).unwrap();
+    /// }
+    /// assert_eq!(data, [0b10110111]);
+    /// ```
     fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
         where U: Numeric;
 
     /// Writes a twos-complement signed value to the stream
     /// with the given number of bits.  This method assumes
     /// that value's type is sufficiently large to hold those bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     writer.write_signed(4, -5).unwrap();
+    ///     writer.write_signed(4, 7).unwrap();
+    /// }
+    /// assert_eq!(data, [0b10110111]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     writer.write_signed(4, 7).unwrap();
+    ///     writer.write_signed(4, -5).unwrap();
+    /// }
+    /// assert_eq!(data, [0b10110111]);
+    /// ```
     fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
         where S: SignedNumeric;
 
@@ -90,16 +179,79 @@ pub trait BitWrite {
     /// If the stream is already byte-aligned, it will often
     /// map to a faster `write_all` call.  Otherwise it will
     /// write bytes individually in 8-bit increments.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     writer.write(8, 0x66).unwrap();
+    ///     writer.write(8, 0x6F).unwrap();
+    ///     writer.write(8, 0x6F).unwrap();
+    ///     writer.write_bytes(b"bar").unwrap();
+    /// }
+    /// assert_eq!(data, b"foobar");
+    /// ```
     fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error>;
 
-    /// Writes Huffman code from the given lookup table to the stream.
+    /// Writes Huffman code for the given symbol to the stream.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::huffman::WriteHuffmanTree;
+    /// let tree = WriteHuffmanTree::new(
+    ///     vec![('a', vec![0]),
+    ///          ('b', vec![1, 0]),
+    ///          ('c', vec![1, 1, 0]),
+    ///          ('d', vec![1, 1, 1])]).unwrap();
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     writer.write_huffman(&tree, 'b').unwrap();
+    ///     writer.write_huffman(&tree, 'c').unwrap();
+    ///     writer.write_huffman(&tree, 'd').unwrap();
+    /// }
+    /// assert_eq!(data, [0b10110111]);
+    /// ```
     fn write_huffman<T>(&mut self,
                         tree: &WriteHuffmanTree<T>,
-                        value: T) ->
+                        symbol: T) ->
         Result<(), io::Error> where T: Ord + Copy;
 
     /// Writes `value` number of 1 bits to the stream
     /// and then writes a 0 bit.  This field is variably-sized.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     writer.write_unary0(0).unwrap();
+    ///     writer.write_unary0(3).unwrap();
+    ///     writer.write_unary0(10).unwrap();
+    /// }
+    /// assert_eq!(data, [0b01110111, 0b11111110]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     writer.write_unary0(0).unwrap();
+    ///     writer.write_unary0(3).unwrap();
+    ///     writer.write_unary0(10).unwrap();
+    /// }
+    /// assert_eq!(data, [0b11101110, 0b01111111]);
+    /// ```
     fn write_unary0(&mut self, mut value: u32) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
         while value > 8 {
@@ -114,6 +266,33 @@ pub trait BitWrite {
 
     /// Writes `value` number of 0 bits to the stream
     /// and then writes a 1 bit.  This field is variably-sized.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     writer.write_unary1(0).unwrap();
+    ///     writer.write_unary1(3).unwrap();
+    ///     writer.write_unary1(10).unwrap();
+    /// }
+    /// assert_eq!(data, [0b10001000, 0b00000001]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     writer.write_unary1(0).unwrap();
+    ///     writer.write_unary1(3).unwrap();
+    ///     writer.write_unary1(10).unwrap();
+    /// }
+    /// assert_eq!(data, [0b00010001, 0b10000000]);
+    /// ```
     fn write_unary1(&mut self, mut value: u32) -> Result<(), io::Error> {
         /*FIXME - optimize this*/
         while value > 8 {
@@ -127,10 +306,37 @@ pub trait BitWrite {
     }
 
     /// Returns true if the stream is aligned at a whole byte.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// let mut data = Vec::new();
+    /// let mut writer = BitWriterBE::new(&mut data);
+    /// assert_eq!(writer.byte_aligned(), true);
+    /// writer.write(1, 0).unwrap();
+    /// assert_eq!(writer.byte_aligned(), false);
+    /// writer.write(7, 0).unwrap();
+    /// assert_eq!(writer.byte_aligned(), true);
+    /// ```
     fn byte_aligned(&self) -> bool;
 
-    /// Pads the stream with 0 bits until is aligned at a whole byte.
+    /// Pads the stream with 0 bits until it is aligned at a whole byte.
     /// Does nothing if the stream is already aligned.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// let mut data = Vec::new();
+    /// {
+    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     writer.write(1, 0).unwrap();
+    ///     writer.byte_align().unwrap();
+    ///     writer.write(8, 0xFF).unwrap();
+    /// }
+    /// assert_eq!(data, [0x00, 0xFF]);
+    /// ```
     fn byte_align(&mut self) -> Result<(), io::Error> {
         while !self.byte_aligned() {
             self.write_bit(false)?;
@@ -221,9 +427,9 @@ impl<'a> BitWrite for BitWriterBE<'a> {
     #[inline]
     fn write_huffman<T>(&mut self,
                         tree: &WriteHuffmanTree<T>,
-                        value: T) ->
+                        symbol: T) ->
         Result<(), io::Error> where T: Ord + Copy {
-        let (bits, value) = tree.get_be(value);
+        let (bits, value) = tree.get_be(symbol);
         self.write(bits, value)
     }
 
@@ -270,9 +476,9 @@ impl<'a> BitWrite for BitWriterLE<'a> {
     #[inline]
     fn write_huffman<T>(&mut self,
                         tree: &WriteHuffmanTree<T>,
-                        value: T) ->
+                        symbol: T) ->
         Result<(), io::Error> where T: Ord + Copy {
-        let (bits, value) = tree.get_le(value);
+        let (bits, value) = tree.get_le(symbol);
         self.write(bits, value)
     }
 

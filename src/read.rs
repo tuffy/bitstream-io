@@ -10,8 +10,7 @@
 //!
 //! ## Example
 //! ```
-//! use std::io::Cursor;
-//! use std::io::Read;
+//! use std::io::{Cursor, Read};
 //! use bitstream_io::{BitRead, BitReaderBE};
 //!
 //! let flac: Vec<u8> = vec![0x66,0x4C,0x61,0x43,0x00,0x00,0x00,0x22,
@@ -70,12 +69,70 @@ use huffman::ReadHuffmanTree;
 pub trait BitRead {
     /// Reads a single bit from the stream.
     /// `true` indicates 1, `false` indicates 0
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), false);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), false);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderLE};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderLE::new(&mut cursor);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), false);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// assert_eq!(reader.read_bit().unwrap(), false);
+    /// assert_eq!(reader.read_bit().unwrap(), true);
+    /// ```
+
     fn read_bit(&mut self) -> Result<bool, io::Error>;
 
     /// Reads an unsigned value from the stream with
     /// the given number of bits.  This method assumes
     /// that the programmer is using an output type
     /// sufficiently large to hold those bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert_eq!(reader.read::<u8>(1).unwrap(), 0b1);
+    /// assert_eq!(reader.read::<u8>(2).unwrap(), 0b01);
+    /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10111);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderLE};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderLE::new(&mut cursor);
+    /// assert_eq!(reader.read::<u8>(1).unwrap(), 0b1);
+    /// assert_eq!(reader.read::<u8>(2).unwrap(), 0b11);
+    /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10110);
+    /// ```
     fn read<U>(&mut self, bits: u32) -> Result<U, io::Error>
         where U: Numeric;
 
@@ -83,6 +140,27 @@ pub trait BitRead {
     /// the given number of bits.  This method assumes
     /// that the programmer is using an output type
     /// sufficiently large to hold those bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderLE};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderLE::new(&mut cursor);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
+    /// ```
     fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric;
 
@@ -94,34 +172,158 @@ pub trait BitRead {
     /// which may be skipped.
     /// These bits are still read from the stream, however,
     /// and are never skipped via a `seek` method.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert!(reader.skip(3).is_ok());
+    /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10111);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderLE};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderLE::new(&mut cursor);
+    /// assert!(reader.skip(3).is_ok());
+    /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10110);
+    /// ```
     fn skip(&mut self, bits: u32) -> Result<(), io::Error>;
 
     /// Completely fills the given buffer with whole bytes.
-    /// If the stream is already byte-aligned, it will map
+    /// If the stream is already byte-aligned, it will typically map
     /// to a faster `read_exact` call.  Otherwise it will read
     /// bytes individually in 8-bit increments.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// let data = b"foobar";
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert!(reader.skip(24).is_ok());
+    /// let mut buf = [0;3];
+    /// assert!(reader.read_bytes(&mut buf).is_ok());
+    /// assert_eq!(&buf, b"bar");
+    /// ```
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error>;
 
     /// Counts the number of 1 bits in the stream until the next
     /// 0 bit and returns the amount read.
     /// Because this field is variably-sized and may be large,
     /// its output is always a `u32` type.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// let data = [0b01110111, 0b11111110];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert_eq!(reader.read_unary0().unwrap(), 0);
+    /// assert_eq!(reader.read_unary0().unwrap(), 3);
+    /// assert_eq!(reader.read_unary0().unwrap(), 10);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderLE};
+    /// let data = [0b11101110, 0b01111111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderLE::new(&mut cursor);
+    /// assert_eq!(reader.read_unary0().unwrap(), 0);
+    /// assert_eq!(reader.read_unary0().unwrap(), 3);
+    /// assert_eq!(reader.read_unary0().unwrap(), 10);
+    /// ```
     fn read_unary0(&mut self) -> Result<u32, io::Error>;
 
     /// Counts the number of 0 bits in the stream until the next
     /// 1 bit and returns the amount read.
     /// Because this field is variably-sized and may be large,
     /// its output is always a `u32` type.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// let data = [0b10001000, 0b00000001];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert_eq!(reader.read_unary1().unwrap(), 0);
+    /// assert_eq!(reader.read_unary1().unwrap(), 3);
+    /// assert_eq!(reader.read_unary1().unwrap(), 10);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderLE};
+    /// let data = [0b00010001, 0b10000000];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderLE::new(&mut cursor);
+    /// assert_eq!(reader.read_unary1().unwrap(), 0);
+    /// assert_eq!(reader.read_unary1().unwrap(), 3);
+    /// assert_eq!(reader.read_unary1().unwrap(), 10);
+    /// ```
     fn read_unary1(&mut self) -> Result<u32, io::Error>;
 
     /// Returns true if the stream is aligned at a whole byte.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// let data = [0];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert_eq!(reader.byte_aligned(), true);
+    /// assert!(reader.skip(1).is_ok());
+    /// assert_eq!(reader.byte_aligned(), false);
+    /// assert!(reader.skip(7).is_ok());
+    /// assert_eq!(reader.byte_aligned(), true);
+    /// ```
     fn byte_aligned(&self) -> bool;
 
     /// Throws away all unread bit values until the next whole byte.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// let data = [0x00, 0xFF];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert_eq!(reader.read::<u8>(4).unwrap(), 0);
+    /// reader.byte_align();
+    /// assert_eq!(reader.read::<u8>(8).unwrap(), 0xFF);
+    /// ```
     fn byte_align(&mut self);
 
     /// Given a compiled Huffman tree, reads bits from the stream
-    /// until a leaf node value is encountered and returns it.
+    /// until the next symbol is encountered.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BitRead, BitReaderBE};
+    /// use bitstream_io::huffman::ReadHuffmanTree;
+    /// let tree = ReadHuffmanTree::new(
+    ///     vec![('a', vec![0]),
+    ///          ('b', vec![1, 0]),
+    ///          ('c', vec![1, 1, 0]),
+    ///          ('d', vec![1, 1, 1])]).unwrap();
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReaderBE::new(&mut cursor);
+    /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'b');
+    /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'c');
+    /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'd');
+    /// ```
     fn read_huffman<T>(&mut self, mut tree: &ReadHuffmanTree<T>) ->
         Result<T,io::Error> where T: Clone {
         loop {
