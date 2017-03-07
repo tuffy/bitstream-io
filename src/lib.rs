@@ -247,10 +247,10 @@ impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
 
 impl BitQueueBE<u8> {
     #[inline(always)]
-    fn all_0(&self) -> bool {self.value == 0}
+    fn all_0(&self) -> bool {self.value.count_ones() == 0}
 
     #[inline(always)]
-    fn all_1(&self) -> bool {self.value == ((1u16 << self.bits) - 1) as u8}
+    fn all_1(&self) -> bool {self.value.count_ones() == self.bits}
 
     /// pops all 0 bits until the next 1 bit
     /// and returns the amount of 0 bits popped
@@ -341,10 +341,10 @@ impl<N: Numeric> BitQueue<N> for BitQueueLE<N> {
 
 impl BitQueueLE<u8> {
     #[inline(always)]
-    fn all_0(&self) -> bool {self.value == 0}
+    fn all_0(&self) -> bool {self.value.count_ones() == 0}
 
     #[inline(always)]
-    fn all_1(&self) -> bool {self.value == ((1u16 << self.bits) - 1) as u8}
+    fn all_1(&self) -> bool {self.value.count_ones() == self.bits}
 
     /// pops all 0 bits until the next 1 bit
     /// and returns the amount of 0 bits popped
