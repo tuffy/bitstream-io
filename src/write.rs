@@ -252,16 +252,23 @@ pub trait BitWrite {
     /// }
     /// assert_eq!(data, [0b11101110, 0b01111111]);
     /// ```
-    fn write_unary0(&mut self, mut value: u32) -> Result<(), io::Error> {
-        /*FIXME - optimize this*/
-        while value > 8 {
-            self.write(8, 0xFFu8)?;
-            value -= 8;
+    fn write_unary0(&mut self, value: u32) -> Result<(), io::Error> {
+        match value {
+            0 => {self.write_bit(false)}
+            bits @ 1...31 => {self.write(value, (1u32 << bits) - 1)
+                                  .and_then(|()| self.write_bit(false))}
+            32 => {self.write(value, 0xFFFFFFFFu32)
+                       .and_then(|()| self.write_bit(false))}
+            bits @ 32...63  => {self.write(value, (1u64 << bits) - 1)
+                                    .and_then(|()| self.write_bit(false))}
+            64 => {self.write(value, 0xFFFFFFFFFFFFFFFFu64)
+                       .and_then(|()| self.write_bit(false))}
+            mut bits => {while bits > 64 {
+                             self.write(64, 0xFFFFFFFFFFFFFFFFu64)?;
+                             bits -= 64;
+                         }
+                         self.write_unary0(bits)}
         }
-        if value > 0 {
-            self.write(value, (1 << value) - 1)?;
-        }
-        self.write_bit(false)
     }
 
     /// Writes `value` number of 0 bits to the stream
@@ -293,16 +300,16 @@ pub trait BitWrite {
     /// }
     /// assert_eq!(data, [0b00010001, 0b10000000]);
     /// ```
-    fn write_unary1(&mut self, mut value: u32) -> Result<(), io::Error> {
-        /*FIXME - optimize this*/
-        while value > 8 {
-            self.write(8, 0u8)?;
-            value -= 8;
+    fn write_unary1(&mut self, value: u32) -> Result<(), io::Error> {
+        match value {
+            0        => {self.write_bit(true)}
+            1...32   => {self.write(value, 0u32)
+                             .and_then(|()| self.write_bit(true))}
+            33...64  => {self.write(value, 0u64)
+                             .and_then(|()| self.write_bit(true))}
+            mut bits => {while bits > 64 {self.write(64, 0u64)?; bits -= 64;}
+                         self.write_unary1(bits)}
         }
-        if value > 0 {
-            self.write(value, 0)?;
-        }
-        self.write_bit(true)
     }
 
     /// Returns true if the stream is aligned at a whole byte.

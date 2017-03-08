@@ -64,3 +64,46 @@ macro_rules! define_roundtrip {
 
 define_roundtrip!(test_roundtrip_be, BitReaderBE, BitWriterBE);
 define_roundtrip!(test_roundtrip_le, BitReaderLE, BitWriterLE);
+
+macro_rules! define_unary_roundtrip {
+    ($func_name:ident, $reader_type:ident, $writer_type:ident) => {
+        #[test]
+        fn $func_name() {
+            let mut output: Vec<u8> = Vec::new();
+            {
+                let mut writer = $writer_type::new(&mut output);
+                for value in 0..1024 {
+                    writer.write_unary0(value).unwrap();
+                }
+                writer.byte_align().unwrap();
+            }
+            {
+                let mut c = Cursor::new(&output);
+                let mut reader = $reader_type::new(&mut c);
+                for value in 0..1024 {
+                    assert_eq!(reader.read_unary0().unwrap(), value);
+                }
+            }
+
+            let mut output: Vec<u8> = Vec::new();
+            {
+                let mut writer = $writer_type::new(&mut output);
+                for value in 0..1024 {
+                    writer.write_unary1(value).unwrap();
+                }
+                writer.byte_align().unwrap();
+            }
+            {
+                let mut c = Cursor::new(&output);
+                let mut reader = $reader_type::new(&mut c);
+                for value in 0..1024 {
+                    assert_eq!(reader.read_unary1().unwrap(), value);
+                }
+            }
+        }
+    }
+}
+
+
+define_unary_roundtrip!(test_unary_roundtrip_be, BitReaderBE, BitWriterBE);
+define_unary_roundtrip!(test_unary_roundtrip_le, BitReaderLE, BitWriterLE);

@@ -141,7 +141,7 @@ impl fmt::Display for HuffmanTreeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             HuffmanTreeError::InvalidBit => {
-                write!(f, "invalid bit in specification")
+                write!(f, "invalid bit in code")
             }
             HuffmanTreeError::MissingLeaf => {
                 write!(f, "missing leaf node in specification")
