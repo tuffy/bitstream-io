@@ -156,6 +156,8 @@ define_signed_numeric!(i16);
 define_signed_numeric!(i32);
 define_signed_numeric!(i64);
 
+/// A stream's endianness, or byte order, for determining
+/// how bits should be read.
 pub trait Endianness {
     fn leading_sign() -> bool;
 
@@ -177,7 +179,10 @@ pub trait Endianness {
     fn next_ones<N>(bits: u32, value: N) -> u32 where N: Numeric;
 }
 
+/// Big-endian, or most significant bits first
 pub struct BigEndian {}
+
+/// Big-endian, or most significant bits first
 pub type BE = BigEndian;
 
 impl Endianness for BigEndian {
@@ -240,7 +245,10 @@ impl Endianness for BigEndian {
     }
 }
 
+/// Little-endian, or least significant bits first
 pub struct LittleEndian {}
+
+/// Little-endian, or least significant bits first
 pub type LE = LittleEndian;
 
 impl Endianness for LittleEndian {
@@ -295,6 +303,8 @@ impl Endianness for LittleEndian {
     }
 }
 
+/// A queue for efficiently pushing bits onto a value
+/// and popping them off a value.
 pub struct BitQueue<E: Endianness, N: Numeric> {
     phantom: PhantomData<E>,
     value: N,
