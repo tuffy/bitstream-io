@@ -311,12 +311,21 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// assert_eq!(reader.read_unary0().unwrap(), 10);
     /// ```
     pub fn read_unary0(&mut self) -> Result<u32, io::Error> {
-        /*FIXME - optimize this*/
-        let mut acc = 0;
-        while self.read_bit()? == true {
-            acc += 1;
+        if self.bitqueue.is_empty() {
+            read_aligned_unary(&mut self.reader,
+                               0b11111111,
+                               &mut self.bitqueue).map(
+                |u| u + self.bitqueue.pop_1())
+        } else if self.bitqueue.all_1() {
+            let base = self.bitqueue.len();
+            self.bitqueue.clear();
+            read_aligned_unary(&mut self.reader,
+                               0b11111111,
+                               &mut self.bitqueue).map(
+                |u| base + u + self.bitqueue.pop_1())
+        } else {
+            Ok(self.bitqueue.pop_1())
         }
-        Ok(acc)
     }
 
     /// Counts the number of 0 bits in the stream until the next
@@ -347,12 +356,21 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// assert_eq!(reader.read_unary1().unwrap(), 10);
     /// ```
     pub fn read_unary1(&mut self) -> Result<u32, io::Error> {
-        /*FIXME - optimize this*/
-        let mut acc = 0;
-        while self.read_bit()? == false {
-            acc += 1;
+        if self.bitqueue.is_empty() {
+            read_aligned_unary(&mut self.reader,
+                               0b00000000,
+                               &mut self.bitqueue).map(
+                |u| u + self.bitqueue.pop_0())
+        } else if self.bitqueue.all_0() {
+            let base = self.bitqueue.len();
+            self.bitqueue.clear();
+            read_aligned_unary(&mut self.reader,
+                               0b00000000,
+                               &mut self.bitqueue).map(
+                |u| base + u + self.bitqueue.pop_0())
+        } else {
+            Ok(self.bitqueue.pop_0())
         }
-        Ok(acc)
     }
 
     /// Returns true if the stream is aligned at a whole byte.
@@ -502,16 +520,17 @@ fn skip_unaligned<E>(reader: &mut io::Read,
     Ok(())
 }
 
-// #[inline]
-// fn read_aligned_unary(reader: &mut io::Read,
-//                       continue_val: u8,
-//                       rem: &mut BitQueue<u8>) -> Result<u32,io::Error> {
-//     let mut acc = 0;
-//     let mut byte = read_byte(reader)?;
-//     while byte == continue_val {
-//         acc += 8;
-//         byte = read_byte(reader)?;
-//     }
-//     rem.set(byte, 8);
-//     Ok(acc)
-// }
+#[inline]
+fn read_aligned_unary<E>(reader: &mut io::Read,
+                        continue_val: u8,
+                        rem: &mut BitQueue<E,u8>) -> Result<u32,io::Error>
+    where E: Endianness {
+    let mut acc = 0;
+    let mut byte = read_byte(reader)?;
+    while byte == continue_val {
+        acc += 8;
+        byte = read_byte(reader)?;
+    }
+    rem.set(byte, 8);
+    Ok(acc)
+}
