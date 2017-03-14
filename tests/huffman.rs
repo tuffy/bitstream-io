@@ -5,6 +5,8 @@ use bitstream_io::huffman::{ReadHuffmanTree,
 
 #[test]
 fn test_huffman_errors() {
+    use bitstream_io::BE;
+
     let empty: Vec<(i32, Vec<u8>)> = Vec::new();
     assert!(
         if let Err(err) = ReadHuffmanTree::new(empty) {
@@ -46,7 +48,8 @@ fn test_huffman_errors() {
     );
 
     assert!(
-        if let Err(err) = WriteHuffmanTree::new(vec![(0u32, vec![1,1,2])]) {
+        if let Err(err) = WriteHuffmanTree::<BE,u32>::new(
+            vec![(0, vec![1,1,2])]) {
             err == HuffmanTreeError::InvalidBit
         } else {false}
     );
@@ -57,7 +60,7 @@ fn test_huffman_values() {
     use std::io::Cursor;
     use std::ops::Deref;
     use std::rc::Rc;
-    use bitstream_io::{BitReaderBE, BitRead};
+    use bitstream_io::{BE, BitReader};
     use bitstream_io::huffman::ReadHuffmanTree;
 
     let data = [0xB1, 0xED];
@@ -69,7 +72,7 @@ fn test_huffman_values() {
                  (Some(2), vec![1, 1, 0]),
                  (None, vec![1, 1, 1])]).unwrap();
         let mut c = Cursor::new(&data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read_huffman(&tree).unwrap(), Some(1));
         assert_eq!(r.read_huffman(&tree).unwrap(), Some(2));
         assert_eq!(r.read_huffman(&tree).unwrap(), Some(0));
@@ -85,7 +88,7 @@ fn test_huffman_values() {
                  (Rc::new("baz".to_owned()), vec![1, 1, 0]),
                  (Rc::new("kelp".to_owned()), vec![1, 1, 1])]).unwrap();
         let mut c = Cursor::new(&data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read_huffman(&tree).unwrap().deref(), "bar");
         assert_eq!(r.read_huffman(&tree).unwrap().deref(), "baz");
         assert_eq!(r.read_huffman(&tree).unwrap().deref(), "foo");

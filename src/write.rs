@@ -11,11 +11,11 @@
 //! ## Example
 //! ```
 //! use std::io::Write;
-//! use bitstream_io::{BitWrite, BitWriterBE};
+//! use bitstream_io::{BE, BitWriter};
 //!
 //! let mut flac: Vec<u8> = Vec::new();
 //! {
-//!     let mut writer = BitWriterBE::new(&mut flac);
+//!     let mut writer = BitWriter::<BE>::new(&mut flac);
 //!     writer.write_bytes(b"fLaC").unwrap();
 //!
 //!     let last_block: bool = false;
@@ -59,7 +59,7 @@
 
 use std::io;
 
-use super::{Numeric, SignedNumeric, BitQueue, BitQueueBE, BitQueueLE};
+use super::{Numeric, SignedNumeric, Endianness, BitQueue};
 use huffman::WriteHuffmanTree;
 
 /// For writing bit values to an underlying stream in a given endianness.
@@ -69,17 +69,29 @@ use huffman::WriteHuffmanTree;
 /// writer's lifetime ends.
 /// **Partial bytes will be lost** if the writer is disposed of
 /// before they can be written.
-pub trait BitWrite {
+pub struct BitWriter<'a, E: Endianness> {
+    writer: &'a mut io::Write,
+    byte_buf: Vec<u8>,
+    bitqueue: BitQueue<E,u8>
+}
+
+impl<'a, E: Endianness> BitWriter<'a, E> {
+    pub fn new(writer: &mut io::Write) -> BitWriter<E> {
+        BitWriter{writer: writer,
+                  byte_buf: Vec::new(),
+                  bitqueue: BitQueue::new()}
+    }
+
     /// Writes a single bit to the stream.
     /// `true` indicates 1, `false` indicates 0
     ///
     /// # Examples
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
     ///     writer.write_bit(true).unwrap();
     ///     writer.write_bit(false).unwrap();
     ///     writer.write_bit(true).unwrap();
@@ -94,10 +106,10 @@ pub trait BitWrite {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// use bitstream_io::{LittleEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     let mut writer = BitWriter::<LittleEndian>::new(&mut data);
     ///     writer.write_bit(true).unwrap();
     ///     writer.write_bit(true).unwrap();
     ///     writer.write_bit(true).unwrap();
@@ -109,7 +121,14 @@ pub trait BitWrite {
     /// }
     /// assert_eq!(data, [0b10110111]);
     /// ```
-    fn write_bit(&mut self, bit: bool) -> Result<(), io::Error>;
+    pub fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
+        self.bitqueue.push(1, if bit {1} else {0});
+        if self.bitqueue.len() == 8 {
+            write_byte(self.writer, self.bitqueue.pop(8))
+        } else {
+            Ok(())
+        }
+    }
 
     /// Writes an unsigned value to the stream using the given
     /// number of bits.  This method assumes that value's type
@@ -118,10 +137,10 @@ pub trait BitWrite {
     /// # Examples
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
     ///     writer.write(1, 0b1).unwrap();
     ///     writer.write(2, 0b01).unwrap();
     ///     writer.write(5, 0b10111).unwrap();
@@ -131,18 +150,26 @@ pub trait BitWrite {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// use bitstream_io::{LittleEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     let mut writer = BitWriter::<LittleEndian>::new(&mut data);
     ///     writer.write(1, 0b1).unwrap();
     ///     writer.write(2, 0b11).unwrap();
     ///     writer.write(5, 0b10110).unwrap();
     /// }
     /// assert_eq!(data, [0b10110111]);
     /// ```
-    fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
-        where U: Numeric;
+    pub fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
+        where U: Numeric {
+
+        let mut acc = BitQueue::from_value(value, bits);
+        write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
+        .and_then(|()|
+            write_aligned(&mut self.writer, &mut self.byte_buf, &mut acc))
+        .and_then(|()|
+            Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
+    }
 
     /// Writes a twos-complement signed value to the stream
     /// with the given number of bits.  This method assumes
@@ -151,10 +178,10 @@ pub trait BitWrite {
     /// # Examples
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
     ///     writer.write_signed(4, -5).unwrap();
     ///     writer.write_signed(4, 7).unwrap();
     /// }
@@ -163,17 +190,36 @@ pub trait BitWrite {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// use bitstream_io::{LittleEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     let mut writer = BitWriter::<LittleEndian>::new(&mut data);
     ///     writer.write_signed(4, 7).unwrap();
     ///     writer.write_signed(4, -5).unwrap();
     /// }
     /// assert_eq!(data, [0b10110111]);
     /// ```
-    fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
-        where S: SignedNumeric;
+    pub fn write_signed<S>(&mut self, bits: u32, value: S) ->
+        Result<(), io::Error> where S: SignedNumeric {
+
+        if E::leading_sign() {
+            if value.is_negative() {
+                self.write_bit(true)
+                .and_then(|()| self.write(bits - 1, value.as_unsigned(bits)))
+            } else {
+                self.write_bit(false)
+                .and_then(|()| self.write(bits - 1, value))
+            }
+        } else {
+            if value.is_negative() {
+                self.write(bits - 1, value.as_unsigned(bits))
+                .and_then(|()| self.write_bit(true))
+            } else {
+                self.write(bits - 1, value)
+                .and_then(|()| self.write_bit(false))
+            }
+        }
+    }
 
     /// Writes the entirety of a byte buffer to the stream.
     /// If the stream is already byte-aligned, it will often
@@ -184,10 +230,10 @@ pub trait BitWrite {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
     ///     writer.write(8, 0x66).unwrap();
     ///     writer.write(8, 0x6F).unwrap();
     ///     writer.write(8, 0x6F).unwrap();
@@ -195,33 +241,46 @@ pub trait BitWrite {
     /// }
     /// assert_eq!(data, b"foobar");
     /// ```
-    fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error>;
+    pub fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+        if self.byte_aligned() {
+            self.writer.write_all(buf)
+        } else {
+            for b in buf {
+                self.write(8, *b)?;
+            }
+            Ok(())
+        }
+    }
 
     /// Writes Huffman code for the given symbol to the stream.
     ///
     /// # Example
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// use bitstream_io::huffman::WriteHuffmanTree;
-    /// let tree = WriteHuffmanTree::new(
+    /// let tree = WriteHuffmanTree::<BigEndian,char>::new(
     ///     vec![('a', vec![0]),
     ///          ('b', vec![1, 0]),
     ///          ('c', vec![1, 1, 0]),
     ///          ('d', vec![1, 1, 1])]).unwrap();
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
     ///     writer.write_huffman(&tree, 'b').unwrap();
     ///     writer.write_huffman(&tree, 'c').unwrap();
     ///     writer.write_huffman(&tree, 'd').unwrap();
     /// }
     /// assert_eq!(data, [0b10110111]);
     /// ```
-    fn write_huffman<T>(&mut self,
-                        tree: &WriteHuffmanTree<T>,
-                        symbol: T) ->
-        Result<(), io::Error> where T: Ord + Copy;
+    pub fn write_huffman<T>(&mut self,
+                            tree: &WriteHuffmanTree<E,T>,
+                            symbol: T) ->
+        Result<(), io::Error> where T: Ord + Copy {
+
+        let (bits, value) = tree.get(symbol);
+        self.write(bits, value)
+    }
 
     /// Writes `value` number of 1 bits to the stream
     /// and then writes a 0 bit.  This field is variably-sized.
@@ -229,10 +288,10 @@ pub trait BitWrite {
     /// # Examples
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
     ///     writer.write_unary0(0).unwrap();
     ///     writer.write_unary0(3).unwrap();
     ///     writer.write_unary0(10).unwrap();
@@ -242,17 +301,17 @@ pub trait BitWrite {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// use bitstream_io::{LittleEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     let mut writer = BitWriter::<LittleEndian>::new(&mut data);
     ///     writer.write_unary0(0).unwrap();
     ///     writer.write_unary0(3).unwrap();
     ///     writer.write_unary0(10).unwrap();
     /// }
     /// assert_eq!(data, [0b11101110, 0b01111111]);
     /// ```
-    fn write_unary0(&mut self, value: u32) -> Result<(), io::Error> {
+    pub fn write_unary0(&mut self, value: u32) -> Result<(), io::Error> {
         match value {
             0 => {self.write_bit(false)}
             bits @ 1...31 => {self.write(value, (1u32 << bits) - 1)
@@ -277,10 +336,10 @@ pub trait BitWrite {
     /// # Example
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
     ///     writer.write_unary1(0).unwrap();
     ///     writer.write_unary1(3).unwrap();
     ///     writer.write_unary1(10).unwrap();
@@ -290,17 +349,17 @@ pub trait BitWrite {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterLE};
+    /// use bitstream_io::{LittleEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterLE::new(&mut data);
+    ///     let mut writer = BitWriter::<LittleEndian>::new(&mut data);
     ///     writer.write_unary1(0).unwrap();
     ///     writer.write_unary1(3).unwrap();
     ///     writer.write_unary1(10).unwrap();
     /// }
     /// assert_eq!(data, [0b00010001, 0b10000000]);
     /// ```
-    fn write_unary1(&mut self, value: u32) -> Result<(), io::Error> {
+    pub fn write_unary1(&mut self, value: u32) -> Result<(), io::Error> {
         match value {
             0        => {self.write_bit(true)}
             1...32   => {self.write(value, 0u32)
@@ -317,16 +376,17 @@ pub trait BitWrite {
     /// # Example
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
-    /// let mut writer = BitWriterBE::new(&mut data);
+    /// let mut writer = BitWriter::<BigEndian>::new(&mut data);
     /// assert_eq!(writer.byte_aligned(), true);
     /// writer.write(1, 0).unwrap();
     /// assert_eq!(writer.byte_aligned(), false);
     /// writer.write(7, 0).unwrap();
     /// assert_eq!(writer.byte_aligned(), true);
     /// ```
-    fn byte_aligned(&self) -> bool;
+    #[inline(always)]
+    pub fn byte_aligned(&self) -> bool {self.bitqueue.is_empty()}
 
     /// Pads the stream with 0 bits until it is aligned at a whole byte.
     /// Does nothing if the stream is already aligned.
@@ -334,163 +394,22 @@ pub trait BitWrite {
     /// # Example
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BitWrite, BitWriterBE};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
     /// {
-    ///     let mut writer = BitWriterBE::new(&mut data);
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
     ///     writer.write(1, 0).unwrap();
     ///     writer.byte_align().unwrap();
     ///     writer.write(8, 0xFF).unwrap();
     /// }
     /// assert_eq!(data, [0x00, 0xFF]);
     /// ```
-    fn byte_align(&mut self) -> Result<(), io::Error> {
+    pub fn byte_align(&mut self) -> Result<(), io::Error> {
         while !self.byte_aligned() {
             self.write_bit(false)?;
         }
         Ok(())
     }
-}
-
-macro_rules! define_write_bit {
-    () => {
-        #[inline(always)]
-        fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
-            self.bitqueue.push(1, if bit {1} else {0});
-            if self.bitqueue.len() == 8 {
-                write_byte(self.writer, self.bitqueue.pop(8))
-            } else {
-                Ok(())
-            }
-        }
-    }
-}
-
-macro_rules! define_write {
-    ($bitqueue:ident) => {
-        fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
-            where U: Numeric {
-            let mut acc = $bitqueue::from_value(value, bits);
-            write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
-            .and_then(|()|
-                write_aligned(&mut self.writer, &mut self.byte_buf, &mut acc))
-            .and_then(|()|
-                Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
-        }
-    }
-}
-
-macro_rules! define_write_bytes {
-    () => {
-        fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error> {
-            if self.byte_aligned() {
-                self.writer.write_all(buf)
-            } else {
-                for b in buf {
-                    self.write(8, *b)?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-/// A wrapper for writing values to a big-endian stream.
-pub struct BitWriterBE<'a> {
-    writer: &'a mut io::Write,
-    bitqueue: BitQueueBE<u8>,
-    byte_buf: Vec<u8>
-}
-
-impl<'a> BitWriterBE<'a> {
-    /// Wraps a big-endian writer around a `Write` reference.
-    ///
-    /// Because this is liable to make many small writes
-    /// in the course of normal operation, a `BufWrite` is preferable
-    /// for better performance.
-    pub fn new(writer: &mut io::Write) -> BitWriterBE {
-        BitWriterBE{writer: writer,
-                    bitqueue: BitQueueBE::new(),
-                    byte_buf: Vec::new()}
-    }
-}
-
-impl<'a> BitWrite for BitWriterBE<'a> {
-    define_write_bit!();
-    define_write!(BitQueueBE);
-    define_write_bytes!();
-
-    fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
-        where S: SignedNumeric {
-        if value.is_negative() {
-            self.write_bit(true)
-                .and_then(|()| self.write(bits - 1, value.as_unsigned(bits)))
-        } else {
-            self.write_bit(false)
-                .and_then(|()| self.write(bits - 1, value))
-        }
-    }
-
-    #[inline]
-    fn write_huffman<T>(&mut self,
-                        tree: &WriteHuffmanTree<T>,
-                        symbol: T) ->
-        Result<(), io::Error> where T: Ord + Copy {
-        let (bits, value) = tree.get_be(symbol);
-        self.write(bits, value)
-    }
-
-    #[inline]
-    fn byte_aligned(&self) -> bool {self.bitqueue.is_empty()}
-}
-
-/// A wrapper for writing values to a little-endian stream.
-pub struct BitWriterLE<'a> {
-    writer: &'a mut io::Write,
-    bitqueue: BitQueueLE<u8>,
-    byte_buf: Vec<u8>
-}
-
-impl<'a> BitWriterLE<'a> {
-    /// Wraps a little-endian writer around a `Write` reference.
-    ///
-    /// Because this is liable to make many small writes
-    /// in the course of normal operation, a `BufWrite` is preferable
-    /// for better performance.
-    pub fn new(writer: &mut io::Write) -> BitWriterLE {
-        BitWriterLE{writer: writer,
-                    bitqueue: BitQueueLE::new(),
-                    byte_buf: Vec::new()}
-    }
-}
-
-impl<'a> BitWrite for BitWriterLE<'a> {
-    define_write_bit!();
-    define_write!(BitQueueLE);
-    define_write_bytes!();
-
-    fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
-        where S: SignedNumeric {
-        if value.is_negative() {
-            self.write(bits - 1, value.as_unsigned(bits))
-                .and_then(|()| self.write_bit(true))
-        } else {
-            self.write(bits - 1, value)
-                .and_then(|()| self.write_bit(false))
-        }
-    }
-
-    #[inline]
-    fn write_huffman<T>(&mut self,
-                        tree: &WriteHuffmanTree<T>,
-                        symbol: T) ->
-        Result<(), io::Error> where T: Ord + Copy {
-        let (bits, value) = tree.get_le(symbol);
-        self.write(bits, value)
-    }
-
-    #[inline]
-    fn byte_aligned(&self) -> bool {self.bitqueue.is_empty()}
 }
 
 #[inline]
@@ -499,10 +418,10 @@ fn write_byte(writer: &mut io::Write, byte: u8) -> Result<(),io::Error> {
     writer.write_all(&buf)
 }
 
-fn write_unaligned<N>(writer: &mut io::Write,
-                      acc: &mut BitQueue<N>,
-                      rem: &mut BitQueue<u8>) -> Result<(), io::Error>
-    where N: Numeric {
+fn write_unaligned<E,N>(writer: &mut io::Write,
+                        acc: &mut BitQueue<E,N>,
+                        rem: &mut BitQueue<E,u8>) -> Result<(), io::Error>
+    where E:Endianness, N: Numeric {
 
     if rem.is_empty() {
         Ok(())
@@ -518,10 +437,10 @@ fn write_unaligned<N>(writer: &mut io::Write,
     }
 }
 
-fn write_aligned<N>(writer: &mut io::Write,
-                    byte_buf: &mut Vec<u8>,
-                    acc: &mut BitQueue<N>) -> Result<(), io::Error>
-    where N: Numeric {
+fn write_aligned<E,N>(writer: &mut io::Write,
+                      byte_buf: &mut Vec<u8>,
+                      acc: &mut BitQueue<E,N>) -> Result<(), io::Error>
+    where E: Endianness, N: Numeric {
     let bytes_to_write = (acc.len() / 8) as usize;
     if bytes_to_write > 0 {
         byte_buf.clear();

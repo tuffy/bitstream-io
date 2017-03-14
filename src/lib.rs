@@ -45,19 +45,14 @@
 //! to 32 bits in the stream may cause a panic.
 
 use std::ops::{Shl, ShlAssign, Shr, ShrAssign, Rem, RemAssign, BitOrAssign};
+use std::marker::PhantomData;
 use std::fmt::Debug;
 
 pub mod read;
 pub mod write;
 pub mod huffman;
-
-pub use read::BitRead;
-pub use read::BitReaderBE;
-pub use read::BitReaderLE;
-
-pub use write::BitWrite;
-pub use write::BitWriterBE;
-pub use write::BitWriterLE;
+pub use read::BitReader;
+pub use write::BitWriter;
 
 
 /// This trait extends many common integer types (both unsigned and signed)
@@ -140,227 +135,220 @@ define_signed_numeric!(i16);
 define_signed_numeric!(i32);
 define_signed_numeric!(i64);
 
-/// This trait is for treating numeric types as a queue of bits
-/// which values can be pushed to and popped from in
-/// order to implement bitstream readers and writers.
-pub trait BitQueue<N: Numeric> {
-    /// Discards queue's current status and sets it to new bits and value
-    fn set(&mut self, value: N, bits: u32);
+pub trait Endianness {
+    fn leading_sign() -> bool;
 
-    /// Consumes queue and returns its internal value
-    fn value(self) -> N;
+    fn push<N>(bits_acc: &mut u32,
+               value_acc: &mut N,
+               bits: u32,
+               value: N) where N: Numeric;
 
-    /// Current length of queue, in bits
-    fn len(&self) -> u32;
+    fn pop<N>(bits_acc: &mut u32,
+              value_acc: &mut N,
+              bits: u32) -> N where N: Numeric;
 
-    /// Whether or not the queue is empty
-    #[inline(always)]
-    fn is_empty(&self) -> bool {self.len() == 0}
-
-    /// Discards queue's current status and sets bits and value to 0
-    #[inline(always)]
-    fn clear(&mut self) {self.set(N::default(), 0)}
-
-    /// Pushes a new value onto the back of the queue
-    /// using the given number of bits.
-    /// May panic if the total number of bits exceeds
-    /// the size of the type being pushed onto.
-    fn push(&mut self, bits: u32, value: N);
-
-    /// Pops a value from the front of the queue
-    /// with the given number of bits.
-    /// Returns queue's whole contents if the requested number of bits
-    /// exceeds the size of the queue.
-    fn pop(&mut self, bits: u32) -> N;
-
-    /// Drops the given number of bits from the queue without returning them
-    fn drop(&mut self, bits: u32);
+    fn drop<N>(bits_acc: &mut u32,
+               value_acc: &mut N,
+               bits: u32) where N: Numeric;
 }
 
-/// A wrapper around some unsigned type to turn it into a big-endian queue.
-pub struct BitQueueBE<N: Numeric> {value: N, bits: u32}
+pub struct BigEndian {}
+pub type BE = BigEndian;
 
-impl<N: Numeric> BitQueueBE<N> {
-    /// Wraps an existing value in a big-endian bit queue
-    /// with the given number of bits.
-    /// It is up to the programmer to ensure that the value
-    /// is not larger than the given number of bits can contain.
-    #[inline]
-    pub fn from_value(value: N, bits: u32) -> BitQueueBE<N> {
-        BitQueueBE{value: value, bits: bits}
-    }
-
-    /// Creates an empty queue with a value and bit count of 0.
-    #[inline]
-    pub fn new() -> BitQueueBE<N> {
-        BitQueueBE{value: N::default(), bits: 0}
-    }
-}
-
-impl<N: Numeric> BitQueue<N> for BitQueueBE<N> {
-    #[inline]
-    fn set(&mut self, value: N, bits: u32) {
-        self.value = value; self.bits = bits;
-    }
-
+impl Endianness for BigEndian {
     #[inline(always)]
-    fn value(self) -> N {self.value}
+    fn leading_sign() -> bool {true}
 
-    #[inline(always)]
-    fn len(&self) -> u32 {self.bits}
-
-    fn push(&mut self, bits: u32, value: N) {
-        if !self.value.is_zero() {
-            self.value <<= bits;
+    fn push<N>(bits_acc: &mut u32,
+               value_acc: &mut N,
+               bits: u32,
+               value: N) where N: Numeric {
+        if !value_acc.is_zero() {
+            *value_acc <<= bits;
         }
-        self.value |= value;
-        self.bits += bits;
+        *value_acc |= value;
+        *bits_acc += bits;
     }
 
-    #[inline]
-    fn pop(&mut self, bits: u32) -> N {
-        if bits < self.bits {
-            let offset = self.bits - bits;
-            let to_return = self.value >> offset;
-            self.value %= N::one() << offset;
-            self.bits -= bits;
+    fn pop<N>(bits_acc: &mut u32,
+              value_acc: &mut N,
+              bits: u32) -> N where N: Numeric {
+        if bits < *bits_acc {
+            let offset = *bits_acc - bits;
+            let to_return = *value_acc >> offset;
+            *value_acc %= N::one() << offset;
+            *bits_acc -= bits;
             to_return
         } else {
-            let to_return = self.value;
-            self.value = N::default();
-            self.bits = 0;
+            let to_return = *value_acc;
+            *value_acc = N::default();
+            *bits_acc = 0;
             to_return
         }
     }
 
-    #[inline]
-    fn drop(&mut self, bits: u32) {
-        if bits < self.bits {
-            self.value %= N::one() << (self.bits - bits);
-            self.bits -= bits;
+    fn drop<N>(bits_acc: &mut u32,
+               value_acc: &mut N,
+               bits: u32) where N: Numeric {
+        if bits < *bits_acc {
+            *value_acc %= N::one() << (*bits_acc - bits);
+            *bits_acc -= bits;
         } else {
-            self.value = N::default();
-            self.bits = 0;
+            *value_acc = N::default();
+            *bits_acc = 0;
         }
     }
 }
 
-impl BitQueueBE<u8> {
+pub struct LittleEndian {}
+pub type LE = LittleEndian;
+
+impl Endianness for LittleEndian {
     #[inline(always)]
-    fn all_0(&self) -> bool {self.value.count_ones() == 0}
+    fn leading_sign() -> bool {false}
 
-    #[inline(always)]
-    fn all_1(&self) -> bool {self.value.count_ones() == self.bits}
-
-    /// pops all 0 bits until the next 1 bit
-    /// and returns the amount of 0 bits popped
-    #[inline]
-    fn pop_0(&mut self) -> u32 {
-        let zeroes = self.value.leading_zeros() - (8 - self.bits);
-        self.drop(zeroes + 1);
-        zeroes
+    fn push<N>(bits_acc: &mut u32,
+               value_acc: &mut N,
+               bits: u32,
+               mut value: N) where N: Numeric {
+        value <<= *bits_acc;
+        *value_acc |= value;
+        *bits_acc += bits;
     }
 
-    /// pops all 1 bits until the next 0 bit
-    /// and returns the amount of 1 bits popped
-    #[inline]
-    fn pop_1(&mut self) -> u32 {
-        let zeroes =
-            (self.value ^ ((1 << self.bits) - 1) as u8).leading_zeros() -
-            (8 - self.bits);
-        self.drop(zeroes + 1);
-        zeroes
-    }
-}
-
-/// A wrapper around some unsigned type to turn it into a little-endian queue.
-pub struct BitQueueLE<N: Numeric> {value: N, bits: u32}
-
-impl<N: Numeric> BitQueueLE<N> {
-    /// Wraps an existing value in a little-endian bit queue
-    /// with the given number of bits.
-    /// It is up to the programmer to ensure that the value
-    /// is not larger than the given number of bits can contain.
-    #[inline]
-    pub fn from_value(value: N, bits: u32) -> BitQueueLE<N> {
-        BitQueueLE{value: value, bits: bits}
-    }
-
-    /// Creates an empty queue with a value and bit count of 0.
-    #[inline]
-    pub fn new() -> BitQueueLE<N> {
-        BitQueueLE{value: N::default(), bits: 0}
-    }
-}
-
-impl<N: Numeric> BitQueue<N> for BitQueueLE<N> {
-    #[inline]
-    fn set(&mut self, value: N, bits: u32) {
-        self.value = value; self.bits = bits;
-    }
-
-    #[inline(always)]
-    fn value(self) -> N {self.value}
-
-    #[inline(always)]
-    fn len(&self) -> u32 {self.bits}
-
-    #[inline]
-    fn push(&mut self, bits: u32, mut value: N) {
-        value <<= self.bits;
-        self.value |= value;
-        self.bits += bits;
-    }
-
-    #[inline]
-    fn pop(&mut self, bits: u32) -> N {
-        if bits < self.bits {
-            let to_return = self.value % (N::one() << bits);
-            self.value >>= bits;
-            self.bits -= bits;
+    fn pop<N>(bits_acc: &mut u32,
+              value_acc: &mut N,
+              bits: u32) -> N where N: Numeric {
+        if bits < *bits_acc {
+            let to_return = *value_acc % (N::one() << bits);
+            *value_acc >>= bits;
+            *bits_acc -= bits;
             to_return
         } else {
-            let to_return = self.value;
-            self.value = N::default();
-            self.bits = 0;
+            let to_return = *value_acc;
+            *value_acc = N::default();
+            *bits_acc = 0;
             to_return
         }
     }
 
-    #[inline]
-    fn drop(&mut self, bits: u32) {
-        if bits < self.bits {
-            self.value >>= bits;
-            self.bits -= bits;
+    fn drop<N>(bits_acc: &mut u32,
+               value_acc: &mut N,
+               bits: u32) where N: Numeric {
+        if bits < *bits_acc {
+            *value_acc >>= bits;
+            *bits_acc -= bits;
         } else {
-            self.value = N::default();
-            self.bits = 0;
+            *value_acc = N::default();
+            *bits_acc = 0;
         }
     }
 }
 
-impl BitQueueLE<u8> {
-    #[inline(always)]
-    fn all_0(&self) -> bool {self.value.count_ones() == 0}
+pub struct BitQueue<E: Endianness, N: Numeric> {
+    phantom: PhantomData<E>,
+    value: N,
+    bits: u32,
+}
 
-    #[inline(always)]
-    fn all_1(&self) -> bool {self.value.count_ones() == self.bits}
-
-    /// pops all 0 bits until the next 1 bit
-    /// and returns the amount of 0 bits popped
+impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     #[inline]
-    fn pop_0(&mut self) -> u32 {
-        let zeroes = self.value.trailing_zeros();
-        self.drop(zeroes + 1);
-        zeroes
+    pub fn new() -> BitQueue<E, N> {
+        BitQueue{phantom: PhantomData, value: N::default(), bits: 0}
     }
 
-    /// pops all 1 bits until the next 0 bit
-    /// and returns the amount of 1 bits popped
     #[inline]
-    fn pop_1(&mut self) -> u32 {
-        let zeroes = (self.value ^ 0xFF).trailing_zeros();
-        self.drop(zeroes + 1);
-        zeroes
+    pub fn from_value(value: N, bits: u32) -> BitQueue<E,N> {
+        BitQueue{phantom: PhantomData, value: value, bits: bits}
+    }
+
+    #[inline]
+    pub fn set(&mut self, value: N, bits: u32) {
+        self.value = value;
+        self.bits = bits;
+    }
+
+    #[inline(always)]
+    pub fn value(self) -> N {self.value}
+
+    #[inline(always)]
+    pub fn len(&self) -> u32 {self.bits}
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {self.bits == 0}
+
+    #[inline(always)]
+    pub fn clear(&mut self) {self.set(N::default(), 0)}
+
+    #[inline(always)]
+    pub fn push(&mut self, bits: u32, value: N) {
+        E::push(&mut self.bits, &mut self.value, bits, value)
+    }
+
+    #[inline(always)]
+    pub fn pop(&mut self, bits: u32) -> N {
+        E::pop(&mut self.bits, &mut self.value, bits)
+    }
+
+    #[inline(always)]
+    pub fn drop(&mut self, bits: u32) {
+        E::drop(&mut self.bits, &mut self.value, bits)
     }
 }
+
+// FIXME - re-implememt these for unary optimization
+// 
+// impl BitQueueBE<u8> {
+//     #[inline(always)]
+//     fn all_0(&self) -> bool {self.value.count_ones() == 0}
+// 
+//     #[inline(always)]
+//     fn all_1(&self) -> bool {self.value.count_ones() == self.bits}
+// 
+//     /// pops all 0 bits until the next 1 bit
+//     /// and returns the amount of 0 bits popped
+//     #[inline]
+//     fn pop_0(&mut self) -> u32 {
+//         let zeroes = self.value.leading_zeros() - (8 - self.bits);
+//         self.drop(zeroes + 1);
+//         zeroes
+//     }
+// 
+//     /// pops all 1 bits until the next 0 bit
+//     /// and returns the amount of 1 bits popped
+//     #[inline]
+//     fn pop_1(&mut self) -> u32 {
+//         let zeroes =
+//             (self.value ^ ((1 << self.bits) - 1) as u8).leading_zeros() -
+//             (8 - self.bits);
+//         self.drop(zeroes + 1);
+//         zeroes
+//     }
+// }
+// 
+// impl BitQueueLE<u8> {
+//     #[inline(always)]
+//     fn all_0(&self) -> bool {self.value.count_ones() == 0}
+// 
+//     #[inline(always)]
+//     fn all_1(&self) -> bool {self.value.count_ones() == self.bits}
+// 
+//     /// pops all 0 bits until the next 1 bit
+//     /// and returns the amount of 0 bits popped
+//     #[inline]
+//     fn pop_0(&mut self) -> u32 {
+//         let zeroes = self.value.trailing_zeros();
+//         self.drop(zeroes + 1);
+//         zeroes
+//     }
+// 
+//     /// pops all 1 bits until the next 0 bit
+//     /// and returns the amount of 1 bits popped
+//     #[inline]
+//     fn pop_1(&mut self) -> u32 {
+//         let zeroes = (self.value ^ 0xFF).trailing_zeros();
+//         self.drop(zeroes + 1);
+//         zeroes
+//     }
+// }
+// 

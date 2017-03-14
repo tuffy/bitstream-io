@@ -10,20 +10,20 @@ extern crate bitstream_io;
 
 #[test]
 fn test_write_queue_be() {
-    use bitstream_io::{BitQueueBE, BitQueue, Numeric};
-    let mut q: BitQueueBE<u8> = BitQueueBE::new();
-    let mut v = BitQueueBE::from_value(2u8, 2);
+    use bitstream_io::{BE, BitQueue, Numeric};
+    let mut q: BitQueue<BE,u8> = BitQueue::new();
+    let mut v = BitQueue::<BE,u8>::from_value(2u8, 2);
     q.push(2, v.pop(2).to_u8());
-    let mut v = BitQueueBE::from_value(6u8, 3);
+    let mut v = BitQueue::<BE,u8>::from_value(6u8, 3);
     q.push(3, v.pop(3).to_u8());
-    let mut v = BitQueueBE::from_value(7u8, 5);
+    let mut v = BitQueue::<BE,u8>::from_value(7u8, 5);
     q.push(3, v.pop(3).to_u8());
     assert_eq!(q.len(), 8);
     assert_eq!(q.pop(8), 0xB1);
     q.push(2, v.pop(2).to_u8());
-    let mut v = BitQueueBE::from_value(5u8, 3);
+    let mut v = BitQueue::<BE,u8>::from_value(5u8, 3);
     q.push(3, v.pop(3).to_u8());
-    let mut v = BitQueueBE::from_value(342977u32, 19);
+    let mut v = BitQueue::<BE,u32>::from_value(342977u32, 19);
     q.push(3, v.pop(3).to_u8());
     assert_eq!(q.len(), 8);
     assert_eq!(q.pop(8), 0xED);
@@ -39,20 +39,20 @@ fn test_write_queue_be() {
 
 #[test]
 fn test_write_queue_le() {
-    use bitstream_io::{BitQueueLE, BitQueue, Numeric};
-    let mut q: BitQueueLE<u8> = BitQueueLE::new();
-    let mut v = BitQueueLE::from_value(1u8, 2);
+    use bitstream_io::{LE, BitQueue, Numeric};
+    let mut q: BitQueue<LE,u8> = BitQueue::new();
+    let mut v = BitQueue::<LE,u8>::from_value(1u8, 2);
     q.push(2, v.pop(2).to_u8());
-    let mut v = BitQueueLE::from_value(4u8, 3);
+    let mut v = BitQueue::<LE,u8>::from_value(4u8, 3);
     q.push(3, v.pop(3).to_u8());
-    let mut v = BitQueueLE::from_value(13u8, 5);
+    let mut v = BitQueue::<LE,u8>::from_value(13u8, 5);
     q.push(3, v.pop(3).to_u8());
     assert_eq!(q.len(), 8);
     assert_eq!(q.pop(8), 0xB1);
     q.push(2, v.pop(2).to_u8());
-    let mut v = BitQueueLE::from_value(3u8, 3);
+    let mut v = BitQueue::<LE,u8>::from_value(3u8, 3);
     q.push(3, v.pop(3).to_u8());
-    let mut v = BitQueueLE::from_value(395743u32, 19);
+    let mut v = BitQueue::<LE,u32>::from_value(395743u32, 19);
     q.push(3, v.pop(3).to_u8());
     assert_eq!(q.len(), 8);
     assert_eq!(q.pop(8), 0xED);
@@ -68,15 +68,14 @@ fn test_write_queue_le() {
 
 #[test]
 fn test_writer_be() {
-    use bitstream_io::BitWriterBE;
-    use bitstream_io::BitWrite;
+    use bitstream_io::{BE, BitWriter};
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
 
     /*writing individual bits*/
     let mut output = Vec::with_capacity(2);
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write_bit(true).unwrap();
         w.write_bit(false).unwrap();
         w.write_bit(true).unwrap();
@@ -99,7 +98,7 @@ fn test_writer_be() {
     /*writing unsigned values*/
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         assert!(w.byte_aligned());
         w.write(2, 2u32).unwrap();
         assert!(!w.byte_aligned());
@@ -117,7 +116,7 @@ fn test_writer_be() {
     /*writing signed values*/
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write_signed(2, -2).unwrap();
         w.write_signed(3, -2).unwrap();
         w.write_signed(5, 7).unwrap();
@@ -129,7 +128,7 @@ fn test_writer_be() {
     /*writing unary 0 values*/
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write_unary0(1).unwrap();
         w.write_unary0(2).unwrap();
         w.write_unary0(0).unwrap();
@@ -151,7 +150,7 @@ fn test_writer_be() {
     /*writing unary 1 values*/
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write_unary1(0).unwrap();
         w.write_unary1(1).unwrap();
         w.write_unary1(0).unwrap();
@@ -177,7 +176,7 @@ fn test_writer_be() {
     let mut output = Vec::with_capacity(4);
     let aligned_data = [0xA0, 0xE0, 0x3B, 0xC0];
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write(3, 5u32).unwrap();
         w.byte_align().unwrap();
         w.write(3, 7u32).unwrap();
@@ -194,7 +193,7 @@ fn test_writer_be() {
     let mut output = Vec::with_capacity(2);
     let final_data = [0xB1, 0xED];
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write_bytes(b"\xB1\xED").unwrap();
     }
     assert_eq!(output.as_slice(), &final_data);
@@ -203,7 +202,7 @@ fn test_writer_be() {
     let mut output = Vec::with_capacity(3);
     let final_data = [0xBB, 0x1E, 0xD0];
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write(4, 11u32).unwrap();
         w.write_bytes(b"\xB1\xED").unwrap();
         w.byte_align().unwrap();
@@ -213,8 +212,7 @@ fn test_writer_be() {
 
 #[test]
 fn test_writer_edge_cases_be() {
-    use bitstream_io::BitWriterBE;
-    use bitstream_io::BitWrite;
+    use bitstream_io::{BE, BitWriter};
 
     let final_data: Vec<u8> = vec![0, 0, 0, 0, 255, 255, 255, 255,
                                    128, 0, 0, 0, 127, 255, 255, 255,
@@ -226,7 +224,7 @@ fn test_writer_edge_cases_be() {
     let mut output = Vec::with_capacity(48);
     {
         /*unsigned 32 and 64-bit values*/
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write(32, 0u32).unwrap();
         w.write(32, 4294967295u32).unwrap();
         w.write(32, 2147483648u32).unwrap();
@@ -241,7 +239,7 @@ fn test_writer_edge_cases_be() {
     /*signed 32 and 64-bit values*/
     let mut output = Vec::with_capacity(48);
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write(32, 0i64).unwrap();
         w.write(32, -1i64).unwrap();
         w.write(32, -2147483648i64).unwrap();
@@ -256,8 +254,7 @@ fn test_writer_edge_cases_be() {
 
 #[test]
 fn test_writer_huffman_be() {
-    use bitstream_io::BitWriterBE;
-    use bitstream_io::BitWrite;
+    use bitstream_io::{BE, BitWriter};
     use bitstream_io::huffman::WriteHuffmanTree;
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
@@ -269,7 +266,7 @@ fn test_writer_huffman_be() {
              (4, vec![0, 0, 0])]).unwrap();
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterBE::new(&mut output);
+        let mut w = BitWriter::<BE>::new(&mut output);
         w.write_huffman(&tree, 1).unwrap();
         w.write_huffman(&tree, 0).unwrap();
         w.write_huffman(&tree, 4).unwrap();
@@ -292,15 +289,14 @@ fn test_writer_huffman_be() {
 
 #[test]
 fn test_writer_le() {
-    use bitstream_io::BitWriterLE;
-    use bitstream_io::BitWrite;
+    use bitstream_io::{LE, BitWriter};
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
 
     /*writing individual bits*/
     let mut output = Vec::with_capacity(2);
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write_bit(true).unwrap();
         w.write_bit(false).unwrap();
         w.write_bit(false).unwrap();
@@ -322,7 +318,7 @@ fn test_writer_le() {
     /*writing unsigned values*/
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         assert!(w.byte_aligned());
         w.write(2, 1u32).unwrap();
         assert!(!w.byte_aligned());
@@ -340,7 +336,7 @@ fn test_writer_le() {
     /*writing signed values*/
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write_signed(2, 1).unwrap();
         w.write_signed(3, -4).unwrap();
         w.write_signed(5, 13).unwrap();
@@ -352,7 +348,7 @@ fn test_writer_le() {
     /*writing unary 0 values*/
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write_unary0(1).unwrap();
         w.write_unary0(0).unwrap();
         w.write_unary0(0).unwrap();
@@ -374,7 +370,7 @@ fn test_writer_le() {
     /*writing unary 1 values*/
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write_unary1(0).unwrap();
         w.write_unary1(3).unwrap();
         w.write_unary1(0).unwrap();
@@ -400,7 +396,7 @@ fn test_writer_le() {
     let mut output = Vec::with_capacity(4);
     let aligned_data = [0x05, 0x07, 0x3B, 0x0C];
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write(3, 5u32).unwrap();
         w.byte_align().unwrap();
         w.write(3, 7u32).unwrap();
@@ -417,7 +413,7 @@ fn test_writer_le() {
     let mut output = Vec::with_capacity(2);
     let final_data = [0xB1, 0xED];
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write_bytes(b"\xB1\xED").unwrap();
     }
     assert_eq!(output.as_slice(), &final_data);
@@ -426,7 +422,7 @@ fn test_writer_le() {
     let mut output = Vec::with_capacity(3);
     let final_data = [0x1B, 0xDB, 0x0E];
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write(4, 11u32).unwrap();
         w.write_bytes(b"\xB1\xED").unwrap();
         w.byte_align().unwrap();
@@ -436,8 +432,7 @@ fn test_writer_le() {
 
 #[test]
 fn test_writer_edge_cases_le() {
-    use bitstream_io::BitWriterLE;
-    use bitstream_io::BitWrite;
+    use bitstream_io::{LE, BitWriter};
 
     let final_data: Vec<u8> = vec![0, 0, 0, 0, 255, 255, 255, 255,
                                    0, 0, 0, 128, 255, 255, 255, 127,
@@ -449,7 +444,7 @@ fn test_writer_edge_cases_le() {
     let mut output = Vec::with_capacity(48);
     {
         /*unsigned 32 and 64-bit values*/
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write(32, 0u32).unwrap();
         w.write(32, 4294967295u32).unwrap();
         w.write(32, 2147483648u32).unwrap();
@@ -464,7 +459,7 @@ fn test_writer_edge_cases_le() {
     /*signed 32 and 64-bit values*/
     let mut output = Vec::with_capacity(48);
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write(32, 0i64).unwrap();
         w.write(32, -1i64).unwrap();
         w.write(32, -2147483648i64).unwrap();
@@ -479,8 +474,7 @@ fn test_writer_edge_cases_le() {
 
 #[test]
 fn test_writer_huffman_le() {
-    use bitstream_io::BitWriterLE;
-    use bitstream_io::BitWrite;
+    use bitstream_io::{LE, BitWriter};
     use bitstream_io::huffman::WriteHuffmanTree;
 
     let final_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
@@ -492,7 +486,7 @@ fn test_writer_huffman_le() {
              (4, vec![0, 0, 0])]).unwrap();
     let mut output = Vec::with_capacity(4);
     {
-        let mut w = BitWriterLE::new(&mut output);
+        let mut w = BitWriter::<LE>::new(&mut output);
         w.write_huffman(&tree, 1).unwrap();
         w.write_huffman(&tree, 3).unwrap();
         w.write_huffman(&tree, 1).unwrap();

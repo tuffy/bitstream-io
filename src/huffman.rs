@@ -10,7 +10,9 @@
 //! from or to a stream.
 
 use std::fmt;
+use std::marker::PhantomData;
 use std::collections::BTreeMap;
+use super::Endianness;
 
 pub enum ReadHuffmanTree<T: Clone> {
     Leaf(T),
@@ -156,12 +158,12 @@ impl fmt::Display for HuffmanTreeError {
     }
 }
 
-pub struct WriteHuffmanTree<T: Ord> {
-    big_endian: BTreeMap<T,(u32,u64)>,
-    little_endian: BTreeMap<T,(u32,u64)>
+pub struct WriteHuffmanTree<E: Endianness, T: Ord> {
+    map: BTreeMap<T,(u32,u64)>,
+    phantom: PhantomData<E>
 }
 
-impl<T: Ord + Clone> WriteHuffmanTree<T> {
+impl<E: Endianness, T: Ord + Clone> WriteHuffmanTree<E,T> {
     /// Given a vector of symbol/code pairs, compiles a Huffman tree
     /// for writing.
     /// Code must be 0 or 1 bits and are always written to the stream
@@ -175,56 +177,45 @@ impl<T: Ord + Clone> WriteHuffmanTree<T> {
     /// ## Example
     /// ```
     /// use bitstream_io::huffman::WriteHuffmanTree;
-    /// assert!(WriteHuffmanTree::new(vec![(1i32, vec![0]),
-    ///                                    (2i32, vec![1, 0]),
-    ///                                    (3i32, vec![1, 1])]).is_ok());
+    /// use bitstream_io::BigEndian;
+    /// assert!(WriteHuffmanTree::<BigEndian,i32>::new(
+    ///     vec![(1, vec![0]),
+    ///          (2, vec![1, 0]),
+    ///          (3, vec![1, 1])]).is_ok());
     /// ```
     pub fn new(values: Vec<(T, Vec<u8>)>) ->
-        Result<WriteHuffmanTree<T>,HuffmanTreeError> {
-        use super::{BitQueueBE, BitQueueLE, BitQueue};
+        Result<WriteHuffmanTree<E,T>,HuffmanTreeError> {
+        use super::BitQueue;
 
         // This current implementation is limited to Huffman codes
         // that generate up to 64 bits.  It may need to be updated
         // if I can find anything larger.
 
-        let mut big_endian = BTreeMap::new();
-        let mut little_endian = BTreeMap::new();
+        let mut map = BTreeMap::new();
 
         for (symbol, code) in values.into_iter() {
-            let mut be_encoded = BitQueueBE::new();
-            let mut le_encoded = BitQueueLE::new();
+            let mut encoded = BitQueue::<E,u64>::new();
             let code_len = code.len() as u32;
             for bit in code {
                 if (bit != 0) && (bit != 1) {
                     return Err(HuffmanTreeError::InvalidBit);
                 }
-                be_encoded.push(1, bit as u64);
-                le_encoded.push(1, bit as u64);
+                encoded.push(1, bit as u64);
             }
-            big_endian.entry(symbol.clone())
-                      .or_insert((code_len, be_encoded.value()));
-            little_endian.entry(symbol)
-                         .or_insert((code_len, le_encoded.value()));
+            map.entry(symbol.clone()).or_insert((code_len, encoded.value()));
         }
 
-        Ok(WriteHuffmanTree{big_endian: big_endian,
-                            little_endian: little_endian})
+        Ok(WriteHuffmanTree{map: map, phantom: PhantomData})
     }
 
     /// Returns true if symbol is in tree.
     pub fn has_symbol(&self, symbol: T) -> bool {
-        self.big_endian.contains_key(&symbol)
+        self.map.contains_key(&symbol)
     }
 
-    /// Given symbol, returns big-endian (bits, value) pair
-    /// for writing code.  Panics if symbol is not found.
-    pub fn get_be(&self, symbol: T) -> (u32, u64) {
-        self.big_endian[&symbol]
-    }
-
-    /// Given symbol, returns little-endian (bits, value) pair
-    /// for writing code.  Panics if symbol is not found.
-    pub fn get_le(&self, symbol: T) -> (u32, u64) {
-        self.little_endian[&symbol]
+    /// Given symbol, returns (bits, value) pair for writing code.
+    /// Panics if symbol is not found.
+    pub fn get(&self, symbol: T) -> (u32, u64) {
+        self.map[&symbol]
     }
 }

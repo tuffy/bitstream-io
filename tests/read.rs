@@ -11,8 +11,8 @@ use std::io::Cursor;
 
 #[test]
 fn test_read_queue_be() {
-    use bitstream_io::{BitQueueBE, BitQueue};
-    let mut q: BitQueueBE<u32> = BitQueueBE::new();
+    use bitstream_io::{BE, BitQueue};
+    let mut q: BitQueue<BE,u32> = BitQueue::new();
     assert!(q.is_empty());
     assert_eq!(q.len(), 0);
     q.push(8, 0xB1);
@@ -35,8 +35,8 @@ fn test_read_queue_be() {
 
 #[test]
 fn test_read_queue_le() {
-    use bitstream_io::{BitQueueLE, BitQueue};
-    let mut q: BitQueueLE<u32> = BitQueueLE::new();
+    use bitstream_io::{LE, BitQueue};
+    let mut q: BitQueue<LE,u32> = BitQueue::new();
     assert!(q.is_empty());
     assert_eq!(q.len(), 0);
     q.push(8, 0xB1);
@@ -59,15 +59,14 @@ fn test_read_queue_le() {
 
 #[test]
 fn test_reader_be() {
-    use bitstream_io::BitReaderBE;
-    use bitstream_io::BitRead;
+    use bitstream_io::{BE, BitReader};
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
 
     {
         /*reading individual bits*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read_bit().unwrap(), true);
         assert_eq!(r.read_bit().unwrap(), false);
         assert_eq!(r.read_bit().unwrap(), true);
@@ -88,7 +87,7 @@ fn test_reader_be() {
     {
         /*reading unsigned values*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert!(r.byte_aligned());
         assert_eq!(r.read::<u32>(2).unwrap(), 2);
         assert!(!r.byte_aligned());
@@ -105,7 +104,7 @@ fn test_reader_be() {
     {
         /*skipping bits*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read::<u32>(2).unwrap(), 2);
         assert!(r.skip(3).is_ok());
         assert_eq!(r.read::<u32>(5).unwrap(), 7);
@@ -115,7 +114,7 @@ fn test_reader_be() {
     {
         /*reading signed values*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read_signed::<i32>(2).unwrap(), -2);
         assert_eq!(r.read_signed::<i32>(3).unwrap(), -2);
         assert_eq!(r.read_signed::<i32>(5).unwrap(), 7);
@@ -125,7 +124,7 @@ fn test_reader_be() {
     {
         /*reading unary 0 values*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read_unary0().unwrap(), 1);
         assert_eq!(r.read_unary0().unwrap(), 2);
         assert_eq!(r.read_unary0().unwrap(), 0);
@@ -135,7 +134,7 @@ fn test_reader_be() {
     {
         /*reading unary 1 values*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read_unary1().unwrap(), 0);
         assert_eq!(r.read_unary1().unwrap(), 1);
         assert_eq!(r.read_unary1().unwrap(), 0);
@@ -145,7 +144,7 @@ fn test_reader_be() {
     {
         /*byte aligning*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read::<u32>(3).unwrap(), 5);
         r.byte_align();
         assert_eq!(r.read::<u32>(3).unwrap(), 7);
@@ -158,7 +157,7 @@ fn test_reader_be() {
     {
         /*reading bytes, aligned*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         let mut sub_data = [0; 2];
         assert!(r.read_bytes(&mut sub_data).is_ok());
         assert_eq!(&sub_data, b"\xB1\xED");
@@ -166,7 +165,7 @@ fn test_reader_be() {
     {
         /*reading bytes, un-aligned*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         let mut sub_data = [0; 2];
         assert_eq!(r.read::<u32>(4).unwrap(), 11);
         assert!(r.read_bytes(&mut sub_data).is_ok());
@@ -176,8 +175,7 @@ fn test_reader_be() {
 
 #[test]
 fn test_edge_cases_be() {
-    use bitstream_io::BitReaderBE;
-    use bitstream_io::BitRead;
+    use bitstream_io::{BE, BitReader};
 
     let data: Vec<u8> = vec![0, 0, 0, 0, 255, 255, 255, 255,
                              128, 0, 0, 0, 127, 255, 255, 255,
@@ -189,7 +187,7 @@ fn test_edge_cases_be() {
     {
         /*unsigned 32 and 64-bit values*/
         let mut c = Cursor::new(&data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read::<u32>(32).unwrap(), 0);
         assert_eq!(r.read::<u32>(32).unwrap(), 4294967295);
         assert_eq!(r.read::<u32>(32).unwrap(), 2147483648);
@@ -203,7 +201,7 @@ fn test_edge_cases_be() {
     {
         /*signed 32 and 64-bit values*/
         let mut c = Cursor::new(&data);
-        let mut r = BitReaderBE::new(&mut c);
+        let mut r = BitReader::<BE>::new(&mut c);
         assert_eq!(r.read::<i32>(32).unwrap(), 0);
         assert_eq!(r.read::<i32>(32).unwrap(), -1);
         assert_eq!(r.read::<i32>(32).unwrap(), -2147483648);
@@ -217,8 +215,7 @@ fn test_edge_cases_be() {
 
 #[test]
 fn test_reader_huffman_be() {
-    use bitstream_io::BitReaderBE;
-    use bitstream_io::BitRead;
+    use bitstream_io::{BE, BitReader};
     use bitstream_io::huffman::ReadHuffmanTree;
 
     let tree = ReadHuffmanTree::new(
@@ -230,7 +227,7 @@ fn test_reader_huffman_be() {
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut c = Cursor::new(&actual_data);
-    let mut r = BitReaderBE::new(&mut c);
+    let mut r = BitReader::<BE>::new(&mut c);
 
     assert_eq!(r.read_huffman(&tree).unwrap(), 1);
     assert_eq!(r.read_huffman(&tree).unwrap(), 0);
@@ -251,15 +248,14 @@ fn test_reader_huffman_be() {
 
 #[test]
 fn test_reader_le() {
-    use bitstream_io::BitReaderLE;
-    use bitstream_io::BitRead;
+    use bitstream_io::{LE, BitReader};
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
 
     {
         /*reading individual bits*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         assert_eq!(r.read_bit().unwrap(), true);
         assert_eq!(r.read_bit().unwrap(), false);
         assert_eq!(r.read_bit().unwrap(), false);
@@ -280,7 +276,7 @@ fn test_reader_le() {
     {
         /*reading unsigned values*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         assert!(r.byte_aligned());
         assert_eq!(r.read::<u32>(2).unwrap(), 1);
         assert!(!r.byte_aligned());
@@ -297,7 +293,7 @@ fn test_reader_le() {
     {
         /*skipping bits*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         assert_eq!(r.read::<u32>(2).unwrap(), 1);
         assert!(r.skip(3).is_ok());
         assert_eq!(r.read::<u32>(5).unwrap(), 13);
@@ -307,7 +303,7 @@ fn test_reader_le() {
     {
         /*reading signed values*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         assert_eq!(r.read_signed::<i32>(2).unwrap(), 1);
         assert_eq!(r.read_signed::<i32>(3).unwrap(), -4);
         assert_eq!(r.read_signed::<i32>(5).unwrap(), 13);
@@ -317,7 +313,7 @@ fn test_reader_le() {
     {
         /*reading unary 0 values*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         assert_eq!(r.read_unary0().unwrap(), 1);
         assert_eq!(r.read_unary0().unwrap(), 0);
         assert_eq!(r.read_unary0().unwrap(), 0);
@@ -327,7 +323,7 @@ fn test_reader_le() {
     {
         /*reading unary 1 values*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         assert_eq!(r.read_unary1().unwrap(), 0);
         assert_eq!(r.read_unary1().unwrap(), 3);
         assert_eq!(r.read_unary1().unwrap(), 0);
@@ -337,7 +333,7 @@ fn test_reader_le() {
     {
         /*byte aligning*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         assert_eq!(r.read::<u32>(3).unwrap(), 1);
         r.byte_align();
         assert_eq!(r.read::<u32>(3).unwrap(), 5);
@@ -350,7 +346,7 @@ fn test_reader_le() {
     {
         /*reading bytes, aligned*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         let mut sub_data = [0; 2];
         assert!(r.read_bytes(&mut sub_data).is_ok());
         assert_eq!(&sub_data, b"\xB1\xED");
@@ -358,7 +354,7 @@ fn test_reader_le() {
     {
         /*reading bytes, un-aligned*/
         let mut c = Cursor::new(&actual_data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         let mut sub_data = [0; 2];
         assert_eq!(r.read::<u32>(4).unwrap(), 1);
         assert!(r.read_bytes(&mut sub_data).is_ok());
@@ -368,8 +364,7 @@ fn test_reader_le() {
 
 #[test]
 fn test_edge_cases_le() {
-    use bitstream_io::BitReaderLE;
-    use bitstream_io::BitRead;
+    use bitstream_io::{LE, BitReader};
 
     let data: Vec<u8> = vec![0, 0, 0, 0, 255, 255, 255, 255,
                              0, 0, 0, 128, 255, 255, 255, 127,
@@ -380,7 +375,7 @@ fn test_edge_cases_le() {
     {
         /*unsigned 32 and 64-bit values*/
         let mut c = Cursor::new(&data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         assert_eq!(r.read::<u32>(32).unwrap(), 0);
         assert_eq!(r.read::<u32>(32).unwrap(), 4294967295);
         assert_eq!(r.read::<u32>(32).unwrap(), 2147483648);
@@ -393,7 +388,7 @@ fn test_edge_cases_le() {
 
     {
         let mut c = Cursor::new(&data);
-        let mut r = BitReaderLE::new(&mut c);
+        let mut r = BitReader::<LE>::new(&mut c);
         assert_eq!(r.read_signed::<i32>(32).unwrap(), 0);
         assert_eq!(r.read_signed::<i32>(32).unwrap(), -1);
         assert_eq!(r.read_signed::<i32>(32).unwrap(), -2147483648);
@@ -407,8 +402,7 @@ fn test_edge_cases_le() {
 
 #[test]
 fn test_reader_huffman_le() {
-    use bitstream_io::BitReaderLE;
-    use bitstream_io::BitRead;
+    use bitstream_io::{LE, BitReader};
     use bitstream_io::huffman::ReadHuffmanTree;
 
     let tree = ReadHuffmanTree::new(
@@ -420,7 +414,7 @@ fn test_reader_huffman_le() {
 
     let actual_data: [u8;4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut c = Cursor::new(&actual_data);
-    let mut r = BitReaderLE::new(&mut c);
+    let mut r = BitReader::<LE>::new(&mut c);
 
     assert_eq!(r.read_huffman(&tree).unwrap(), 1);
     assert_eq!(r.read_huffman(&tree).unwrap(), 3);
