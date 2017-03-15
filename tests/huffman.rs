@@ -1,54 +1,55 @@
 extern crate bitstream_io;
-use bitstream_io::huffman::{ReadHuffmanTree,
-                            WriteHuffmanTree,
+use bitstream_io::huffman::{compile_read_tree,
+                            compile_write_tree,
                             HuffmanTreeError};
 
 #[test]
 fn test_huffman_errors() {
     use bitstream_io::BE;
 
-    // let empty: Vec<(i32, Vec<u8>)> = Vec::new();
-    // assert!(
-    //     if let Err(err) = ReadHuffmanTree::new(empty) {
-    //         err == HuffmanTreeError::MissingLeaf
-    //     } else {false}
-    // );
-
-    // assert!(
-    //     if let Err(err) = ReadHuffmanTree::new(vec![(0u32, vec![0,1,2])]) {
-    //         err == HuffmanTreeError::InvalidBit
-    //     } else {false}
-    // );
-
-    // assert!(
-    //     if let Err(err) = ReadHuffmanTree::new(
-    //             vec![(0u32, vec![1]), (1u32, vec![0, 1])]) {
-    //         err == HuffmanTreeError::MissingLeaf
-    //     } else {false}
-    // );
-
-    // assert!(
-    //     if let Err(err) = ReadHuffmanTree::new(
-    //             vec![(0u32, vec![1]),
-    //                  (1u32, vec![0, 1]),
-    //                  (2u32, vec![0, 0]),
-    //                  (3u32, vec![0, 0])]) {
-    //         err == HuffmanTreeError::DuplicateLeaf
-    //     } else {false}
-    // );
-
-    // assert!(
-    //     if let Err(err) = ReadHuffmanTree::new(
-    //             vec![(0u32, vec![1]),
-    //                  (1u32, vec![0]),
-    //                  (2u32, vec![0, 0]),
-    //                  (3u32, vec![0, 1])]) {
-    //         err == HuffmanTreeError::OrphanedLeaf
-    //     } else {false}
-    // );
+    let empty: Vec<(i32, Vec<u8>)> = Vec::new();
+    assert!(
+        if let Err(err) = compile_read_tree::<BE,i32>(empty) {
+            err == HuffmanTreeError::MissingLeaf
+        } else {false}
+    );
 
     assert!(
-        if let Err(err) = WriteHuffmanTree::<BE,u32>::new(
+        if let Err(err) = compile_read_tree::<BE,u32>(
+            vec![(0u32, vec![0,1,2])]) {
+            err == HuffmanTreeError::InvalidBit
+        } else {false}
+    );
+
+    assert!(
+        if let Err(err) = compile_read_tree::<BE,u32>(
+                vec![(0u32, vec![1]), (1u32, vec![0, 1])]) {
+            err == HuffmanTreeError::MissingLeaf
+        } else {false}
+    );
+
+    assert!(
+        if let Err(err) = compile_read_tree::<BE,u32>(
+                vec![(0u32, vec![1]),
+                     (1u32, vec![0, 1]),
+                     (2u32, vec![0, 0]),
+                     (3u32, vec![0, 0])]) {
+            err == HuffmanTreeError::DuplicateLeaf
+        } else {false}
+    );
+
+    assert!(
+        if let Err(err) = compile_read_tree::<BE,u32>(
+                vec![(0u32, vec![1]),
+                     (1u32, vec![0]),
+                     (2u32, vec![0, 0]),
+                     (3u32, vec![0, 1])]) {
+            err == HuffmanTreeError::OrphanedLeaf
+        } else {false}
+    );
+
+    assert!(
+        if let Err(err) = compile_write_tree::<BE,u32>(
             vec![(0, vec![1,1,2])]) {
             err == HuffmanTreeError::InvalidBit
         } else {false}

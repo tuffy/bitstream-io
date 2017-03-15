@@ -22,6 +22,25 @@ pub enum ReadHuffmanTreePart<E: Endianness, T: Clone> {
     Done(T,u8,u32,PhantomData<E>)
 }
 
+/// Given a vector of symbol/code pairs, compiles a Huffman tree
+/// for reading.
+///
+/// Code must be 0 or 1 bits and are always read from the stream
+/// from least-significant in the list to most signficant
+/// (which makes them easier to read for humans).
+///
+/// All possible codes must be assigned some symbol,
+/// and it is acceptable for the same symbol to occur multiple times.
+///
+/// ## Example
+/// ```
+/// use bitstream_io::huffman::compile_read_tree;
+/// use bitstream_io::BigEndian;
+/// assert!(compile_read_tree::<BigEndian,i32>(
+///     vec![(1, vec![0]),
+///          (2, vec![1, 0]),
+///          (3, vec![1, 1])]).is_ok());
+/// ```
 pub fn compile_read_tree<E,T>(values: Vec<(T,Vec<u8>)>) ->
     Result<ReadHuffmanTree<E,T>,HuffmanTreeError>
     where E: Endianness, T: Clone {
@@ -186,56 +205,59 @@ impl fmt::Display for HuffmanTreeError {
     }
 }
 
+/// Given a vector of symbol/code pairs, compiles a Huffman tree
+/// for writing.
+///
+/// Code must be 0 or 1 bits and are always written to the stream
+/// from least-significant in the list to most signficant
+/// (which makes them easier to read for humans).
+///
+/// If the same symbol occurs multiple times, the first code is used.
+/// Unlike in read trees, not all possible codes need to be
+/// assigned a symbol.
+///
+/// ## Example
+/// ```
+/// use bitstream_io::huffman::compile_write_tree;
+/// use bitstream_io::BigEndian;
+/// assert!(compile_write_tree::<BigEndian,i32>(
+///     vec![(1, vec![0]),
+///          (2, vec![1, 0]),
+///          (3, vec![1, 1])]).is_ok());
+/// ```
+pub fn compile_write_tree<E,T>(values: Vec<(T,Vec<u8>)>) ->
+    Result<WriteHuffmanTree<E,T>,HuffmanTreeError>
+    where E: Endianness, T: Ord + Clone {
+
+    use super::BitQueue;
+
+    // This current implementation is limited to Huffman codes
+    // that generate up to 64 bits.  It may need to be updated
+    // if I can find anything larger.
+
+    let mut map = BTreeMap::new();
+
+    for (symbol, code) in values.into_iter() {
+        let mut encoded = BitQueue::<E,u64>::new();
+        let code_len = code.len() as u32;
+        for bit in code {
+            if (bit != 0) && (bit != 1) {
+                return Err(HuffmanTreeError::InvalidBit);
+            }
+            encoded.push(1, bit as u64);
+        }
+        map.entry(symbol.clone()).or_insert((code_len, encoded.value()));
+    }
+
+    Ok(WriteHuffmanTree{map: map, phantom: PhantomData})
+}
+
 pub struct WriteHuffmanTree<E: Endianness, T: Ord> {
     map: BTreeMap<T,(u32,u64)>,
     phantom: PhantomData<E>
 }
 
 impl<E: Endianness, T: Ord + Clone> WriteHuffmanTree<E,T> {
-    /// Given a vector of symbol/code pairs, compiles a Huffman tree
-    /// for writing.
-    /// Code must be 0 or 1 bits and are always written to the stream
-    /// from least-significant in the list to most signficant
-    /// (which makes them easier to read for humans).
-    ///
-    /// If the same symbol occurs multiple times, the first code is used.
-    /// Unlike in read trees, not all possible codes need to be
-    /// assigned a symbol.
-    ///
-    /// ## Example
-    /// ```
-    /// use bitstream_io::huffman::WriteHuffmanTree;
-    /// use bitstream_io::BigEndian;
-    /// assert!(WriteHuffmanTree::<BigEndian,i32>::new(
-    ///     vec![(1, vec![0]),
-    ///          (2, vec![1, 0]),
-    ///          (3, vec![1, 1])]).is_ok());
-    /// ```
-    pub fn new(values: Vec<(T, Vec<u8>)>) ->
-        Result<WriteHuffmanTree<E,T>,HuffmanTreeError> {
-        use super::BitQueue;
-
-        // This current implementation is limited to Huffman codes
-        // that generate up to 64 bits.  It may need to be updated
-        // if I can find anything larger.
-
-        let mut map = BTreeMap::new();
-
-        for (symbol, code) in values.into_iter() {
-            let mut encoded = BitQueue::<E,u64>::new();
-            let code_len = code.len() as u32;
-            for bit in code {
-                if (bit != 0) && (bit != 1) {
-                    return Err(HuffmanTreeError::InvalidBit);
-                }
-                encoded.push(1, bit as u64);
-            }
-            map.entry(symbol.clone()).or_insert((code_len, encoded.value()));
-        }
-
-        Ok(WriteHuffmanTree{map: map, phantom: PhantomData})
-    }
-
     /// Returns true if symbol is in tree.
     pub fn has_symbol(&self, symbol: T) -> bool {
         self.map.contains_key(&symbol)

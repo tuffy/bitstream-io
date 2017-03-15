@@ -209,8 +209,8 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     /// ```
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter};
-    /// use bitstream_io::huffman::WriteHuffmanTree;
-    /// let tree = WriteHuffmanTree::<BigEndian,char>::new(
+    /// use bitstream_io::huffman::compile_write_tree;
+    /// let tree = compile_write_tree(
     ///     vec![('a', vec![0]),
     ///          ('b', vec![1, 0]),
     ///          ('c', vec![1, 1, 0]),
