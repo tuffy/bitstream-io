@@ -216,9 +216,9 @@ fn test_edge_cases_be() {
 #[test]
 fn test_reader_huffman_be() {
     use bitstream_io::{BE, BitReader};
-    use bitstream_io::huffman::ReadHuffmanTree;
+    use bitstream_io::huffman::compile_read_tree;
 
-    let tree = ReadHuffmanTree::new(
+    let tree = compile_read_tree(
         vec![(0, vec![1, 1]),
              (1, vec![1, 0]),
              (2, vec![0, 1]),
@@ -403,9 +403,9 @@ fn test_edge_cases_le() {
 #[test]
 fn test_reader_huffman_le() {
     use bitstream_io::{LE, BitReader};
-    use bitstream_io::huffman::ReadHuffmanTree;
+    use bitstream_io::huffman::compile_read_tree;
 
-    let tree = ReadHuffmanTree::new(
+    let tree = compile_read_tree(
         vec![(0, vec![1, 1]),
              (1, vec![1, 0]),
              (2, vec![0, 1]),

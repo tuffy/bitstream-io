@@ -2,7 +2,7 @@
 name = "bitstream-io"
 description = "Library for reading/writing un-aligned values from/to streams in big-endian and little-endian formats."
 keywords = ["bitstream", "endian", "big-endian", "little-endian", "binary"]
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Brian Langenberger <bjl@usa.net>"]
 license = "MIT/Apache-2.0"
 documentation = "https://tuffy.github.io/bitstream_io/"

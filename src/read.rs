@@ -64,7 +64,7 @@ use std::io;
 
 use super::{Numeric, SignedNumeric, BitQueue,
             Endianness, BigEndian, LittleEndian};
-use huffman::ReadHuffmanTree;
+use huffman::{ReadHuffmanTree, ReadHuffmanTreePart};
 
 pub struct BitReader<'a, E: Endianness> {
     reader: &'a mut io::Read,
@@ -377,8 +377,8 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// ```
     /// use std::io::{Read, Cursor};
     /// use bitstream_io::{BigEndian, BitReader};
-    /// use bitstream_io::huffman::ReadHuffmanTree;
-    /// let tree = ReadHuffmanTree::new(
+    /// use bitstream_io::huffman::compile_read_tree;
+    /// let tree = compile_read_tree(
     ///     vec![('a', vec![0]),
     ///          ('b', vec![1, 0]),
     ///          ('c', vec![1, 1, 0]),
@@ -390,17 +390,20 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'c');
     /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'd');
     /// ```
-    pub fn read_huffman<T>(&mut self, mut tree: &ReadHuffmanTree<T>) ->
+    pub fn read_huffman<T>(&mut self, tree: &ReadHuffmanTree<E,T>) ->
         Result<T,io::Error> where T: Clone {
+
+        let mut result: &ReadHuffmanTreePart<E,T> =
+            &tree[self.bitqueue.to_state() as usize];
         loop {
-            match tree {
-                &ReadHuffmanTree::Leaf(ref v) => {return Ok(v.clone());}
-                &ReadHuffmanTree::Tree(ref zero, ref one) => {
-                    tree = match self.read_bit() {
-                        Ok(false) => {zero}
-                        Ok(true) => {one}
-                        Err(err) => {return Err(err);}
-                    };
+            match result {
+                &ReadHuffmanTreePart::Done(
+                    ref value, ref queue_val, ref queue_bits, _) => {
+                    self.bitqueue.set(*queue_val, *queue_bits);
+                    return Ok(value.clone())
+                }
+                &ReadHuffmanTreePart::Continue(ref tree) => {
+                    result = &tree[read_byte(self.reader)? as usize];
                 }
             }
         }

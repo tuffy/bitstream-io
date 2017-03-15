@@ -13,41 +13,41 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::collections::BTreeMap;
 use super::Endianness;
+use super::BitQueue;
 
-pub enum ReadHuffmanTree<T: Clone> {
-    Leaf(T),
-    Tree(Box<ReadHuffmanTree<T>>, Box<ReadHuffmanTree<T>>)
+pub type ReadHuffmanTree<E,T> = Vec<ReadHuffmanTreePart<E,T>>;
+
+pub enum ReadHuffmanTreePart<E: Endianness, T: Clone> {
+    Continue(Vec<ReadHuffmanTreePart<E,T>>),
+    Done(T,u8,u32,PhantomData<E>)
 }
 
-impl<T: Clone> ReadHuffmanTree<T> {
-    /// Given a vector of symbol/code pairs, compiles a Huffman tree
-    /// for reading.
-    /// Code must be 0 or 1 bits and are always consumed from the stream
-    /// from least-significant in the list to most signficant
-    /// (which makes them easier to read for humans).
-    ///
-    /// Each code in the tree must be unique, but symbols may occur
-    /// multiple times.  All possible codes must be assigned some symbol.
-    ///
-    /// ## Example 1
-    /// ```
-    /// use bitstream_io::huffman::ReadHuffmanTree;
-    /// assert!(ReadHuffmanTree::new(vec![(1i32, vec![0]),
-    ///                                   (2i32, vec![1, 0]),
-    ///                                   (3i32, vec![1, 1])]).is_ok());
-    /// ```
-    ///
-    /// ## Example 2
-    /// Note how the `1 0` code has no symbol, so this tree cannot be
-    /// built for reading.
-    ///
-    /// ```
-    /// use bitstream_io::huffman::ReadHuffmanTree;
-    /// assert!(ReadHuffmanTree::new(vec![(1i32, vec![0]),
-    ///                                   (3i32, vec![1, 1])]).is_err());
-    /// ```
-    pub fn new(values: Vec<(T, Vec<u8>)>) ->
-        Result<ReadHuffmanTree<T>,HuffmanTreeError> {
+pub fn compile_read_tree<E,T>(values: Vec<(T,Vec<u8>)>) ->
+    Result<ReadHuffmanTree<E,T>,HuffmanTreeError>
+    where E: Endianness, T: Clone {
+
+    let tree = FinalHuffmanTree::new(values)?;
+
+    let mut result = Vec::with_capacity(256);
+    result.push(compile(BitQueue::from_value(0, 0), &tree));
+    result.push(compile(BitQueue::from_value(0, 0), &tree));
+    for bits in 1..8 {
+        for value in 0..(1 << bits) {
+            result.push(compile(BitQueue::from_value(value, bits), &tree));
+        }
+    }
+    assert_eq!(result.len(), 256);
+    Ok(result)
+}
+
+enum FinalHuffmanTree<T: Clone> {
+    Leaf(T),
+    Tree(Box<FinalHuffmanTree<T>>, Box<FinalHuffmanTree<T>>)
+}
+
+impl<T: Clone> FinalHuffmanTree<T> {
+    fn new(values: Vec<(T, Vec<u8>)>) ->
+        Result<FinalHuffmanTree<T>,HuffmanTreeError> {
         let mut tree = WipHuffmanTree::new_empty();
 
         for (symbol, code) in values.into_iter() {
@@ -82,18 +82,18 @@ impl<T: Clone> WipHuffmanTree<T> {
                              Box::new(Self::new_empty()))
     }
 
-    fn into_read_tree(self) -> Result<ReadHuffmanTree<T>,HuffmanTreeError> {
+    fn into_read_tree(self) -> Result<FinalHuffmanTree<T>,HuffmanTreeError> {
         match self {
             WipHuffmanTree::Empty => {
                 Err(HuffmanTreeError::MissingLeaf)
             }
             WipHuffmanTree::Leaf(v) => {
-                Ok(ReadHuffmanTree::Leaf(v))
+                Ok(FinalHuffmanTree::Leaf(v))
             }
             WipHuffmanTree::Tree(zero, one) => {
                 let zero = zero.into_read_tree()?;
                 let one = one.into_read_tree()?;
-                Ok(ReadHuffmanTree::Tree(Box::new(zero), Box::new(one)))
+                Ok(FinalHuffmanTree::Tree(Box::new(zero), Box::new(one)))
             }
         }
     }
@@ -217,5 +217,32 @@ impl<E: Endianness, T: Ord + Clone> WriteHuffmanTree<E,T> {
     /// Panics if symbol is not found.
     pub fn get(&self, symbol: T) -> (u32, u64) {
         self.map[&symbol]
+    }
+}
+
+fn compile<E,T>(mut queue: BitQueue<E,u8>, tree: &FinalHuffmanTree<T>) ->
+    ReadHuffmanTreePart<E,T> where E: Endianness, T: Clone {
+    match tree {
+        &FinalHuffmanTree::Leaf(ref value) => {
+            let len = queue.len();
+            ReadHuffmanTreePart::Done(
+                value.clone(), queue.value(), len, PhantomData)
+        }
+        &FinalHuffmanTree::Tree(ref bit0, ref bit1) => {
+            if queue.is_empty() {
+                let mut next_byte = Vec::with_capacity(256);
+                for byte in 0..256u16 {
+                    next_byte.push(
+                        compile(BitQueue::from_value(byte as u8, 8), tree));
+                }
+                ReadHuffmanTreePart::Continue(next_byte)
+            } else {
+                if queue.pop(1) == 0 {
+                    compile(queue, bit0)
+                } else {
+                    compile(queue, bit1)
+                }
+            }
+        }
     }
 }

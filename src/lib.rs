@@ -384,3 +384,10 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
         ones
     }
 }
+
+impl<E: Endianness> BitQueue<E, u8> {
+    #[inline(always)]
+    pub fn to_state(&self) -> u8 {
+        (1 << self.bits) | self.value
+    }
+}
