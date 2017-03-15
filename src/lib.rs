@@ -159,8 +159,6 @@ define_signed_numeric!(i64);
 /// A stream's endianness, or byte order, for determining
 /// how bits should be read.
 pub trait Endianness {
-    fn leading_sign() -> bool;
-
     fn push<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32,
@@ -186,9 +184,6 @@ pub struct BigEndian {}
 pub type BE = BigEndian;
 
 impl Endianness for BigEndian {
-    #[inline(always)]
-    fn leading_sign() -> bool {true}
-
     fn push<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32,
@@ -252,9 +247,6 @@ pub struct LittleEndian {}
 pub type LE = LittleEndian;
 
 impl Endianness for LittleEndian {
-    #[inline(always)]
-    fn leading_sign() -> bool {false}
-
     fn push<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32,

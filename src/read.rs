@@ -62,7 +62,8 @@
 
 use std::io;
 
-use super::{Numeric, SignedNumeric, Endianness, BitQueue};
+use super::{Numeric, SignedNumeric, BitQueue,
+            Endianness, BigEndian, LittleEndian};
 use huffman::ReadHuffmanTree;
 
 pub struct BitReader<'a, E: Endianness> {
@@ -153,9 +154,8 @@ impl<'a, E: Endianness> BitReader<'a, E> {
         let mut acc = BitQueue::new();
 
         /*transfer un-processed bits from queue to accumulator*/
-        let queue_len = self.bitqueue.len();
-        if queue_len > 0 {
-            let to_transfer = min(queue_len, bits);
+        if self.bitqueue.len() > 0 {
+            let to_transfer = min(self.bitqueue.len(), bits);
             acc.push(to_transfer,
                      U::from_u8(self.bitqueue.pop(to_transfer)));
             bits -= to_transfer;
@@ -167,47 +167,6 @@ impl<'a, E: Endianness> BitReader<'a, E> {
                                       &mut acc,
                                       &mut self.bitqueue))
         .map(|()| acc.value())
-    }
-
-    /// Reads a twos-complement signed value from the stream with
-    /// the given number of bits.  This method assumes
-    /// that the programmer is using an output type
-    /// sufficiently large to hold those bits.
-    ///
-    /// # Examples
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{BigEndian, BitReader};
-    /// let data = [0b10110111];
-    /// let mut cursor = Cursor::new(&data);
-    /// let mut reader = BitReader::<BigEndian>::new(&mut cursor);
-    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
-    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{LittleEndian, BitReader};
-    /// let data = [0b10110111];
-    /// let mut cursor = Cursor::new(&data);
-    /// let mut reader = BitReader::<LittleEndian>::new(&mut cursor);
-    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
-    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
-    /// ```
-    pub fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
-        where S: SignedNumeric {
-
-        /*FIXME - there should be a better way to do this*/
-
-        if E::leading_sign() {
-            let is_negative = self.read_bit()?;
-            let unsigned = self.read::<S>(bits - 1)?;
-            Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
-        } else {
-            let unsigned = self.read::<S>(bits - 1)?;
-            let is_negative = self.read_bit()?;
-            Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
-        }
     }
 
     /// Skips the given number of bits in the stream.
@@ -445,6 +404,56 @@ impl<'a, E: Endianness> BitReader<'a, E> {
                 }
             }
         }
+    }
+}
+
+impl<'a> BitReader<'a, BigEndian> {
+    /// Reads a twos-complement signed value from the stream with
+    /// the given number of bits.  This method assumes
+    /// that the programmer is using an output type
+    /// sufficiently large to hold those bits.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, BitReader};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReader::<BigEndian>::new(&mut cursor);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
+    /// ```
+    pub fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
+        where S: SignedNumeric {
+
+        let is_negative = self.read_bit()?;
+        let unsigned = self.read::<S>(bits - 1)?;
+        Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
+    }
+}
+
+impl<'a> BitReader<'a, LittleEndian> {
+    /// Reads a twos-complement signed value from the stream with
+    /// the given number of bits.  This method assumes
+    /// that the programmer is using an output type
+    /// sufficiently large to hold those bits.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{LittleEndian, BitReader};
+    /// let data = [0b10110111];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReader::<LittleEndian>::new(&mut cursor);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
+    /// ```
+    pub fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
+        where S: SignedNumeric {
+
+        let unsigned = self.read::<S>(bits - 1)?;
+        let is_negative = self.read_bit()?;
+        Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
     }
 }
 
