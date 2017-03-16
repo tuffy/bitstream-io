@@ -229,8 +229,10 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
                             symbol: T) ->
         Result<(), io::Error> where T: Ord + Copy {
 
-        let (bits, value) = tree.get(symbol);
-        self.write(bits, value)
+        for &(bits, value) in tree.get(symbol) {
+            self.write(bits, value)?;
+        }
+        Ok(())
     }
 
     /// Writes `value` number of 1 bits to the stream

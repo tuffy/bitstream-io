@@ -64,7 +64,7 @@ use std::io;
 
 use super::{Numeric, SignedNumeric, BitQueue,
             Endianness, BigEndian, LittleEndian};
-use huffman::{ReadHuffmanTree, ReadHuffmanTreePart};
+use huffman::ReadHuffmanTree;
 
 pub struct BitReader<'a, E: Endianness> {
     reader: &'a mut io::Read,
@@ -390,21 +390,22 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'c');
     /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'd');
     /// ```
-    pub fn read_huffman<T>(&mut self, tree: &ReadHuffmanTree<E,T>) ->
+    pub fn read_huffman<T>(&mut self, tree: &[ReadHuffmanTree<E,T>]) ->
         Result<T,io::Error> where T: Clone {
 
-        let mut result: &ReadHuffmanTreePart<E,T> =
+        let mut result: &ReadHuffmanTree<E,T> =
             &tree[self.bitqueue.to_state() as usize];
         loop {
             match result {
-                &ReadHuffmanTreePart::Done(
+                &ReadHuffmanTree::Done(
                     ref value, ref queue_val, ref queue_bits, _) => {
                     self.bitqueue.set(*queue_val, *queue_bits);
                     return Ok(value.clone())
                 }
-                &ReadHuffmanTreePart::Continue(ref tree) => {
+                &ReadHuffmanTree::Continue(ref tree) => {
                     result = &tree[read_byte(self.reader)? as usize];
                 }
+                &ReadHuffmanTree::InvalidState => {panic!("invalid state");}
             }
         }
     }

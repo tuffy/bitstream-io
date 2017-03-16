@@ -97,3 +97,64 @@ fn test_huffman_values() {
         assert_eq!(r.read_huffman(&tree).unwrap().deref(), "kelp");
     }
 }
+
+#[test]
+fn test_lengthy_huffman_values() {
+    use std::io::Cursor;
+    use bitstream_io::{BE, LE, BitReader, BitWriter};
+    use bitstream_io::huffman::{compile_read_tree, compile_write_tree};
+
+    let max_bits = 70;
+    let mut spec = Vec::new();
+    for bits in 0..max_bits {
+        let mut entry = Vec::new();
+        for _ in 0..bits {
+            entry.push(0);
+        }
+        entry.push(1);
+        spec.push((Some(bits), entry));
+    }
+    let mut entry = Vec::new();
+    for _ in 0..max_bits {
+        entry.push(0);
+    }
+    spec.push((None, entry));
+
+    let read_tree_be =
+        compile_read_tree::<BE,Option<i32>>(spec.clone()).unwrap();
+    let write_tree_be =
+        compile_write_tree::<BE,Option<i32>>(spec.clone()).unwrap();
+    let read_tree_le =
+        compile_read_tree::<LE,Option<i32>>(spec.clone()).unwrap();
+    let write_tree_le =
+        compile_write_tree::<LE,Option<i32>>(spec).unwrap();
+
+    let mut data_be = Vec::new();
+    let mut data_le = Vec::new();
+    {
+        let mut writer_be = BitWriter::new(&mut data_be);
+        let mut writer_le = BitWriter::new(&mut data_le);
+        for _ in 0..20 {
+            for bits in 0..max_bits {
+                writer_be.write_huffman(&write_tree_be, Some(bits)).unwrap();
+                writer_le.write_huffman(&write_tree_le, Some(bits)).unwrap();
+            }
+        }
+        writer_be.byte_align().unwrap();
+        writer_le.byte_align().unwrap();
+    }
+    {
+        let mut cursor_be = Cursor::new(&data_be);
+        let mut cursor_le = Cursor::new(&data_le);
+        let mut reader_be = BitReader::new(&mut cursor_be);
+        let mut reader_le = BitReader::new(&mut cursor_le);
+        for _ in 0..20 {
+            for bits in 0..max_bits {
+                assert_eq!(reader_be.read_huffman(&read_tree_be).unwrap(),
+                           Some(bits));
+                assert_eq!(reader_le.read_huffman(&read_tree_le).unwrap(),
+                           Some(bits));
+            }
+        }
+    }
+}
