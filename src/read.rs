@@ -66,12 +66,18 @@ use super::{Numeric, SignedNumeric, BitQueue,
             Endianness, BigEndian, LittleEndian};
 use huffman::ReadHuffmanTree;
 
+/// For reading non-aligned bits from a stream of bytes in a given endianness.
+///
+/// This will read exactly as many whole bytes needed to return
+/// the requested number of bits.  It may cache up to a single partial byte
+/// but no more.
 pub struct BitReader<'a, E: Endianness> {
     reader: &'a mut io::Read,
     bitqueue: BitQueue<E,u8>
 }
 
 impl<'a, E: Endianness> BitReader<'a, E> {
+    /// Wraps a BitReader around something that implements `Read`
     pub fn new(reader: &mut io::Read) -> BitReader<E> {
         BitReader{reader: reader, bitqueue: BitQueue::new()}
     }
@@ -353,6 +359,7 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     }
 
     /// Throws away all unread bit values until the next whole byte.
+    /// Does nothing if the stream is already aligned.
     ///
     /// # Example
     /// ```

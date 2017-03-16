@@ -158,6 +158,11 @@ define_signed_numeric!(i64);
 
 /// A stream's endianness, or byte order, for determining
 /// how bits should be read.
+///
+/// It comes in `BigEndian` and `LittleEndian` varieties
+/// (which may be shortened to `BE` and `LE`)
+/// and is not something programmers should have to implement
+/// in most cases.
 pub trait Endianness {
     fn push<N>(bits_acc: &mut u32,
                value_acc: &mut N,
