@@ -77,6 +77,7 @@ pub struct BitWriter<'a, E: Endianness> {
 }
 
 impl<'a, E: Endianness> BitWriter<'a, E> {
+    /// Wraps a BitWriter around something that implements `Write`
     pub fn new(writer: &mut io::Write) -> BitWriter<E> {
         BitWriter{writer: writer,
                   byte_buf: Vec::new(),

@@ -15,6 +15,8 @@ use std::collections::BTreeMap;
 use super::Endianness;
 use super::BitQueue;
 
+/// A compiled Huffman tree element for use with the `read_huffman` method.
+/// Returned by `compile_read_tree`.
 pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
     Continue(Box<[ReadHuffmanTree<E,T>]>),
     Done(T,u8,u32,PhantomData<E>),
@@ -31,7 +33,7 @@ pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
 /// All possible codes must be assigned some symbol,
 /// and it is acceptable for the same symbol to occur multiple times.
 ///
-/// ## Example
+/// ## Examples
 /// ```
 /// use bitstream_io::huffman::compile_read_tree;
 /// use bitstream_io::BigEndian;
@@ -39,6 +41,23 @@ pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
 ///     vec![(1, vec![0]),
 ///          (2, vec![1, 0]),
 ///          (3, vec![1, 1])]).is_ok());
+/// ```
+///
+/// ```
+/// use std::io::{Read, Cursor};
+/// use bitstream_io::{BigEndian, BitReader};
+/// use bitstream_io::huffman::compile_read_tree;
+/// let tree = compile_read_tree(
+///     vec![('a', vec![0]),
+///          ('b', vec![1, 0]),
+///          ('c', vec![1, 1, 0]),
+///          ('d', vec![1, 1, 1])]).unwrap();
+/// let data = [0b10110111];
+/// let mut cursor = Cursor::new(&data);
+/// let mut reader = BitReader::<BigEndian>::new(&mut cursor);
+/// assert_eq!(reader.read_huffman(&tree).unwrap(), 'b');
+/// assert_eq!(reader.read_huffman(&tree).unwrap(), 'c');
+/// assert_eq!(reader.read_huffman(&tree).unwrap(), 'd');
 /// ```
 pub fn compile_read_tree<E,T>(values: Vec<(T,Vec<u8>)>) ->
     Result<Box<[ReadHuffmanTree<E,T>]>,HuffmanTreeError>
@@ -180,6 +199,7 @@ impl<T: Clone> WipHuffmanTree<T> {
     }
 }
 
+/// An error type during Huffman tree compilation.
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum HuffmanTreeError {
     InvalidBit,
@@ -218,7 +238,7 @@ impl fmt::Display for HuffmanTreeError {
 /// Unlike in read trees, not all possible codes need to be
 /// assigned a symbol.
 ///
-/// ## Example
+/// ## Examples
 /// ```
 /// use bitstream_io::huffman::compile_write_tree;
 /// use bitstream_io::BigEndian;
@@ -226,6 +246,25 @@ impl fmt::Display for HuffmanTreeError {
 ///     vec![(1, vec![0]),
 ///          (2, vec![1, 0]),
 ///          (3, vec![1, 1])]).is_ok());
+/// ```
+///
+/// ```
+/// use std::io::Write;
+/// use bitstream_io::{BigEndian, BitWriter};
+/// use bitstream_io::huffman::compile_write_tree;
+/// let tree = compile_write_tree(
+///     vec![('a', vec![0]),
+///          ('b', vec![1, 0]),
+///          ('c', vec![1, 1, 0]),
+///          ('d', vec![1, 1, 1])]).unwrap();
+/// let mut data = Vec::new();
+/// {
+///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
+///     writer.write_huffman(&tree, 'b').unwrap();
+///     writer.write_huffman(&tree, 'c').unwrap();
+///     writer.write_huffman(&tree, 'd').unwrap();
+/// }
+/// assert_eq!(data, [0b10110111]);
 /// ```
 pub fn compile_write_tree<E,T>(values: Vec<(T,Vec<u8>)>) ->
     Result<WriteHuffmanTree<E,T>,HuffmanTreeError>
@@ -255,6 +294,8 @@ pub fn compile_write_tree<E,T>(values: Vec<(T,Vec<u8>)>) ->
     Ok(WriteHuffmanTree{map: map, phantom: PhantomData})
 }
 
+/// A compiled Huffman tree for use with the `write_huffman` method.
+/// Returned by `compiled_write_tree`.
 pub struct WriteHuffmanTree<E: Endianness, T: Ord> {
     map: BTreeMap<T,Box<[(u32, u32)]>>,
     phantom: PhantomData<E>
