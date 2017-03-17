@@ -164,6 +164,8 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     pub fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
         where U: Numeric {
 
+        debug_assert!(bits <= U::bits_size());
+
         let mut acc = BitQueue::from_value(value, bits);
         write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
         .and_then(|()|
@@ -385,6 +387,8 @@ impl<'a> BitWriter<'a, BigEndian> {
     pub fn write_signed<S>(&mut self, bits: u32, value: S) ->
         Result<(), io::Error> where S: SignedNumeric {
 
+        debug_assert!(bits <= S::bits_size());
+
         if value.is_negative() {
             self.write_bit(true)
             .and_then(|()| self.write(bits - 1, value.as_unsigned(bits)))
@@ -415,6 +419,8 @@ impl<'a> BitWriter<'a, LittleEndian> {
     /// ```
     pub fn write_signed<S>(&mut self, bits: u32, value: S) ->
         Result<(), io::Error> where S: SignedNumeric {
+
+        debug_assert!(bits <= S::bits_size());
 
         if value.is_negative() {
             self.write(bits - 1, value.as_unsigned(bits))

@@ -157,13 +157,12 @@ impl<'a, E: Endianness> BitReader<'a, E> {
         where U: Numeric {
 
         use std::cmp::min;
-        let mut acc = BitQueue::new();
+        debug_assert!(bits <= U::bits_size());
 
-        /*transfer un-processed bits from queue to accumulator*/
-        if self.bitqueue.len() > 0 {
-            let to_transfer = min(self.bitqueue.len(), bits);
-            acc.push(to_transfer,
-                     U::from_u8(self.bitqueue.pop(to_transfer)));
+        let mut acc = BitQueue::new();
+        let to_transfer = min(self.bitqueue.len(), bits);
+        if to_transfer != 0 {
+            acc.push(to_transfer, U::from_u8(self.bitqueue.pop(to_transfer)));
             bits -= to_transfer;
         }
 
@@ -207,9 +206,8 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     pub fn skip(&mut self, mut bits: u32) -> Result<(), io::Error> {
         use std::cmp::min;
 
-        let queue_len = self.bitqueue.len();
-        if queue_len > 0 {
-            let to_drop = min(queue_len, bits);
+        let to_drop = min(self.bitqueue.len(), bits);
+        if to_drop != 0 {
             self.bitqueue.drop(to_drop);
             bits -= to_drop;
         }
@@ -437,6 +435,7 @@ impl<'a> BitReader<'a, BigEndian> {
     pub fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric {
 
+        debug_assert!(bits <= S::bits_size());
         let is_negative = self.read_bit()?;
         let unsigned = self.read::<S>(bits - 1)?;
         Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
@@ -462,6 +461,7 @@ impl<'a> BitReader<'a, LittleEndian> {
     pub fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric {
 
+        debug_assert!(bits <= S::bits_size());
         let unsigned = self.read::<S>(bits - 1)?;
         let is_negative = self.read_bit()?;
         Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
@@ -475,31 +475,25 @@ fn read_byte(reader: &mut io::Read) -> Result<u8,io::Error> {
 }
 
 fn read_aligned<E,N>(reader: &mut io::Read,
-                     mut bytes: u32,
+                     bytes: u32,
                      acc: &mut BitQueue<E,N>) -> Result<(), io::Error>
     where E: Endianness, N: Numeric {
     use std::cmp::min;
 
-    // for native types, it's difficult to imagine a situation
-    // in which this would require more than a single pass
+    /*64-bit types are the maximum supported*/
+    debug_assert!(bytes <= 8);
     let mut buf = [0; 8];
-    while bytes > 0 {
-        let to_read = min(8, bytes);
-        reader.read_exact(&mut buf[0..to_read as usize])?;
-        for b in buf.iter().take(to_read as usize) {
-            acc.push(8, N::from_u8(*b));
-        }
-        bytes -= to_read;
-    }
-    Ok(())
+    let to_read: usize = min(8, bytes as usize);
+    reader.read_exact(&mut buf[0..to_read])
+          .map(|()| {for b in &buf[0..to_read] {acc.push(8, N::from_u8(*b))}})
 }
 
 fn skip_aligned(reader: &mut io::Read,
                 mut bytes: u32) -> Result<(), io::Error> {
     use std::cmp::min;
 
-    // for native types, it's difficult to imagine a situation
-    // in which this would require more than a single pass
+    /*skip 8 bytes at a time
+      (unlike with read_aligned, bytes may be larger than any native type)*/
     let mut buf = [0; 8];
     while bytes > 0 {
         let to_read = min(8, bytes);
@@ -518,12 +512,13 @@ fn read_unaligned<E,N>(reader: &mut io::Read,
     where E: Endianness, N: Numeric {
 
     debug_assert!(bits <= 8);
-
     if bits > 0 {
-        rem.set(read_byte(reader)?, 8);
-        acc.push(bits, N::from_u8(rem.pop(bits)));
+        read_byte(reader).map(|byte|
+            {rem.set(byte, 8);
+             acc.push(bits, N::from_u8(rem.pop(bits)))})
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 #[inline]

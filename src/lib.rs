@@ -189,6 +189,7 @@ pub struct BigEndian {}
 pub type BE = BigEndian;
 
 impl Endianness for BigEndian {
+    #[inline]
     fn push<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32,
@@ -200,6 +201,7 @@ impl Endianness for BigEndian {
         *bits_acc += bits;
     }
 
+    #[inline]
     fn pop<N>(bits_acc: &mut u32,
               value_acc: &mut N,
               bits: u32) -> N where N: Numeric {
@@ -217,6 +219,7 @@ impl Endianness for BigEndian {
         }
     }
 
+    #[inline]
     fn drop<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32) where N: Numeric {
@@ -252,6 +255,7 @@ pub struct LittleEndian {}
 pub type LE = LittleEndian;
 
 impl Endianness for LittleEndian {
+    #[inline]
     fn push<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32,
@@ -261,6 +265,7 @@ impl Endianness for LittleEndian {
         *bits_acc += bits;
     }
 
+    #[inline]
     fn pop<N>(bits_acc: &mut u32,
               value_acc: &mut N,
               bits: u32) -> N where N: Numeric {
@@ -277,6 +282,7 @@ impl Endianness for LittleEndian {
         }
     }
 
+    #[inline]
     fn drop<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32) where N: Numeric {
@@ -289,7 +295,7 @@ impl Endianness for LittleEndian {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn next_zeros<N>(_: u32, value: N) -> u32 where N: Numeric {
         value.trailing_zeros()
     }
@@ -336,9 +342,17 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     #[inline(always)]
     pub fn len(&self) -> u32 {self.bits}
 
+    /// Returns the maximum bits the queue can hold
+    #[inline(always)]
+    pub fn max_len(&self) -> u32 {N::bits_size()}
+
     /// Returns true if the queue is empty
     #[inline(always)]
     pub fn is_empty(&self) -> bool {self.bits == 0}
+
+    /// Returns true if the queue is full
+    #[inline(always)]
+    pub fn is_full(&self) -> bool {self.bits == N::bits_size()}
 
     /// Drops all values in the queue
     #[inline(always)]
