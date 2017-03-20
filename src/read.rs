@@ -414,6 +414,38 @@ impl<'a, E: Endianness> BitReader<'a, E> {
             }
         }
     }
+
+    /// Consumes reader and returns any un-read partial byte
+    /// as a `(bits, value)` tuple.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, BitReader};
+    /// let data = [0b1010_0101, 0b0101_1010];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReader::<BigEndian>::new(&mut cursor);
+    /// assert_eq!(reader.read::<u16>(9).unwrap(), 0b1010_0101_0);
+    /// let (bits, value) = reader.into_unread();
+    /// assert_eq!(bits, 7);
+    /// assert_eq!(value, 0b101_1010);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, BitReader};
+    /// let data = [0b1010_0101, 0b0101_1010];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReader::<BigEndian>::new(&mut cursor);
+    /// assert_eq!(reader.read::<u16>(8).unwrap(), 0b1010_0101);
+    /// let (bits, value) = reader.into_unread();
+    /// assert_eq!(bits, 0);
+    /// assert_eq!(value, 0);
+    /// ```
+    #[inline(always)]
+    pub fn into_unread(self) -> (u32,u8) {
+        (self.bitqueue.len(), self.bitqueue.value())
+    }
 }
 
 impl<'a> BitReader<'a, BigEndian> {
@@ -480,7 +512,7 @@ fn read_aligned<E,N>(reader: &mut io::Read,
     where E: Endianness, N: Numeric {
     use std::cmp::min;
 
-    /*64-bit types are the maximum supported*/
+    // 64-bit types are the maximum supported
     debug_assert!(bytes <= 8);
     let mut buf = [0; 8];
     let to_read: usize = min(8, bytes as usize);

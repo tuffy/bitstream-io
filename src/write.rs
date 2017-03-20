@@ -72,16 +72,13 @@ use huffman::WriteHuffmanTree;
 /// before they can be written.
 pub struct BitWriter<'a, E: Endianness> {
     writer: &'a mut io::Write,
-    byte_buf: Vec<u8>,
     bitqueue: BitQueue<E,u8>
 }
 
 impl<'a, E: Endianness> BitWriter<'a, E> {
     /// Wraps a BitWriter around something that implements `Write`
     pub fn new(writer: &mut io::Write) -> BitWriter<E> {
-        BitWriter{writer: writer,
-                  byte_buf: Vec::new(),
-                  bitqueue: BitQueue::new()}
+        BitWriter{writer: writer, bitqueue: BitQueue::new()}
     }
 
     /// Writes a single bit to the stream.
@@ -170,7 +167,7 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
         let mut acc = BitQueue::from_value(value, bits);
         write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
         .and_then(|()|
-            write_aligned(&mut self.writer, &mut self.byte_buf, &mut acc))
+            write_aligned(&mut self.writer, &mut acc))
         .and_then(|()|
             Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
     }
@@ -366,6 +363,42 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
         }
         Ok(())
     }
+
+    /// Consumes writer and returns any un-written partial byte
+    /// as a `(bits, value)` tuple.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut data = Vec::new();
+    /// let (bits, value) = {
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
+    ///     writer.write(15, 0b1010_0101_0101_101).unwrap();
+    ///     writer.into_unwritten()
+    /// };
+    /// assert_eq!(data, [0b1010_0101]);
+    /// assert_eq!(bits, 7);
+    /// assert_eq!(value, 0b0101_101);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut data = Vec::new();
+    /// let (bits, value) = {
+    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
+    ///     writer.write(8, 0b1010_0101).unwrap();
+    ///     writer.into_unwritten()
+    /// };
+    /// assert_eq!(data, [0b1010_0101]);
+    /// assert_eq!(bits, 0);
+    /// assert_eq!(value, 0);
+    /// ```
+    #[inline(always)]
+    pub fn into_unwritten(self) -> (u32, u8) {
+        (self.bitqueue.len(), self.bitqueue.value())
+    }
 }
 
 impl<'a> BitWriter<'a, BigEndian> {
@@ -460,14 +493,18 @@ fn write_unaligned<E,N>(writer: &mut io::Write,
 }
 
 fn write_aligned<E,N>(writer: &mut io::Write,
-                      byte_buf: &mut Vec<u8>,
                       acc: &mut BitQueue<E,N>) -> Result<(), io::Error>
     where E: Endianness, N: Numeric {
-    let bytes_to_write = (acc.len() / 8) as usize;
-    if bytes_to_write > 0 {
-        byte_buf.clear();
-        byte_buf.extend((0..bytes_to_write).map(|_| acc.pop(8).to_u8()));
-        writer.write_all(&byte_buf)
+
+    let to_write = (acc.len() / 8) as usize;
+    if to_write > 0 {
+        // 64-bit types are the maximum supported
+        debug_assert!(to_write <= 8);
+        let mut buf = [0; 8];
+        for b in buf[0..to_write].iter_mut() {
+            *b = acc.pop(8).to_u8();
+        }
+        writer.write_all(&buf[0..to_write])
     } else {
         Ok(())
     }
