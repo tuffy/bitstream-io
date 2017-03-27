@@ -27,22 +27,6 @@
 //! Readers and writers are also designed to work with integer
 //! types of any possible size.
 //! Many of Rust's built-in integer types are supported by default.
-//!
-//! ## Type Sizes
-//!
-//! Because both the type sizes and bit counts are variable,
-//! it is the responsibity of the programmer to ensure that
-//! the capacity of one's variables does not exceed the
-//! requested bit count when reading or writing.
-//! Otherwise, an overflow error panic may occur.
-//!
-//! For example, reading 8 bits from the stream to a 32-bit variable
-//! is harmless (the topmost 24 bits are left empty),
-//! but reading 32 bits from the stream to an 8-bit variable
-//! may result in a panic.
-//! Similarly, writing a 32-bit variable to 8 bits is also harmless
-//! (the topmost 24 bits are ignored), but writing an 8-bit variable
-//! to 32 bits in the stream may cause a panic.
 
 use std::ops::{Shl, ShlAssign, Shr, ShrAssign, Rem, RemAssign, BitOrAssign,
                BitXor, Not, Sub};
@@ -59,7 +43,7 @@ pub use write::BitWriter;
 /// This trait extends many common integer types (both unsigned and signed)
 /// with a few trivial methods so that they can be used
 /// with the bitstream handling traits.
-pub trait Numeric: Sized + Copy + Default + Debug +
+pub trait Numeric: Sized + Copy + Default + Debug + PartialOrd +
     Shl<u32,Output=Self> + ShlAssign<u32> +
     Shr<u32,Output=Self> + ShrAssign<u32> +
     Rem<Self,Output=Self> + RemAssign<Self> +

@@ -127,9 +127,9 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     }
 
     /// Reads an unsigned value from the stream with
-    /// the given number of bits.  This method assumes
-    /// that the programmer is using an output type
-    /// sufficiently large to hold those bits.
+    /// the given number of bits.
+    /// Returns an error if the output type is too small
+    /// to hold the requested number of bits.
     ///
     /// # Examples
     /// ```
@@ -153,25 +153,42 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// assert_eq!(reader.read::<u8>(2).unwrap(), 0b11);
     /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10110);
     /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, BitReader};
+    /// let data = [0;10];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut reader = BitReader::<BigEndian>::new(&mut cursor);
+    /// assert!(reader.read::<u8>(9).is_err());    // can't read  9 bits to u8
+    /// assert!(reader.read::<u16>(17).is_err());  // can't read 17 bits to u16
+    /// assert!(reader.read::<u32>(33).is_err());  // can't read 33 bits to u32
+    /// assert!(reader.read::<u64>(65).is_err());  // can't read 65 bits to u64
+    /// ```
     pub fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
         where U: Numeric {
 
         use std::cmp::min;
-        debug_assert!(bits <= U::bits_size());
 
-        let mut acc = BitQueue::new();
-        let to_transfer = min(self.bitqueue.len(), bits);
-        if to_transfer != 0 {
-            acc.push(to_transfer, U::from_u8(self.bitqueue.pop(to_transfer)));
-            bits -= to_transfer;
+        if bits <= U::bits_size() {
+            let mut acc = BitQueue::new();
+            let to_transfer = min(self.bitqueue.len(), bits);
+            if to_transfer != 0 {
+                acc.push(to_transfer,
+                         U::from_u8(self.bitqueue.pop(to_transfer)));
+                bits -= to_transfer;
+            }
+
+            read_aligned(&mut self.reader, bits / 8, &mut acc)
+            .and_then(|()| read_unaligned(&mut self.reader,
+                                          bits % 8,
+                                          &mut acc,
+                                          &mut self.bitqueue))
+            .map(|()| acc.value())
+        } else {
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               "excessive bits for type read"))
         }
-
-        read_aligned(&mut self.reader, bits / 8, &mut acc)
-        .and_then(|()| read_unaligned(&mut self.reader,
-                                      bits % 8,
-                                      &mut acc,
-                                      &mut self.bitqueue))
-        .map(|()| acc.value())
     }
 
     /// Skips the given number of bits in the stream.
@@ -450,11 +467,11 @@ impl<'a, E: Endianness> BitReader<'a, E> {
 
 impl<'a> BitReader<'a, BigEndian> {
     /// Reads a twos-complement signed value from the stream with
-    /// the given number of bits.  This method assumes
-    /// that the programmer is using an output type
-    /// sufficiently large to hold those bits.
+    /// the given number of bits.
+    /// Returns an error if the output type is too small
+    /// to hold the requested number of bits.
     ///
-    /// # Example
+    /// # Examples
     /// ```
     /// use std::io::{Read, Cursor};
     /// use bitstream_io::{BigEndian, BitReader};
@@ -464,23 +481,39 @@ impl<'a> BitReader<'a, BigEndian> {
     /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
     /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
     /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, BitReader};
+    /// let data = [0;10];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut r = BitReader::<BigEndian>::new(&mut cursor);
+    /// assert!(r.read_signed::<i8>(9).is_err());   // can't read 9 bits to i8
+    /// assert!(r.read_signed::<i16>(17).is_err()); // can't read 17 bits to i16
+    /// assert!(r.read_signed::<i32>(33).is_err()); // can't read 33 bits to i32
+    /// assert!(r.read_signed::<i64>(65).is_err()); // can't read 65 bits to i64
+    /// ```
     pub fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric {
 
-        debug_assert!(bits <= S::bits_size());
-        let is_negative = self.read_bit()?;
-        let unsigned = self.read::<S>(bits - 1)?;
-        Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
+        if bits <= S::bits_size() {
+            let is_negative = self.read_bit()?;
+            let unsigned = self.read::<S>(bits - 1)?;
+            Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
+        } else {
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               "excessive bits for type read"))
+        }
     }
 }
 
 impl<'a> BitReader<'a, LittleEndian> {
     /// Reads a twos-complement signed value from the stream with
-    /// the given number of bits.  This method assumes
-    /// that the programmer is using an output type
-    /// sufficiently large to hold those bits.
+    /// the given number of bits.
+    /// Returns an error if the output type is too small
+    /// to hold the requested number of bits.
     ///
-    /// # Example
+    /// # Examples
     /// ```
     /// use std::io::{Read, Cursor};
     /// use bitstream_io::{LittleEndian, BitReader};
@@ -490,13 +523,29 @@ impl<'a> BitReader<'a, LittleEndian> {
     /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
     /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
     /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{LittleEndian, BitReader};
+    /// let data = [0;10];
+    /// let mut cursor = Cursor::new(&data);
+    /// let mut r = BitReader::<LittleEndian>::new(&mut cursor);
+    /// assert!(r.read_signed::<i8>(9).is_err());   // can't read 9 bits to i8
+    /// assert!(r.read_signed::<i16>(17).is_err()); // can't read 17 bits to i16
+    /// assert!(r.read_signed::<i32>(33).is_err()); // can't read 33 bits to i32
+    /// assert!(r.read_signed::<i64>(65).is_err()); // can't read 65 bits to i64
+    /// ```
     pub fn read_signed<S>(&mut self, bits: u32) -> Result<S, io::Error>
         where S: SignedNumeric {
 
-        debug_assert!(bits <= S::bits_size());
-        let unsigned = self.read::<S>(bits - 1)?;
-        let is_negative = self.read_bit()?;
-        Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
+        if bits <= S::bits_size() {
+            let unsigned = self.read::<S>(bits - 1)?;
+            let is_negative = self.read_bit()?;
+            Ok(if is_negative {unsigned.as_negative(bits)} else {unsigned})
+        } else {
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               "excessive bits for type read"))
+        }
     }
 }
 
@@ -514,6 +563,7 @@ fn read_aligned<E,N>(reader: &mut io::Read,
 
     // 64-bit types are the maximum supported
     debug_assert!(bytes <= 8);
+
     let mut buf = [0; 8];
     let to_read: usize = min(8, bytes as usize);
     reader.read_exact(&mut buf[0..to_read])
@@ -544,6 +594,7 @@ fn read_unaligned<E,N>(reader: &mut io::Read,
     where E: Endianness, N: Numeric {
 
     debug_assert!(bits <= 8);
+
     if bits > 0 {
         read_byte(reader).map(|byte|
             {rem.set(byte, 8);
@@ -558,6 +609,7 @@ fn skip_unaligned<E>(reader: &mut io::Read,
                     bits: u32,
                     rem: &mut BitQueue<E,u8>) -> Result<(), io::Error>
     where E: Endianness {
+
     debug_assert!(bits <= 8);
 
     if bits > 0 {

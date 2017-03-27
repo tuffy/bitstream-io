@@ -130,8 +130,10 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     }
 
     /// Writes an unsigned value to the stream using the given
-    /// number of bits.  This method assumes that value's type
-    /// is sufficiently large to hold those bits.
+    /// number of bits.
+    /// Returns an error if the input type is too small
+    /// to hold the requested number of bits or if the value is too large
+    /// to fit those bits.
     ///
     /// # Examples
     /// ```
@@ -159,17 +161,38 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     /// }
     /// assert_eq!(data, [0b10110111]);
     /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut data = Vec::new();
+    /// let mut w = BitWriter::<BigEndian>::new(&mut data);
+    /// assert!(w.write(9, 0u8).is_err());    // can't write  u8 in 9 bits
+    /// assert!(w.write(17, 0u16).is_err());  // can't write u16 in 17 bits
+    /// assert!(w.write(33, 0u32).is_err());  // can't write u32 in 33 bits
+    /// assert!(w.write(65, 0u64).is_err());  // can't write u64 in 65 bits
+    /// assert!(w.write(1, 2).is_err());      // can't write   2 in 1 bit
+    /// assert!(w.write(2, 4).is_err());      // can't write   4 in 2 bits
+    /// assert!(w.write(3, 8).is_err());      // can't write   8 in 3 bits
+    /// assert!(w.write(4, 16).is_err());     // can't write  16 in 3 bits
+    /// ```
     pub fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
         where U: Numeric {
 
-        debug_assert!(bits <= U::bits_size());
-
-        let mut acc = BitQueue::from_value(value, bits);
-        write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
-        .and_then(|()|
-            write_aligned(&mut self.writer, &mut acc))
-        .and_then(|()|
-            Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
+        if bits > U::bits_size() {
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               "excessive bits for type written"))
+        } else if (bits < U::bits_size()) && (value >= (U::one() << bits)) {
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               "excessive value for bits written"))
+        } else {
+            let mut acc = BitQueue::from_value(value, bits);
+            write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
+            .and_then(|()|
+                write_aligned(&mut self.writer, &mut acc))
+            .and_then(|()|
+                Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
+        }
     }
 
     /// Writes the entirety of a byte buffer to the stream.
@@ -403,8 +426,9 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
 
 impl<'a> BitWriter<'a, BigEndian> {
     /// Writes a twos-complement signed value to the stream
-    /// with the given number of bits.  This method assumes
-    /// that value's type is sufficiently large to hold those bits.
+    /// with the given number of bits.
+    /// Returns an error if the input type is too small
+    /// to hold the requested number of bits.
     ///
     /// # Example
     /// ```
@@ -421,9 +445,10 @@ impl<'a> BitWriter<'a, BigEndian> {
     pub fn write_signed<S>(&mut self, bits: u32, value: S) ->
         Result<(), io::Error> where S: SignedNumeric {
 
-        debug_assert!(bits <= S::bits_size());
-
-        if value.is_negative() {
+        if bits > S::bits_size() {
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               "excessive bits for type written"))
+        } else if value.is_negative() {
             self.write_bit(true)
             .and_then(|()| self.write(bits - 1, value.as_unsigned(bits)))
         } else {
@@ -436,8 +461,9 @@ impl<'a> BitWriter<'a, BigEndian> {
 
 impl<'a> BitWriter<'a, LittleEndian> {
     /// Writes a twos-complement signed value to the stream
-    /// with the given number of bits.  This method assumes
-    /// that value's type is sufficiently large to hold those bits.
+    /// with the given number of bits.
+    /// Returns an error if the input type is too small
+    /// to hold the requested number of bits.
     ///
     /// # Example
     /// ```
@@ -454,9 +480,10 @@ impl<'a> BitWriter<'a, LittleEndian> {
     pub fn write_signed<S>(&mut self, bits: u32, value: S) ->
         Result<(), io::Error> where S: SignedNumeric {
 
-        debug_assert!(bits <= S::bits_size());
-
-        if value.is_negative() {
+        if bits > S::bits_size() {
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               "excessive bits for type written"))
+        } else if value.is_negative() {
             self.write(bits - 1, value.as_unsigned(bits))
             .and_then(|()| self.write_bit(true))
         } else {

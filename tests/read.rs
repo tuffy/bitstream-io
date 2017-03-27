@@ -431,3 +431,211 @@ fn test_reader_huffman_le() {
     assert_eq!(r.read_huffman(&tree).unwrap(), 4);
     assert_eq!(r.read_huffman(&tree).unwrap(), 3);
 }
+
+#[test]
+fn test_reader_io_errors_be() {
+    use bitstream_io::{BE, BitReader};
+    use std::io::ErrorKind;
+
+    let actual_data: [u8;1] = [0xB1];
+
+    {
+        /*individual bits*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<BE>::new(&mut c);
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert_eq!(r.read_bit().unwrap_err().kind(), ErrorKind::UnexpectedEof);
+    }
+    {
+        /*skipping bits*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<BE>::new(&mut c);
+        assert!(r.read::<u32>(7).is_ok());
+        assert_eq!(r.skip(5).unwrap_err().kind(), ErrorKind::UnexpectedEof);
+    }
+    {
+        /*signed values*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<BE>::new(&mut c);
+        assert!(r.read_signed::<i32>(2).is_ok());
+        assert!(r.read_signed::<i32>(3).is_ok());
+        assert_eq!(r.read_signed::<i32>(5).unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+    {
+        /*unary 0 values*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<BE>::new(&mut c);
+        assert!(r.read_unary0().is_ok());
+        assert!(r.read_unary0().is_ok());
+        assert!(r.read_unary0().is_ok());
+        assert!(r.read_unary0().is_ok());
+        assert_eq!(r.read_unary0().unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+    {
+        /*unary 1 values*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<BE>::new(&mut c);
+        assert!(r.read_unary1().is_ok());
+        assert!(r.read_unary1().is_ok());
+        assert!(r.read_unary1().is_ok());
+        assert!(r.read_unary1().is_ok());
+        assert_eq!(r.read_unary1().unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+    {
+        /*reading bytes, aligned*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<BE>::new(&mut c);
+        let mut sub_data = [0; 2];
+        assert_eq!(r.read_bytes(&mut sub_data).unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+    {
+        /*reading bytes, un-aligned*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<BE>::new(&mut c);
+        let mut sub_data = [0; 2];
+        assert!(r.read::<u32>(4).is_ok());
+        assert_eq!(r.read_bytes(&mut sub_data).unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+}
+
+#[test]
+fn test_reader_io_errors_le() {
+    use bitstream_io::{LE, BitReader};
+    use std::io::ErrorKind;
+
+    let actual_data: [u8;1] = [0xB1];
+
+    {
+        /*individual bits*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<LE>::new(&mut c);
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert!(r.read_bit().is_ok());
+        assert_eq!(r.read_bit().unwrap_err().kind(), ErrorKind::UnexpectedEof);
+    }
+    {
+        /*skipping bits*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<LE>::new(&mut c);
+        assert!(r.read::<u32>(7).is_ok());
+        assert_eq!(r.skip(5).unwrap_err().kind(), ErrorKind::UnexpectedEof);
+    }
+    {
+        /*signed values*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<LE>::new(&mut c);
+        assert!(r.read_signed::<i32>(2).is_ok());
+        assert!(r.read_signed::<i32>(3).is_ok());
+        assert_eq!(r.read_signed::<i32>(5).unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+    {
+        /*unary 0 values*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<LE>::new(&mut c);
+        assert!(r.read_unary0().is_ok());
+        assert!(r.read_unary0().is_ok());
+        assert!(r.read_unary0().is_ok());
+        assert!(r.read_unary0().is_ok());
+        assert_eq!(r.read_unary0().unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+    {
+        /*unary 1 values*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<LE>::new(&mut c);
+        assert!(r.read_unary1().is_ok());
+        assert!(r.read_unary1().is_ok());
+        assert!(r.read_unary1().is_ok());
+        assert!(r.read_unary1().is_ok());
+        assert_eq!(r.read_unary1().unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+    {
+        /*reading bytes, aligned*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<LE>::new(&mut c);
+        let mut sub_data = [0; 2];
+        assert_eq!(r.read_bytes(&mut sub_data).unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+    {
+        /*reading bytes, un-aligned*/
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<LE>::new(&mut c);
+        let mut sub_data = [0; 2];
+        assert!(r.read::<u32>(4).is_ok());
+        assert_eq!(r.read_bytes(&mut sub_data).unwrap_err().kind(),
+                   ErrorKind::UnexpectedEof);
+    }
+}
+
+#[test]
+fn test_reader_bits_errors() {
+    use bitstream_io::{BE, LE, BitReader};
+    use std::io::ErrorKind;
+    let actual_data = [0u8; 10];
+
+    {
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<BE>::new(&mut c);
+
+        assert_eq!(r.read::<u8>(9).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read::<u16>(17).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read::<u32>(33).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read::<u64>(65).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+
+        assert_eq!(r.read_signed::<i8>(9).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read_signed::<i16>(17).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read_signed::<i32>(33).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read_signed::<i64>(65).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+    }
+    {
+        let mut c = Cursor::new(&actual_data);
+        let mut r = BitReader::<LE>::new(&mut c);
+
+        assert_eq!(r.read::<u8>(9).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read::<u16>(17).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read::<u32>(33).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read::<u64>(65).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+
+        assert_eq!(r.read_signed::<i8>(9).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read_signed::<i16>(17).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read_signed::<i32>(33).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+        assert_eq!(r.read_signed::<i64>(65).unwrap_err().kind(),
+                   ErrorKind::InvalidInput);
+    }
+}
