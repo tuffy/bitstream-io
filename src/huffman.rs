@@ -9,6 +9,8 @@
 //! Traits and implementations for reading or writing Huffman codes
 //! from or to a stream.
 
+#![warn(missing_docs)]
+
 use std::fmt;
 use std::marker::PhantomData;
 use std::collections::BTreeMap;
@@ -17,9 +19,20 @@ use super::BitQueue;
 
 /// A compiled Huffman tree element for use with the `read_huffman` method.
 /// Returned by `compile_read_tree`.
+///
+/// Compiled read trees are optimized for faster lookup
+/// and are therefore endian-specific.
+///
+/// In addition, each symbol in the source tree may occur many times
+/// in the compiled tree.  If symbols require a nontrivial amount of space,
+/// consider using reference counting so that they may be cloned
+/// more efficiently.
 pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
-    Continue(Box<[ReadHuffmanTree<E,T>]>),
+    /// The final value and new reader state
     Done(T,u8,u32,PhantomData<E>),
+    /// Another byte is necessary to determine final value
+    Continue(Box<[ReadHuffmanTree<E,T>]>),
+    /// An invalid reader state has been used
     InvalidState
 }
 
@@ -66,12 +79,15 @@ pub fn compile_read_tree<E,T>(values: Vec<(T,Vec<u8>)>) ->
     let tree = FinalHuffmanTree::new(values)?;
 
     let mut result = Vec::with_capacity(256);
-    result.push(ReadHuffmanTree::InvalidState);
-    result.push(compile_queue(BitQueue::from_value(0, 0), &tree));
+    result.extend((0..256).map(|_| ReadHuffmanTree::InvalidState));
+    let queue = BitQueue::from_value(0, 0);
+    let i = queue.to_state();
+    result[i] = compile_queue(queue, &tree);
     for bits in 1..8 {
         for value in 0..(1 << bits) {
-            result.push(
-                compile_queue(BitQueue::from_value(value, bits), &tree));
+            let queue = BitQueue::from_value(value, bits);
+            let i = queue.to_state();
+            result[i] = compile_queue(queue, &tree);
         }
     }
     assert_eq!(result.len(), 256);
@@ -88,14 +104,12 @@ fn compile_queue<E,T>(mut queue: BitQueue<E,u8>, tree: &FinalHuffmanTree<T>) ->
         }
         &FinalHuffmanTree::Tree(ref bit0, ref bit1) => {
             if queue.is_empty() {
-                let mut next_byte = Vec::with_capacity(256);
-                for byte in 0..256u16 {
-                    next_byte.push(
-                        compile_queue(
-                            BitQueue::from_value(byte as u8, 8), tree));
-                }
-                assert_eq!(next_byte.len(), 256);
-                ReadHuffmanTree::Continue(next_byte.into_boxed_slice())
+                ReadHuffmanTree::Continue(
+                    (0..256).map(
+                    |byte| compile_queue(
+                        BitQueue::from_value(byte as u8, 8), &tree))
+                    .collect::<Vec<ReadHuffmanTree<E,T>>>()
+                    .into_boxed_slice())
             } else {
                 if queue.pop(1) == 0 {
                     compile_queue(queue, bit0)
@@ -202,9 +216,13 @@ impl<T: Clone> WipHuffmanTree<T> {
 /// An error type during Huffman tree compilation.
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum HuffmanTreeError {
+    /// One of the bits in a Huffman code is not 0 or 1
     InvalidBit,
+    /// A Huffman code in the specification has no defined symbol
     MissingLeaf,
+    /// The same Huffman code specifies multiple symbols
     DuplicateLeaf,
+    /// A Huffman code is the prefix of some longer code
     OrphanedLeaf
 }
 

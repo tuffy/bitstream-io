@@ -9,6 +9,11 @@
 //! Traits and implementations for reading bits from a stream.
 //!
 //! ## Example
+//!
+//! Reading the initial STREAMINFO block from a FLAC file,
+//! as documented in its
+//! [specification](https://xiph.org/flac/format.html#stream).
+//!
 //! ```
 //! use std::io::{Cursor, Read};
 //! use bitstream_io::{BE, BitReader};
@@ -23,10 +28,13 @@
 //! let mut cursor = Cursor::new(&flac);
 //! {
 //!     let mut reader = BitReader::<BE>::new(&mut cursor);
+//!
+//!     // stream marker
 //!     let mut file_header: [u8; 4] = [0, 0, 0, 0];
 //!     reader.read_bytes(&mut file_header).unwrap();
 //!     assert_eq!(&file_header, b"fLaC");
 //!
+//!     // metadata block header
 //!     let last_block: bool = reader.read_bit().unwrap();
 //!     let block_type: u8 = reader.read(7).unwrap();
 //!     let block_size: u32 = reader.read(24).unwrap();
@@ -34,6 +42,7 @@
 //!     assert_eq!(block_type, 0);
 //!     assert_eq!(block_size, 34);
 //!
+//!     // STREAMINFO block
 //!     let minimum_block_size: u16 = reader.read(16).unwrap();
 //!     let maximum_block_size: u16 = reader.read(16).unwrap();
 //!     let minimum_frame_size: u32 = reader.read(24).unwrap();
@@ -52,13 +61,18 @@
 //!     assert_eq!(total_samples, 304844);
 //! }
 //!
-//! // the wrapped reader can be used once bitstream reading is finished
-//! // at exactly the position one would expect
-//! let mut md5: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+//! // STREAMINFO's MD5 sum
+//!
+//! // Note that the wrapped reader can be used once bitstream reading
+//! // is finished at exactly the position one would expect.
+//!
+//! let mut md5 = [0; 16];
 //! cursor.read_exact(&mut md5).unwrap();
 //! assert_eq!(&md5,
 //!     b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92");
 //! ```
+
+#![warn(missing_docs)]
 
 use std::io;
 
@@ -84,6 +98,10 @@ impl<'a, E: Endianness> BitReader<'a, E> {
 
     /// Reads a single bit from the stream.
     /// `true` indicates 1, `false` indicates 0
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
     ///
     /// # Examples
     ///
@@ -128,7 +146,11 @@ impl<'a, E: Endianness> BitReader<'a, E> {
 
     /// Reads an unsigned value from the stream with
     /// the given number of bits.
-    /// Returns an error if the output type is too small
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Also returns an error if the output type is too small
     /// to hold the requested number of bits.
     ///
     /// # Examples
@@ -200,6 +222,10 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// These bits are still read from the stream, however,
     /// and are never skipped via a `seek` method.
     ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
     /// # Examples
     /// ```
     /// use std::io::{Read, Cursor};
@@ -240,6 +266,10 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// to a faster `read_exact` call.  Otherwise it will read
     /// bytes individually in 8-bit increments.
     ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
     /// # Example
     /// ```
     /// use std::io::{Read, Cursor};
@@ -267,6 +297,10 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// 0 bit and returns the amount read.
     /// Because this field is variably-sized and may be large,
     /// its output is always a `u32` type.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
     ///
     /// # Examples
     /// ```
@@ -312,6 +346,10 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// 1 bit and returns the amount read.
     /// Because this field is variably-sized and may be large,
     /// its output is always a `u32` type.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
     ///
     /// # Examples
     /// ```
@@ -395,6 +433,10 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// Given a compiled Huffman tree, reads bits from the stream
     /// until the next symbol is encountered.
     ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
     /// # Example
     /// ```
     /// use std::io::{Read, Cursor};
@@ -416,7 +458,7 @@ impl<'a, E: Endianness> BitReader<'a, E> {
         Result<T,io::Error> where T: Clone {
 
         let mut result: &ReadHuffmanTree<E,T> =
-            &tree[self.bitqueue.to_state() as usize];
+            &tree[self.bitqueue.to_state()];
         loop {
             match result {
                 &ReadHuffmanTree::Done(
@@ -471,6 +513,12 @@ impl<'a> BitReader<'a, BigEndian> {
     /// Returns an error if the output type is too small
     /// to hold the requested number of bits.
     ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Also returns an error if the output type is too small
+    /// to hold the requested number of bits.
+    ///
     /// # Examples
     /// ```
     /// use std::io::{Read, Cursor};
@@ -511,6 +559,12 @@ impl<'a> BitReader<'a, LittleEndian> {
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.
     /// Returns an error if the output type is too small
+    /// to hold the requested number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Also returns an error if the output type is too small
     /// to hold the requested number of bits.
     ///
     /// # Examples

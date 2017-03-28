@@ -28,6 +28,8 @@
 //! types of any possible size.
 //! Many of Rust's built-in integer types are supported by default.
 
+#![warn(missing_docs)]
+
 use std::ops::{Shl, ShlAssign, Shr, ShrAssign, Rem, RemAssign, BitOrAssign,
                BitXor, Not, Sub};
 use std::marker::PhantomData;
@@ -148,21 +150,31 @@ define_signed_numeric!(i64);
 /// and is not something programmers should have to implement
 /// in most cases.
 pub trait Endianness {
+    /// Pushes the given bits and value onto an accumulator
+    /// with the given bits and value.
     fn push<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32,
                value: N) where N: Numeric;
 
+    /// Pops a value with the given number of bits from an accumulator
+    /// with the given bits and value.
     fn pop<N>(bits_acc: &mut u32,
               value_acc: &mut N,
               bits: u32) -> N where N: Numeric;
 
+    /// Drops the given number of bits from an accumulator
+    /// with the given bits and value.
     fn drop<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32) where N: Numeric;
 
+    /// Returns the next number of 0 bits from an accumulator
+    /// with the given bits and value.
     fn next_zeros<N>(bits: u32, value: N) -> u32 where N: Numeric;
 
+    /// Returns the next number of 1 bits from an accumulator
+    /// with the given bits and value.
     fn next_ones<N>(bits: u32, value: N) -> u32 where N: Numeric;
 }
 
@@ -389,8 +401,10 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
 }
 
 impl<E: Endianness> BitQueue<E, u8> {
+    /// Returns the state of the queue as a single value
+    /// which can be used to perform lookups.
     #[inline(always)]
-    pub fn to_state(&self) -> u8 {
-        (1 << self.bits) | self.value
+    pub fn to_state(&self) -> usize {
+        (1 << self.bits) | (self.value as usize)
     }
 }

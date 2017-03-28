@@ -9,6 +9,11 @@
 //! Traits and implementations for writing bits to a stream.
 //!
 //! ## Example
+//!
+//! Writing the initial STREAMINFO block to a FLAC file,
+//! as documented in its
+//! [specification](https://xiph.org/flac/format.html#stream).
+//!
 //! ```
 //! use std::io::Write;
 //! use bitstream_io::{BE, BitWriter};
@@ -16,8 +21,11 @@
 //! let mut flac: Vec<u8> = Vec::new();
 //! {
 //!     let mut writer = BitWriter::<BE>::new(&mut flac);
+//!
+//!     // stream marker
 //!     writer.write_bytes(b"fLaC").unwrap();
 //!
+//!     // metadata block header
 //!     let last_block: bool = false;
 //!     let block_type: u8 = 0;
 //!     let block_size: u32 = 34;
@@ -25,6 +33,7 @@
 //!     writer.write(7, block_type).unwrap();
 //!     writer.write(24, block_size).unwrap();
 //!
+//!     // STREAMINFO block
 //!     let minimum_block_size: u16 = 4096;
 //!     let maximum_block_size: u16 = 4096;
 //!     let minimum_frame_size: u32 = 1542;
@@ -43,11 +52,14 @@
 //!     writer.write(36, total_samples).unwrap();
 //! }
 //!
-//! // the wrapped writer can be used once bitstream writing is finished
-//! // at exactly the position one would expect
+//! // STREAMINFO's MD5 sum
+//!
+//! // Note that the wrapped writer can be used once bitstream writing
+//! // is finished at exactly the position one would expect.
+//!
 //! flac.write_all(
 //!     b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92")
-//!       .unwrap();
+//!     .unwrap();
 //!
 //! assert_eq!(flac, vec![0x66,0x4C,0x61,0x43,0x00,0x00,0x00,0x22,
 //!                       0x10,0x00,0x10,0x00,0x00,0x06,0x06,0x00,
@@ -56,6 +68,8 @@
 //!                       0x2D,0x5B,0x30,0x01,0x76,0xB4,0x62,0x88,
 //!                       0x7D,0x92]);
 //! ```
+
+#![warn(missing_docs)]
 
 use std::io;
 
@@ -83,6 +97,10 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
 
     /// Writes a single bit to the stream.
     /// `true` indicates 1, `false` indicates 0
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
     ///
     /// # Examples
     /// ```
@@ -131,9 +149,14 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
 
     /// Writes an unsigned value to the stream using the given
     /// number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the input type is too small
-    /// to hold the requested number of bits or if the value is too large
-    /// to fit those bits.
+    /// to hold the given number of bits.
+    /// Returns an error if the value is too large
+    /// to fit the given number of bits.
     ///
     /// # Examples
     /// ```
@@ -200,6 +223,10 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     /// map to a faster `write_all` call.  Otherwise it will
     /// write bytes individually in 8-bit increments.
     ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
     /// # Example
     ///
     /// ```
@@ -227,6 +254,10 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     }
 
     /// Writes Huffman code for the given symbol to the stream.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
     ///
     /// # Example
     /// ```
@@ -260,6 +291,10 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
 
     /// Writes `value` number of 1 bits to the stream
     /// and then writes a 0 bit.  This field is variably-sized.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underyling stream.
     ///
     /// # Examples
     /// ```
@@ -308,6 +343,10 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
 
     /// Writes `value` number of 0 bits to the stream
     /// and then writes a 1 bit.  This field is variably-sized.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underyling stream.
     ///
     /// # Example
     /// ```
@@ -366,6 +405,10 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
 
     /// Pads the stream with 0 bits until it is aligned at a whole byte.
     /// Does nothing if the stream is already aligned.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underyling stream.
     ///
     /// # Example
     /// ```
@@ -427,8 +470,14 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
 impl<'a> BitWriter<'a, BigEndian> {
     /// Writes a twos-complement signed value to the stream
     /// with the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the input type is too small
-    /// to hold the requested number of bits.
+    /// to hold the given number of bits.
+    /// Returns an error if the value is too large
+    /// to fit the given number of bits.
     ///
     /// # Example
     /// ```
@@ -462,8 +511,14 @@ impl<'a> BitWriter<'a, BigEndian> {
 impl<'a> BitWriter<'a, LittleEndian> {
     /// Writes a twos-complement signed value to the stream
     /// with the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the input type is too small
-    /// to hold the requested number of bits.
+    /// to hold the given number of bits.
+    /// Returns an error if the value is too large
+    /// to fit the given number of bits.
     ///
     /// # Example
     /// ```
