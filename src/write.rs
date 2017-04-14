@@ -197,7 +197,7 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     /// assert!(w.write(1, 2).is_err());      // can't write   2 in 1 bit
     /// assert!(w.write(2, 4).is_err());      // can't write   4 in 2 bits
     /// assert!(w.write(3, 8).is_err());      // can't write   8 in 3 bits
-    /// assert!(w.write(4, 16).is_err());     // can't write  16 in 3 bits
+    /// assert!(w.write(4, 16).is_err());     // can't write  16 in 4 bits
     /// ```
     pub fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
         where U: Numeric {

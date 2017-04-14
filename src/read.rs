@@ -510,8 +510,6 @@ impl<'a, E: Endianness> BitReader<'a, E> {
 impl<'a> BitReader<'a, BigEndian> {
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.
-    /// Returns an error if the output type is too small
-    /// to hold the requested number of bits.
     ///
     /// # Errors
     ///
@@ -558,8 +556,6 @@ impl<'a> BitReader<'a, BigEndian> {
 impl<'a> BitReader<'a, LittleEndian> {
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.
-    /// Returns an error if the output type is too small
-    /// to hold the requested number of bits.
     ///
     /// # Errors
     ///
@@ -613,15 +609,14 @@ fn read_aligned<E,N>(reader: &mut io::Read,
                      bytes: u32,
                      acc: &mut BitQueue<E,N>) -> Result<(), io::Error>
     where E: Endianness, N: Numeric {
-    use std::cmp::min;
 
     // 64-bit types are the maximum supported
     debug_assert!(bytes <= 8);
 
     let mut buf = [0; 8];
-    let to_read: usize = min(8, bytes as usize);
-    reader.read_exact(&mut buf[0..to_read])
-          .map(|()| {for b in &buf[0..to_read] {acc.push(8, N::from_u8(*b))}})
+    reader.read_exact(&mut buf[0..bytes as usize])
+          .map(|()| {for b in &buf[0..bytes as usize]
+                     {acc.push(8, N::from_u8(*b))}})
 }
 
 fn skip_aligned(reader: &mut io::Read,
