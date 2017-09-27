@@ -12,58 +12,140 @@ extern crate bitstream_io;
 fn test_write_queue_be() {
     use bitstream_io::{BE, BitQueue, Numeric};
     let mut q: BitQueue<BE,u8> = BitQueue::new();
-    let mut v = BitQueue::<BE,u8>::from_value(2u8, 2);
+    let mut v = BitQueue::<BE,u8>::from_value(0b10u8, 2);
     q.push(2, v.pop(2).to_u8());
-    let mut v = BitQueue::<BE,u8>::from_value(6u8, 3);
+    let mut v = BitQueue::<BE,u8>::from_value(0b110u8, 3);
     q.push(3, v.pop(3).to_u8());
-    let mut v = BitQueue::<BE,u8>::from_value(7u8, 5);
+    let mut v = BitQueue::<BE,u8>::from_value(0b001_11u8, 5);
     q.push(3, v.pop(3).to_u8());
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(8), 0xB1);
+    assert_eq!(q.pop(8), 0b10_110_001);
     q.push(2, v.pop(2).to_u8());
-    let mut v = BitQueue::<BE,u8>::from_value(5u8, 3);
+    let mut v = BitQueue::<BE,u8>::from_value(0b101u8, 3);
     q.push(3, v.pop(3).to_u8());
-    let mut v = BitQueue::<BE,u32>::from_value(342977u32, 19);
+    let mut v = BitQueue::<BE,u32>::from_value(0b101_00111011_11000001, 19);
     q.push(3, v.pop(3).to_u8());
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(8), 0xED);
+    assert_eq!(q.pop(8), 0b11_101_101);
     q.push(8, v.pop(8).to_u8());
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(8), 0x3B);
+    assert_eq!(q.pop(8), 0b00111011);
     q.push(8, v.pop(8).to_u8());
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(8), 0xC1);
+    assert_eq!(q.pop(8), 0b11000001);
     assert!(v.is_empty());
     assert!(q.is_empty());
+}
+
+#[test]
+fn test_write_queue_edge_be() {
+    use bitstream_io::{BE, BitQueue};
+
+    let mut q: BitQueue<BE,u8> = BitQueue::from_value(0, 0);
+    q.push(8, 0b11111111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<BE,u8> = BitQueue::from_value(0b1, 1);
+    q.push(7, 0b1111111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<BE,u8> = BitQueue::from_value(0b11, 2);
+    q.push(6, 0b111111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<BE,u8> = BitQueue::from_value(0b111, 3);
+    q.push(5, 0b11111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<BE,u8> = BitQueue::from_value(0b1111, 4);
+    q.push(4, 0b1111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<BE,u8> = BitQueue::from_value(0b11111, 5);
+    q.push(3, 0b111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<BE,u8> = BitQueue::from_value(0b111111, 6);
+    q.push(2, 0b11);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<BE,u8> = BitQueue::from_value(0b1111111, 7);
+    q.push(1, 0b1);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<BE,u8> = BitQueue::from_value(0b11111111, 8);
+    q.push(0, 0);
+    assert_eq!(q.pop(8), 0b11111111);
 }
 
 #[test]
 fn test_write_queue_le() {
     use bitstream_io::{LE, BitQueue, Numeric};
     let mut q: BitQueue<LE,u8> = BitQueue::new();
-    let mut v = BitQueue::<LE,u8>::from_value(1u8, 2);
+    let mut v = BitQueue::<LE,u8>::from_value(0b01u8, 2);
     q.push(2, v.pop(2).to_u8());
-    let mut v = BitQueue::<LE,u8>::from_value(4u8, 3);
+    let mut v = BitQueue::<LE,u8>::from_value(0b100u8, 3);
     q.push(3, v.pop(3).to_u8());
-    let mut v = BitQueue::<LE,u8>::from_value(13u8, 5);
+    let mut v = BitQueue::<LE,u8>::from_value(0b01_101u8, 5);
     q.push(3, v.pop(3).to_u8());
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(8), 0xB1);
+    assert_eq!(q.pop(8), 0b101_100_01);
     q.push(2, v.pop(2).to_u8());
-    let mut v = BitQueue::<LE,u8>::from_value(3u8, 3);
+    let mut v = BitQueue::<LE,u8>::from_value(0b011u8, 3);
     q.push(3, v.pop(3).to_u8());
-    let mut v = BitQueue::<LE,u32>::from_value(395743u32, 19);
+    let mut v = BitQueue::<LE,u32>::from_value(0b11000001_00111011_111, 19);
     q.push(3, v.pop(3).to_u8());
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(8), 0xED);
+    assert_eq!(q.pop(8), 0b111_011_01);
     q.push(8, v.pop(8).to_u8());
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(8), 0x3B);
+    assert_eq!(q.pop(8), 0b00111011);
     q.push(8, v.pop(8).to_u8());
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(8), 0xC1);
+    assert_eq!(q.pop(8), 0b11000001);
     assert!(v.is_empty());
     assert!(q.is_empty());
+}
+
+#[test]
+fn test_write_queue_edge_le() {
+    use bitstream_io::{LE, BitQueue};
+
+    let mut q: BitQueue<LE,u8> = BitQueue::from_value(0, 0);
+    q.push(8, 0b11111111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<LE,u8> = BitQueue::from_value(0b1, 1);
+    q.push(7, 0b1111111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<LE,u8> = BitQueue::from_value(0b11, 2);
+    q.push(6, 0b111111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<LE,u8> = BitQueue::from_value(0b111, 3);
+    q.push(5, 0b11111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<LE,u8> = BitQueue::from_value(0b1111, 4);
+    q.push(4, 0b1111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<LE,u8> = BitQueue::from_value(0b11111, 5);
+    q.push(3, 0b111);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<LE,u8> = BitQueue::from_value(0b111111, 6);
+    q.push(2, 0b11);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<LE,u8> = BitQueue::from_value(0b1111111, 7);
+    q.push(1, 0b1);
+    assert_eq!(q.pop(8), 0b11111111);
+
+    let mut q: BitQueue<LE,u8> = BitQueue::from_value(0b11111111, 8);
+    q.push(0, 0);
+    assert_eq!(q.pop(8), 0b11111111);
 }
 
 #[test]

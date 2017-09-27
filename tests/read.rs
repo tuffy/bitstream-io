@@ -15,20 +15,20 @@ fn test_read_queue_be() {
     let mut q: BitQueue<BE,u32> = BitQueue::new();
     assert!(q.is_empty());
     assert_eq!(q.len(), 0);
-    q.push(8, 0xB1);
+    q.push(8, 0b10_110_001);
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(2), 2);
+    assert_eq!(q.pop(2), 0b10);
     assert_eq!(q.len(), 6);
-    assert_eq!(q.pop(3), 6);
+    assert_eq!(q.pop(3), 0b110);
     assert_eq!(q.len(), 3);
-    q.push(8, 0xED);
+    q.push(8, 0b11_101_101);
     assert_eq!(q.len(), 11);
-    assert_eq!(q.pop(5), 7);
+    assert_eq!(q.pop(5), 0b001_11);
     assert_eq!(q.len(), 6);
-    assert_eq!(q.pop(3), 5);
-    q.push(8, 0x3B);
-    q.push(8, 0xC1);
-    assert_eq!(q.pop(19), 342977);
+    assert_eq!(q.pop(3), 0b101);
+    q.push(8, 0b00111011);
+    q.push(8, 0b11000001);
+    assert_eq!(q.pop(19), 0b101_00111011_11000001);
     assert!(q.is_empty());
     assert_eq!(q.value(), 0);
 }
@@ -39,20 +39,20 @@ fn test_read_queue_le() {
     let mut q: BitQueue<LE,u32> = BitQueue::new();
     assert!(q.is_empty());
     assert_eq!(q.len(), 0);
-    q.push(8, 0xB1);
+    q.push(8, 0b101_100_01);
     assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(2), 1);
+    assert_eq!(q.pop(2), 0b01);
     assert_eq!(q.len(), 6);
-    assert_eq!(q.pop(3), 4);
+    assert_eq!(q.pop(3), 0b100);
     assert_eq!(q.len(), 3);
-    q.push(8, 0xED);
+    q.push(8, 0b111_011_01);
     assert_eq!(q.len(), 11);
-    assert_eq!(q.pop(5), 13);
+    assert_eq!(q.pop(5), 0b01_101);
     assert_eq!(q.len(), 6);
-    assert_eq!(q.pop(3), 3);
-    q.push(8, 0x3B);
-    q.push(8, 0xC1);
-    assert_eq!(q.pop(19), 395743);
+    assert_eq!(q.pop(3), 0b011);
+    q.push(8, 0b00111011);
+    q.push(8, 0b11000001);
+    assert_eq!(q.pop(19), 0b11000001_00111011_111);
     assert!(q.is_empty());
     assert_eq!(q.value(), 0);
 }
@@ -184,6 +184,16 @@ fn test_edge_cases_be() {
                              128, 0, 0, 0, 0, 0, 0, 0,
                              127, 255, 255, 255, 255, 255, 255, 255];
 
+    {
+        /*0 bit reads*/
+        let mut c = Cursor::new(vec![255]);
+        let mut r = BitReader::<BE>::new(&mut c);
+        assert_eq!(r.read::<u8>(0).unwrap(), 0);
+        assert_eq!(r.read::<u16>(0).unwrap(), 0);
+        assert_eq!(r.read::<u32>(0).unwrap(), 0);
+        assert_eq!(r.read::<u64>(0).unwrap(), 0);
+        assert_eq!(r.read::<u8>(8).unwrap(), 255);
+    }
     {
         /*unsigned 32 and 64-bit values*/
         let mut c = Cursor::new(&data);
@@ -372,6 +382,16 @@ fn test_edge_cases_le() {
                              255, 255, 255, 255, 255, 255, 255, 255,
                              0, 0, 0, 0, 0, 0, 0, 128,
                              255, 255, 255, 255, 255, 255, 255, 127];
+    {
+        /*0 bit reads*/
+        let mut c = Cursor::new(vec![255]);
+        let mut r = BitReader::<LE>::new(&mut c);
+        assert_eq!(r.read::<u8>(0).unwrap(), 0);
+        assert_eq!(r.read::<u16>(0).unwrap(), 0);
+        assert_eq!(r.read::<u32>(0).unwrap(), 0);
+        assert_eq!(r.read::<u64>(0).unwrap(), 0);
+        assert_eq!(r.read::<u8>(8).unwrap(), 255);
+    }
     {
         /*unsigned 32 and 64-bit values*/
         let mut c = Cursor::new(&data);

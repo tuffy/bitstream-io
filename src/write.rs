@@ -140,7 +140,7 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     /// ```
     pub fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
         self.bitqueue.push(1, if bit {1} else {0});
-        if self.bitqueue.len() == 8 {
+        if self.bitqueue.is_full() {
             write_byte(self.writer, self.bitqueue.pop(8))
         } else {
             Ok(())
@@ -208,6 +208,8 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
         } else if (bits < U::bits_size()) && (value >= (U::one() << bits)) {
             Err(io::Error::new(io::ErrorKind::InvalidInput,
                                "excessive value for bits written"))
+        } else if bits < self.bitqueue.remaining_len() {
+            Ok(self.bitqueue.push(bits, value.to_u8()))
         } else {
             let mut acc = BitQueue::from_value(value, bits);
             write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)

@@ -190,23 +190,23 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     pub fn read<U>(&mut self, mut bits: u32) -> Result<U, io::Error>
         where U: Numeric {
 
-        use std::cmp::min;
-
         if bits <= U::bits_size() {
-            let mut acc = BitQueue::new();
-            let to_transfer = min(self.bitqueue.len(), bits);
-            if to_transfer != 0 {
-                acc.push(to_transfer,
-                         U::from_u8(self.bitqueue.pop(to_transfer)));
-                bits -= to_transfer;
-            }
+            let bitqueue_len = self.bitqueue.len();
+            if bits <= bitqueue_len {
+                Ok(U::from_u8(self.bitqueue.pop(bits)))
+            } else {
+                let mut acc = BitQueue::from_value(
+                    U::from_u8(self.bitqueue.pop(bitqueue_len)),
+                    bitqueue_len);
+                bits -= bitqueue_len;
 
-            read_aligned(&mut self.reader, bits / 8, &mut acc)
-            .and_then(|()| read_unaligned(&mut self.reader,
-                                          bits % 8,
-                                          &mut acc,
-                                          &mut self.bitqueue))
-            .map(|()| acc.value())
+                read_aligned(&mut self.reader, bits / 8, &mut acc)
+                .and_then(|()| read_unaligned(&mut self.reader,
+                                              bits % 8,
+                                              &mut acc,
+                                              &mut self.bitqueue))
+                .map(|()| acc.value())
+            }
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput,
                                "excessive bits for type read"))

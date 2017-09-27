@@ -256,7 +256,9 @@ impl Endianness for LittleEndian {
                value_acc: &mut N,
                bits: u32,
                mut value: N) where N: Numeric {
-        *value_acc <<= *bits_acc;
+        if !value.is_zero() {
+            value <<= *bits_acc;
+        }
         *value_acc |= value;
         *bits_acc += bits;
     }
@@ -318,14 +320,26 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     }
 
     /// Creates a new queue from the given value with the given size
+    /// Panics if the value is larger than the given number of bits.
     #[inline]
     pub fn from_value(value: N, bits: u32) -> BitQueue<E,N> {
+        if bits < N::bits_size() {
+            assert!(value < (N::one() << bits));
+        } else {
+            assert!(bits <= N::bits_size());
+        }
         BitQueue{phantom: PhantomData, value: value, bits: bits}
     }
 
     /// Sets the queue to a given value with the given number of bits
+    /// Panics if the value is larger than the given number of bits
     #[inline]
     pub fn set(&mut self, value: N, bits: u32) {
+        if bits < N::bits_size() {
+            assert!(value < (N::one() << bits));
+        } else {
+            assert!(bits <= N::bits_size());
+        }
         self.value = value;
         self.bits = bits;
     }
@@ -341,6 +355,10 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// Returns the maximum bits the queue can hold
     #[inline(always)]
     pub fn max_len(&self) -> u32 {N::bits_size()}
+
+    /// Returns the remaining bits the queue can hold
+    #[inline(always)]
+    pub fn remaining_len(&self) -> u32 {self.max_len() - self.len()}
 
     /// Returns true if the queue is empty
     #[inline(always)]
@@ -363,21 +381,29 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     pub fn all_1(&self) -> bool {self.value.count_ones() == self.bits}
 
     /// Pushes a value with the given number of bits onto the tail of the queue
+    /// Panics if the number of bits pushed is larger than the queue can hold.
     #[inline(always)]
     pub fn push(&mut self, bits: u32, value: N) {
+        assert!(bits <= self.remaining_len());  // check for overflow
         E::push(&mut self.bits, &mut self.value, bits, value)
     }
 
     /// Pops a value with the given number of bits from the head of the queue
+    /// Panics if the number of bits popped is larger than the number
+    /// of bits in the queue.
     #[inline(always)]
     pub fn pop(&mut self, bits: u32) -> N {
+        assert!(bits <= self.len());  // check for underflow
         E::pop(&mut self.bits, &mut self.value, bits)
     }
 
     /// Drops the given number of bits from the head of the queue
     /// without returning them.
+    /// Panics if the number of bits dropped is larger than the
+    /// number of bits in the queue.
     #[inline(always)]
     pub fn drop(&mut self, bits: u32) {
+        assert!(bits <= self.len());  // check for underflow
         E::drop(&mut self.bits, &mut self.value, bits)
     }
 
