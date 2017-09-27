@@ -256,7 +256,7 @@ impl Endianness for LittleEndian {
                value_acc: &mut N,
                bits: u32,
                mut value: N) where N: Numeric {
-        value <<= *bits_acc;
+        *value_acc <<= *bits_acc;
         *value_acc |= value;
         *bits_acc += bits;
     }
