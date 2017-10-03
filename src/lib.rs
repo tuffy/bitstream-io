@@ -190,9 +190,7 @@ impl Endianness for BigEndian {
                value_acc: &mut N,
                bits: u32,
                value: N) where N: Numeric {
-        if !value_acc.is_zero() {
-            *value_acc <<= bits;
-        }
+        *value_acc <<= bits;
         *value_acc |= value;
         *bits_acc += bits;
     }
@@ -255,10 +253,8 @@ impl Endianness for LittleEndian {
     fn push<N>(bits_acc: &mut u32,
                value_acc: &mut N,
                bits: u32,
-               mut value: N) where N: Numeric {
-        if !value.is_zero() {
-            value <<= *bits_acc;
-        }
+               value: N) where N: Numeric {
+        *value_acc <<= bits;
         *value_acc |= value;
         *bits_acc += bits;
     }
