@@ -87,13 +87,18 @@ use huffman::ReadHuffmanTree;
 /// but no more.
 pub struct BitReader<'a, E: Endianness> {
     reader: &'a mut io::Read,
+    reader_pos: u64,
     bitqueue: BitQueue<E,u8>
 }
 
 impl<'a, E: Endianness> BitReader<'a, E> {
     /// Wraps a BitReader around something that implements `Read`
     pub fn new(reader: &mut io::Read) -> BitReader<E> {
-        BitReader{reader: reader, bitqueue: BitQueue::new()}
+        BitReader{reader: reader, reader_pos: 0, bitqueue: BitQueue::new()}
+    }
+
+    pub fn position(&self) -> u64 {
+        self.reader_pos
     }
 
     /// Reads a single bit from the stream.
@@ -139,7 +144,8 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     #[inline(always)]
     pub fn read_bit(&mut self) -> Result<bool, io::Error> {
         if self.bitqueue.is_empty() {
-            self.bitqueue.set(read_byte(self.reader)?, 8);
+            let b = self.read_byte()?;
+            self.bitqueue.set(b, 8);
         }
         Ok(self.bitqueue.pop(1) == 1)
     }
@@ -200,12 +206,9 @@ impl<'a, E: Endianness> BitReader<'a, E> {
                     bitqueue_len);
                 bits -= bitqueue_len;
 
-                read_aligned(&mut self.reader, bits / 8, &mut acc)
-                .and_then(|()| read_unaligned(&mut self.reader,
-                                              bits % 8,
-                                              &mut acc,
-                                              &mut self.bitqueue))
-                .map(|()| acc.value())
+                self.read_aligned(bits / 8, &mut acc)
+                    .and_then(|()| self.read_unaligned(bits % 8, &mut acc))
+                    .map(|()| acc.value())
             }
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput,
@@ -255,10 +258,8 @@ impl<'a, E: Endianness> BitReader<'a, E> {
             bits -= to_drop;
         }
 
-        skip_aligned(&mut self.reader, bits / 8)
-        .and_then(|()| skip_unaligned(&mut self.reader,
-                                      bits % 8,
-                                      &mut self.bitqueue))
+        self.skip_aligned(bits / 8)
+            .and_then(|()| self.skip_unaligned(bits % 8))
     }
 
     /// Completely fills the given buffer with whole bytes.
@@ -284,7 +285,11 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// ```
     pub fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
         if self.byte_aligned() {
-            self.reader.read_exact(buf)
+            let result = self.reader.read_exact(buf);
+            if result.is_ok() {
+                self.reader_pos += buf.len() as u64;
+            }
+            result
         } else {
             for b in buf.iter_mut() {
                 *b = self.read::<u8>(8)?;
@@ -326,17 +331,13 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// ```
     pub fn read_unary0(&mut self) -> Result<u32, io::Error> {
         if self.bitqueue.is_empty() {
-            read_aligned_unary(&mut self.reader,
-                               0b11111111,
-                               &mut self.bitqueue).map(
-                |u| u + self.bitqueue.pop_1())
+            self.read_aligned_unary(0b11111111)
+                .map(|u| u + self.bitqueue.pop_1())
         } else if self.bitqueue.all_1() {
             let base = self.bitqueue.len();
             self.bitqueue.clear();
-            read_aligned_unary(&mut self.reader,
-                               0b11111111,
-                               &mut self.bitqueue).map(
-                |u| base + u + self.bitqueue.pop_1())
+            self.read_aligned_unary(0b11111111)
+                .map(|u| base + u + self.bitqueue.pop_1())
         } else {
             Ok(self.bitqueue.pop_1())
         }
@@ -375,17 +376,13 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// ```
     pub fn read_unary1(&mut self) -> Result<u32, io::Error> {
         if self.bitqueue.is_empty() {
-            read_aligned_unary(&mut self.reader,
-                               0b00000000,
-                               &mut self.bitqueue).map(
-                |u| u + self.bitqueue.pop_0())
+            self.read_aligned_unary(0b00000000)
+                .map(|u| u + self.bitqueue.pop_0())
         } else if self.bitqueue.all_0() {
             let base = self.bitqueue.len();
             self.bitqueue.clear();
-            read_aligned_unary(&mut self.reader,
-                               0b00000000,
-                               &mut self.bitqueue).map(
-                |u| base + u + self.bitqueue.pop_0())
+            self.read_aligned_unary(0b00000000)
+                .map(|u| base + u + self.bitqueue.pop_0())
         } else {
             Ok(self.bitqueue.pop_0())
         }
@@ -454,20 +451,18 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'c');
     /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'd');
     /// ```
-    pub fn read_huffman<T>(&mut self, tree: &[ReadHuffmanTree<E,T>]) ->
-        Result<T,io::Error> where T: Clone {
+    pub fn read_huffman<T>(&mut self, tree: &[ReadHuffmanTree<E, T>]) -> Result<T, io::Error>
+        where T: Clone {
 
-        let mut result: &ReadHuffmanTree<E,T> =
-            &tree[self.bitqueue.to_state()];
+        let mut result: &ReadHuffmanTree<E, T> = &tree[self.bitqueue.to_state()];
         loop {
             match result {
-                &ReadHuffmanTree::Done(
-                    ref value, ref queue_val, ref queue_bits, _) => {
+                &ReadHuffmanTree::Done(ref value, ref queue_val, ref queue_bits, _) => {
                     self.bitqueue.set(*queue_val, *queue_bits);
                     return Ok(value.clone())
                 }
                 &ReadHuffmanTree::Continue(ref tree) => {
-                    result = &tree[read_byte(self.reader)? as usize];
+                    result = &tree[self.read_byte()? as usize];
                 }
                 &ReadHuffmanTree::InvalidState => {panic!("invalid state");}
             }
@@ -502,8 +497,87 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// assert_eq!(value, 0);
     /// ```
     #[inline(always)]
-    pub fn into_unread(self) -> (u32,u8) {
+    pub fn into_unread(self) -> (u32, u8) {
         (self.bitqueue.len(), self.bitqueue.value())
+    }
+
+    #[inline]
+    fn read_byte(&mut self) -> Result<u8, io::Error> {
+        let mut buf = [0; 1];
+        let result = self.reader.read_exact(&mut buf).map(|()| buf[0]);
+        if result.is_ok() {
+            self.reader_pos += 1;
+        }
+        result
+    }
+
+    fn read_aligned<N>(&mut self, bytes: u32, acc: &mut BitQueue<E, N>) -> Result<(), io::Error>
+        where N: Numeric {
+
+        // 64-bit types are the maximum supported
+        debug_assert!(bytes <= 8);
+
+        let mut buf = [0; 8];
+        let result = self.reader.read_exact(&mut buf[0..bytes as usize])
+            .map(|()| {for b in &buf[0..bytes as usize]
+                {acc.push(8, N::from_u8(*b))}});
+        if result.is_ok() {
+            self.reader_pos += bytes as u64;
+        }
+        result
+    }
+
+    fn skip_aligned(&mut self, mut bytes: u32) -> Result<(), io::Error> {
+        use std::cmp::min;
+
+        /*skip 8 bytes at a time (unlike with read_aligned, bytes may be larger than any native type) */
+        let mut buf = [0; 8];
+        while bytes > 0 {
+            let to_read = min(8, bytes);
+            self.reader.read_exact(&mut buf[0..to_read as usize])?;
+            bytes -= to_read;
+            self.reader_pos += to_read as u64;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn read_unaligned<N>(&mut self, bits: u32, acc: &mut BitQueue<E, N>) -> Result<(), io::Error>
+        where N: Numeric {
+        debug_assert!(bits <= 8);
+
+        if bits > 0 {
+            self.read_byte().map(|byte| {
+                self.bitqueue.set(byte, 8);
+                acc.push(bits, N::from_u8(self.bitqueue.pop(bits)))
+            })
+        } else {
+            Ok(())
+        }
+    }
+
+    #[inline]
+    fn skip_unaligned(&mut self, bits: u32) -> Result<(), io::Error> {
+        debug_assert!(bits <= 8);
+
+        if bits > 0 {
+            let byte = self.read_byte()?;
+            self.bitqueue.set(byte, 8);
+            self.bitqueue.pop(bits);
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn read_aligned_unary(&mut self, continue_val: u8) -> Result<u32, io::Error> {
+        let mut acc = 0;
+        let mut byte = self.read_byte()?;
+        while byte == continue_val {
+            acc += 8;
+            byte = self.read_byte()?;
+        }
+        self.bitqueue.set(byte, 8);
+        Ok(acc)
     }
 }
 
@@ -597,88 +671,4 @@ impl<'a> BitReader<'a, LittleEndian> {
                                "excessive bits for type read"))
         }
     }
-}
-
-#[inline]
-fn read_byte(reader: &mut io::Read) -> Result<u8,io::Error> {
-	let mut buf = [0; 1];
-    reader.read_exact(&mut buf).map(|()| buf[0])
-}
-
-fn read_aligned<E,N>(reader: &mut io::Read,
-                     bytes: u32,
-                     acc: &mut BitQueue<E,N>) -> Result<(), io::Error>
-    where E: Endianness, N: Numeric {
-
-    // 64-bit types are the maximum supported
-    debug_assert!(bytes <= 8);
-
-    let mut buf = [0; 8];
-    reader.read_exact(&mut buf[0..bytes as usize])
-          .map(|()| {for b in &buf[0..bytes as usize]
-                     {acc.push(8, N::from_u8(*b))}})
-}
-
-fn skip_aligned(reader: &mut io::Read,
-                mut bytes: u32) -> Result<(), io::Error> {
-    use std::cmp::min;
-
-    /*skip 8 bytes at a time
-      (unlike with read_aligned, bytes may be larger than any native type)*/
-    let mut buf = [0; 8];
-    while bytes > 0 {
-        let to_read = min(8, bytes);
-        reader.read_exact(&mut buf[0..to_read as usize])?;
-        bytes -= to_read;
-    }
-    Ok(())
-}
-
-
-#[inline]
-fn read_unaligned<E,N>(reader: &mut io::Read,
-                       bits: u32,
-                       acc: &mut BitQueue<E,N>,
-                       rem: &mut BitQueue<E,u8>) -> Result<(), io::Error>
-    where E: Endianness, N: Numeric {
-
-    debug_assert!(bits <= 8);
-
-    if bits > 0 {
-        read_byte(reader).map(|byte|
-            {rem.set(byte, 8);
-             acc.push(bits, N::from_u8(rem.pop(bits)))})
-    } else {
-        Ok(())
-    }
-}
-
-#[inline]
-fn skip_unaligned<E>(reader: &mut io::Read,
-                    bits: u32,
-                    rem: &mut BitQueue<E,u8>) -> Result<(), io::Error>
-    where E: Endianness {
-
-    debug_assert!(bits <= 8);
-
-    if bits > 0 {
-        rem.set(read_byte(reader)?, 8);
-        rem.pop(bits);
-    }
-    Ok(())
-}
-
-#[inline]
-fn read_aligned_unary<E>(reader: &mut io::Read,
-                        continue_val: u8,
-                        rem: &mut BitQueue<E,u8>) -> Result<u32,io::Error>
-    where E: Endianness {
-    let mut acc = 0;
-    let mut byte = read_byte(reader)?;
-    while byte == continue_val {
-        acc += 8;
-        byte = read_byte(reader)?;
-    }
-    rem.set(byte, 8);
-    Ok(acc)
 }
