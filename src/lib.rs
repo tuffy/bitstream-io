@@ -136,11 +136,14 @@ define_numeric!(u32, 32);
 define_numeric!(i32, 32);
 define_numeric!(u64, 64);
 define_numeric!(i64, 64);
+define_numeric!(u128, 128);
+define_numeric!(i128, 128);
 
 define_signed_numeric!(i8);
 define_signed_numeric!(i16);
 define_signed_numeric!(i32);
 define_signed_numeric!(i64);
+define_signed_numeric!(i128);
 
 /// A stream's endianness, or byte order, for determining
 /// how bits should be read.
