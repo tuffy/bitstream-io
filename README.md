@@ -17,7 +17,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bitstream-io = "0.6.2"
+bitstream-io = "0.6"
 ```
 
 and this to your crate root:

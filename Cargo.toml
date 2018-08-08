@@ -5,7 +5,7 @@ keywords = ["bitstream", "endian", "big-endian", "little-endian", "binary"]
 version = "0.6.4"
 authors = ["Brian Langenberger <bjl@usa.net>"]
 license = "MIT/Apache-2.0"
-documentation = "https://tuffy.github.io/bitstream_io/"
+documentation = "https://docs.rs/matroska/"
 homepage = "https://github.com/tuffy/bitstream-io"
 repository = "https://github.com/tuffy/bitstream-io"
 
