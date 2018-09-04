@@ -80,20 +80,22 @@ use super::{Numeric, SignedNumeric, BitQueue,
             Endianness, BigEndian, LittleEndian};
 use huffman::ReadHuffmanTree;
 
+
 /// For reading non-aligned bits from a stream of bytes in a given endianness.
 ///
 /// This will read exactly as many whole bytes needed to return
 /// the requested number of bits.  It may cache up to a single partial byte
 /// but no more.
-pub struct BitReader<'a, E: Endianness> {
-    reader: &'a mut io::Read,
-    bitqueue: BitQueue<E,u8>
+pub struct BitRead<R: io::Read, E: Endianness> {
+    reader: R,
+    bitqueue: BitQueue<E,u8>,
 }
 
-impl<'a, E: Endianness> BitReader<'a, E> {
+
+impl<R: io::Read, E: Endianness> BitRead<R, E> {
     /// Wraps a BitReader around something that implements `Read`
-    pub fn new(reader: &mut io::Read) -> BitReader<E> {
-        BitReader{reader: reader, bitqueue: BitQueue::new()}
+    pub fn new(reader: R) -> BitRead<R, E> {
+        BitRead{reader, bitqueue: BitQueue::new()}
     }
 
     /// Reads a single bit from the stream.
@@ -139,7 +141,7 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     #[inline(always)]
     pub fn read_bit(&mut self) -> Result<bool, io::Error> {
         if self.bitqueue.is_empty() {
-            self.bitqueue.set(read_byte(self.reader)?, 8);
+            self.bitqueue.set(read_byte(&mut self.reader)?, 8);
         }
         Ok(self.bitqueue.pop(1) == 1)
     }
@@ -406,7 +408,7 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// assert!(reader.skip(7).is_ok());
     /// assert_eq!(reader.byte_aligned(), true);
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn byte_aligned(&self) -> bool {
         self.bitqueue.is_empty()
     }
@@ -425,7 +427,7 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// reader.byte_align();
     /// assert_eq!(reader.read::<u8>(8).unwrap(), 0xFF);
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn byte_align(&mut self) {
         self.bitqueue.clear()
     }
@@ -467,7 +469,7 @@ impl<'a, E: Endianness> BitReader<'a, E> {
                     return Ok(value.clone())
                 }
                 &ReadHuffmanTree::Continue(ref tree) => {
-                    result = &tree[read_byte(self.reader)? as usize];
+                    result = &tree[read_byte(&mut self.reader)? as usize];
                 }
                 &ReadHuffmanTree::InvalidState => {panic!("invalid state");}
             }
@@ -501,13 +503,13 @@ impl<'a, E: Endianness> BitReader<'a, E> {
     /// assert_eq!(bits, 0);
     /// assert_eq!(value, 0);
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn into_unread(self) -> (u32,u8) {
         (self.bitqueue.len(), self.bitqueue.value())
     }
 }
 
-impl<'a> BitReader<'a, BigEndian> {
+impl<R: io::Read> BitRead<R, BigEndian> {
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.
     ///
@@ -553,7 +555,7 @@ impl<'a> BitReader<'a, BigEndian> {
     }
 }
 
-impl<'a> BitReader<'a, LittleEndian> {
+impl<R: io::Read> BitRead<R, LittleEndian> {
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.
     ///
@@ -598,6 +600,10 @@ impl<'a> BitReader<'a, LittleEndian> {
         }
     }
 }
+
+/// A bit reader wrapped around mutable Read references
+pub type BitReader<'a, E> = BitRead<&'a mut io::Read, E>;
+
 
 #[inline]
 fn read_byte(reader: &mut io::Read) -> Result<u8,io::Error> {
