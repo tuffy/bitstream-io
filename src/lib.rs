@@ -30,28 +30,36 @@
 
 #![warn(missing_docs)]
 
-use std::ops::{Shl, ShlAssign, Shr, ShrAssign, Rem, RemAssign, BitOrAssign,
-               BitXor, Not, Sub};
-use std::marker::PhantomData;
 use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
 
+pub mod huffman;
 pub mod read;
 pub mod write;
-pub mod huffman;
 pub use read::BitReader;
 pub use write::BitWriter;
-
 
 /// This trait extends many common integer types (both unsigned and signed)
 /// with a few trivial methods so that they can be used
 /// with the bitstream handling traits.
-pub trait Numeric: Sized + Copy + Default + Debug + PartialOrd +
-    Shl<u32,Output=Self> + ShlAssign<u32> +
-    Shr<u32,Output=Self> + ShrAssign<u32> +
-    Rem<Self,Output=Self> + RemAssign<Self> +
-    BitOrAssign<Self> + BitXor<Self,Output=Self> + Not<Output=Self> +
-    Sub<Self,Output=Self> {
-
+pub trait Numeric:
+    Sized
+    + Copy
+    + Default
+    + Debug
+    + PartialOrd
+    + Shl<u32, Output = Self>
+    + ShlAssign<u32>
+    + Shr<u32, Output = Self>
+    + ShrAssign<u32>
+    + Rem<Self, Output = Self>
+    + RemAssign<Self>
+    + BitOrAssign<Self>
+    + BitXor<Self, Output = Self>
+    + Not<Output = Self>
+    + Sub<Self, Output = Self>
+{
     /// The value of 1 in this type
     fn one() -> Self;
 
@@ -81,23 +89,39 @@ macro_rules! define_numeric {
     ($t:ty, $bits:expr) => {
         impl Numeric for $t {
             #[inline(always)]
-            fn one() -> Self {1}
+            fn one() -> Self {
+                1
+            }
             #[inline(always)]
-            fn is_zero(self) -> bool {self == 0}
+            fn is_zero(self) -> bool {
+                self == 0
+            }
             #[inline(always)]
-            fn from_u8(u: u8) -> Self {u as $t}
+            fn from_u8(u: u8) -> Self {
+                u as $t
+            }
             #[inline(always)]
-            fn to_u8(self) -> u8 {self as u8}
+            fn to_u8(self) -> u8 {
+                self as u8
+            }
             #[inline(always)]
-            fn count_ones(self) -> u32 {self.count_ones()}
+            fn count_ones(self) -> u32 {
+                self.count_ones()
+            }
             #[inline(always)]
-            fn leading_zeros(self) -> u32 {self.leading_zeros()}
+            fn leading_zeros(self) -> u32 {
+                self.leading_zeros()
+            }
             #[inline(always)]
-            fn trailing_zeros(self) -> u32 {self.trailing_zeros()}
+            fn trailing_zeros(self) -> u32 {
+                self.trailing_zeros()
+            }
             #[inline(always)]
-            fn bits_size() -> u32 {$bits}
+            fn bits_size() -> u32 {
+                $bits
+            }
         }
-    }
+    };
 }
 
 /// This trait extends many common signed integer types
@@ -119,13 +143,19 @@ macro_rules! define_signed_numeric {
     ($t:ty) => {
         impl SignedNumeric for $t {
             #[inline(always)]
-            fn is_negative(self) -> bool {self < 0}
+            fn is_negative(self) -> bool {
+                self < 0
+            }
             #[inline(always)]
-            fn as_negative(self, bits: u32) -> Self {self + (-1 << (bits - 1))}
+            fn as_negative(self, bits: u32) -> Self {
+                self + (-1 << (bits - 1))
+            }
             #[inline(always)]
-            fn as_unsigned(self, bits: u32) -> Self {self - (-1 << (bits - 1))}
+            fn as_unsigned(self, bits: u32) -> Self {
+                self - (-1 << (bits - 1))
+            }
         }
-    }
+    };
 }
 
 define_numeric!(u8, 8);
@@ -155,30 +185,33 @@ define_signed_numeric!(i128);
 pub trait Endianness {
     /// Pushes the given bits and value onto an accumulator
     /// with the given bits and value.
-    fn push<N>(bits_acc: &mut u32,
-               value_acc: &mut N,
-               bits: u32,
-               value: N) where N: Numeric;
+    fn push<N>(bits_acc: &mut u32, value_acc: &mut N, bits: u32, value: N)
+    where
+        N: Numeric;
 
     /// Pops a value with the given number of bits from an accumulator
     /// with the given bits and value.
-    fn pop<N>(bits_acc: &mut u32,
-              value_acc: &mut N,
-              bits: u32) -> N where N: Numeric;
+    fn pop<N>(bits_acc: &mut u32, value_acc: &mut N, bits: u32) -> N
+    where
+        N: Numeric;
 
     /// Drops the given number of bits from an accumulator
     /// with the given bits and value.
-    fn drop<N>(bits_acc: &mut u32,
-               value_acc: &mut N,
-               bits: u32) where N: Numeric;
+    fn drop<N>(bits_acc: &mut u32, value_acc: &mut N, bits: u32)
+    where
+        N: Numeric;
 
     /// Returns the next number of 0 bits from an accumulator
     /// with the given bits and value.
-    fn next_zeros<N>(bits: u32, value: N) -> u32 where N: Numeric;
+    fn next_zeros<N>(bits: u32, value: N) -> u32
+    where
+        N: Numeric;
 
     /// Returns the next number of 1 bits from an accumulator
     /// with the given bits and value.
-    fn next_ones<N>(bits: u32, value: N) -> u32 where N: Numeric;
+    fn next_ones<N>(bits: u32, value: N) -> u32
+    where
+        N: Numeric;
 }
 
 /// Big-endian, or most significant bits first
@@ -189,10 +222,10 @@ pub type BE = BigEndian;
 
 impl Endianness for BigEndian {
     #[inline]
-    fn push<N>(bits_acc: &mut u32,
-               value_acc: &mut N,
-               bits: u32,
-               value: N) where N: Numeric {
+    fn push<N>(bits_acc: &mut u32, value_acc: &mut N, bits: u32, value: N)
+    where
+        N: Numeric,
+    {
         if !value_acc.is_zero() {
             *value_acc <<= bits;
         }
@@ -201,9 +234,10 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
-    fn pop<N>(bits_acc: &mut u32,
-              value_acc: &mut N,
-              bits: u32) -> N where N: Numeric {
+    fn pop<N>(bits_acc: &mut u32, value_acc: &mut N, bits: u32) -> N
+    where
+        N: Numeric,
+    {
         if bits < *bits_acc {
             let offset = *bits_acc - bits;
             let to_return = *value_acc >> offset;
@@ -219,9 +253,10 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
-    fn drop<N>(bits_acc: &mut u32,
-               value_acc: &mut N,
-               bits: u32) where N: Numeric {
+    fn drop<N>(bits_acc: &mut u32, value_acc: &mut N, bits: u32)
+    where
+        N: Numeric,
+    {
         if bits < *bits_acc {
             *value_acc %= N::one() << (*bits_acc - bits);
             *bits_acc -= bits;
@@ -232,15 +267,20 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
-    fn next_zeros<N>(bits: u32, value: N) -> u32 where N: Numeric {
+    fn next_zeros<N>(bits: u32, value: N) -> u32
+    where
+        N: Numeric,
+    {
         value.leading_zeros() - (N::bits_size() - bits)
     }
 
     #[inline]
-    fn next_ones<N>(bits: u32, value: N) -> u32 where N: Numeric {
+    fn next_ones<N>(bits: u32, value: N) -> u32
+    where
+        N: Numeric,
+    {
         if bits < N::bits_size() {
-            (value ^ ((N::one() << bits) - N::one())).leading_zeros() -
-            (N::bits_size() - bits)
+            (value ^ ((N::one() << bits) - N::one())).leading_zeros() - (N::bits_size() - bits)
         } else {
             (!value).leading_zeros()
         }
@@ -255,10 +295,10 @@ pub type LE = LittleEndian;
 
 impl Endianness for LittleEndian {
     #[inline]
-    fn push<N>(bits_acc: &mut u32,
-               value_acc: &mut N,
-               bits: u32,
-               mut value: N) where N: Numeric {
+    fn push<N>(bits_acc: &mut u32, value_acc: &mut N, bits: u32, mut value: N)
+    where
+        N: Numeric,
+    {
         if !value.is_zero() {
             value <<= *bits_acc;
         }
@@ -267,9 +307,10 @@ impl Endianness for LittleEndian {
     }
 
     #[inline]
-    fn pop<N>(bits_acc: &mut u32,
-              value_acc: &mut N,
-              bits: u32) -> N where N: Numeric {
+    fn pop<N>(bits_acc: &mut u32, value_acc: &mut N, bits: u32) -> N
+    where
+        N: Numeric,
+    {
         if bits < *bits_acc {
             let to_return = *value_acc % (N::one() << bits);
             *value_acc >>= bits;
@@ -284,9 +325,10 @@ impl Endianness for LittleEndian {
     }
 
     #[inline]
-    fn drop<N>(bits_acc: &mut u32,
-               value_acc: &mut N,
-               bits: u32) where N: Numeric {
+    fn drop<N>(bits_acc: &mut u32, value_acc: &mut N, bits: u32)
+    where
+        N: Numeric,
+    {
         if bits < *bits_acc {
             *value_acc >>= bits;
             *bits_acc -= bits;
@@ -297,12 +339,18 @@ impl Endianness for LittleEndian {
     }
 
     #[inline(always)]
-    fn next_zeros<N>(_: u32, value: N) -> u32 where N: Numeric {
+    fn next_zeros<N>(_: u32, value: N) -> u32
+    where
+        N: Numeric,
+    {
         value.trailing_zeros()
     }
 
     #[inline]
-    fn next_ones<N>(_: u32, value: N) -> u32 where N: Numeric {
+    fn next_ones<N>(_: u32, value: N) -> u32
+    where
+        N: Numeric,
+    {
         (value ^ !N::default()).trailing_zeros()
     }
 }
@@ -319,19 +367,27 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// Returns a new empty queue
     #[inline]
     pub fn new() -> BitQueue<E, N> {
-        BitQueue{phantom: PhantomData, value: N::default(), bits: 0}
+        BitQueue {
+            phantom: PhantomData,
+            value: N::default(),
+            bits: 0,
+        }
     }
 
     /// Creates a new queue from the given value with the given size
     /// Panics if the value is larger than the given number of bits.
     #[inline]
-    pub fn from_value(value: N, bits: u32) -> BitQueue<E,N> {
+    pub fn from_value(value: N, bits: u32) -> BitQueue<E, N> {
         if bits < N::bits_size() {
             assert!(value < (N::one() << bits));
         } else {
             assert!(bits <= N::bits_size());
         }
-        BitQueue{phantom: PhantomData, value: value, bits: bits}
+        BitQueue {
+            phantom: PhantomData,
+            value: value,
+            bits: bits,
+        }
     }
 
     /// Sets the queue to a given value with the given number of bits
@@ -349,45 +405,63 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
 
     /// Consumes the queue and returns its current value
     #[inline(always)]
-    pub fn value(self) -> N {self.value}
+    pub fn value(self) -> N {
+        self.value
+    }
 
     /// Returns the total bits in the queue
     #[inline(always)]
-    pub fn len(&self) -> u32 {self.bits}
+    pub fn len(&self) -> u32 {
+        self.bits
+    }
 
     /// Returns the maximum bits the queue can hold
     #[inline(always)]
-    pub fn max_len(&self) -> u32 {N::bits_size()}
+    pub fn max_len(&self) -> u32 {
+        N::bits_size()
+    }
 
     /// Returns the remaining bits the queue can hold
     #[inline(always)]
-    pub fn remaining_len(&self) -> u32 {self.max_len() - self.len()}
+    pub fn remaining_len(&self) -> u32 {
+        self.max_len() - self.len()
+    }
 
     /// Returns true if the queue is empty
     #[inline(always)]
-    pub fn is_empty(&self) -> bool {self.bits == 0}
+    pub fn is_empty(&self) -> bool {
+        self.bits == 0
+    }
 
     /// Returns true if the queue is full
     #[inline(always)]
-    pub fn is_full(&self) -> bool {self.bits == N::bits_size()}
+    pub fn is_full(&self) -> bool {
+        self.bits == N::bits_size()
+    }
 
     /// Drops all values in the queue
     #[inline(always)]
-    pub fn clear(&mut self) {self.set(N::default(), 0)}
+    pub fn clear(&mut self) {
+        self.set(N::default(), 0)
+    }
 
     /// Returns true if all bits remaining in the queue are 0
     #[inline(always)]
-    pub fn all_0(&self) -> bool {self.value.count_ones() == 0}
+    pub fn all_0(&self) -> bool {
+        self.value.count_ones() == 0
+    }
 
     /// Returns true if all bits remaining in the queue are 1
     #[inline(always)]
-    pub fn all_1(&self) -> bool {self.value.count_ones() == self.bits}
+    pub fn all_1(&self) -> bool {
+        self.value.count_ones() == self.bits
+    }
 
     /// Pushes a value with the given number of bits onto the tail of the queue
     /// Panics if the number of bits pushed is larger than the queue can hold.
     #[inline(always)]
     pub fn push(&mut self, bits: u32, value: N) {
-        assert!(bits <= self.remaining_len());  // check for overflow
+        assert!(bits <= self.remaining_len()); // check for overflow
         E::push(&mut self.bits, &mut self.value, bits, value)
     }
 
@@ -396,7 +470,7 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// of bits in the queue.
     #[inline(always)]
     pub fn pop(&mut self, bits: u32) -> N {
-        assert!(bits <= self.len());  // check for underflow
+        assert!(bits <= self.len()); // check for underflow
         E::pop(&mut self.bits, &mut self.value, bits)
     }
 
@@ -406,7 +480,7 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// number of bits in the queue.
     #[inline(always)]
     pub fn drop(&mut self, bits: u32) {
-        assert!(bits <= self.len());  // check for underflow
+        assert!(bits <= self.len()); // check for underflow
         E::drop(&mut self.bits, &mut self.value, bits)
     }
 

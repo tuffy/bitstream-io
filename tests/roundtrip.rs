@@ -7,12 +7,12 @@
 // except according to those terms.
 
 extern crate bitstream_io;
-use bitstream_io::{BigEndian, LittleEndian, BitReader, BitWriter};
+use bitstream_io::{BigEndian, BitReader, BitWriter, LittleEndian};
 use std::io::Cursor;
 
 macro_rules! define_roundtrip {
     ($func_name:ident, $endianness:ident) => {
-       #[test]
+        #[test]
         fn $func_name() {
             /*unsigned values*/
             for bits in 1..17 {
@@ -29,8 +29,7 @@ macro_rules! define_roundtrip {
                     let mut c = Cursor::new(&output);
                     let mut reader = BitReader::<$endianness>::new(&mut c);
                     for value in 0..max {
-                        assert_eq!(reader.read::<u32>(bits).unwrap(),
-                                   value as u32);
+                        assert_eq!(reader.read::<u32>(bits).unwrap(), value as u32);
                     }
                 }
             }
@@ -51,14 +50,12 @@ macro_rules! define_roundtrip {
                     let mut c = Cursor::new(&output);
                     let mut reader = BitReader::<$endianness>::new(&mut c);
                     for value in min..max {
-                        assert_eq!(reader.read_signed::<i32>(bits).unwrap(),
-                                   value as i32);
+                        assert_eq!(reader.read_signed::<i32>(bits).unwrap(), value as i32);
                     }
                 }
             }
-
         }
-    }
+    };
 }
 
 define_roundtrip!(test_roundtrip_be, BigEndian);
@@ -100,9 +97,8 @@ macro_rules! define_unary_roundtrip {
                 }
             }
         }
-    }
+    };
 }
-
 
 define_unary_roundtrip!(test_unary_roundtrip_be, BigEndian);
 define_unary_roundtrip!(test_unary_roundtrip_le, LittleEndian);

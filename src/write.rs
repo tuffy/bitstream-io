@@ -73,10 +73,8 @@
 
 use std::io;
 
-use super::{Numeric, SignedNumeric, BitQueue,
-            Endianness, BigEndian, LittleEndian};
+use super::{BigEndian, BitQueue, Endianness, LittleEndian, Numeric, SignedNumeric};
 use huffman::WriteHuffmanTree;
-
 
 /// For writing bit values to an underlying stream in a given endianness.
 ///
@@ -87,13 +85,16 @@ use huffman::WriteHuffmanTree;
 /// before they can be written.
 pub struct BitWrite<W: io::Write, E: Endianness> {
     writer: W,
-    bitqueue: BitQueue<E,u8>
+    bitqueue: BitQueue<E, u8>,
 }
 
 impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// Wraps a BitWriter around something that implements `Write`
     pub fn new(writer: W) -> BitWrite<W, E> {
-        BitWrite{writer, bitqueue: BitQueue::new()}
+        BitWrite {
+            writer,
+            bitqueue: BitQueue::new(),
+        }
     }
 
     /// Writes a single bit to the stream.
@@ -140,7 +141,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// assert_eq!(data, [0b10110111]);
     /// ```
     pub fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
-        self.bitqueue.push(1, if bit {1} else {0});
+        self.bitqueue.push(1, if bit { 1 } else { 0 });
         if self.bitqueue.is_full() {
             write_byte(&mut self.writer, self.bitqueue.pop(8))
         } else {
@@ -201,23 +202,26 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// assert!(w.write(4, 16).is_err());     // can't write  16 in 4 bits
     /// ```
     pub fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
-        where U: Numeric {
-
+    where
+        U: Numeric,
+    {
         if bits > U::bits_size() {
-            Err(io::Error::new(io::ErrorKind::InvalidInput,
-                               "excessive bits for type written"))
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
         } else if (bits < U::bits_size()) && (value >= (U::one() << bits)) {
-            Err(io::Error::new(io::ErrorKind::InvalidInput,
-                               "excessive value for bits written"))
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            ))
         } else if bits < self.bitqueue.remaining_len() {
             Ok(self.bitqueue.push(bits, value.to_u8()))
         } else {
             let mut acc = BitQueue::from_value(value, bits);
             write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
-            .and_then(|()|
-                write_aligned(&mut self.writer, &mut acc))
-            .and_then(|()|
-                Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
+                .and_then(|()| write_aligned(&mut self.writer, &mut acc))
+                .and_then(|()| Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
         }
     }
 
@@ -281,11 +285,14 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// }
     /// assert_eq!(data, [0b10110111]);
     /// ```
-    pub fn write_huffman<T>(&mut self,
-                            tree: &WriteHuffmanTree<E,T>,
-                            symbol: T) ->
-        Result<(), io::Error> where T: Ord + Copy {
-
+    pub fn write_huffman<T>(
+        &mut self,
+        tree: &WriteHuffmanTree<E, T>,
+        symbol: T,
+    ) -> Result<(), io::Error>
+    where
+        T: Ord + Copy,
+    {
         for &(bits, value) in tree.get(symbol) {
             self.write(bits, value)?;
         }
@@ -327,20 +334,26 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// ```
     pub fn write_unary0(&mut self, value: u32) -> Result<(), io::Error> {
         match value {
-            0 => {self.write_bit(false)}
-            bits @ 1...31 => {self.write(value, (1u32 << bits) - 1)
-                                  .and_then(|()| self.write_bit(false))}
-            32 => {self.write(value, 0xFFFFFFFFu32)
-                       .and_then(|()| self.write_bit(false))}
-            bits @ 32...63  => {self.write(value, (1u64 << bits) - 1)
-                                    .and_then(|()| self.write_bit(false))}
-            64 => {self.write(value, 0xFFFFFFFFFFFFFFFFu64)
-                       .and_then(|()| self.write_bit(false))}
-            mut bits => {while bits > 64 {
-                             self.write(64, 0xFFFFFFFFFFFFFFFFu64)?;
-                             bits -= 64;
-                         }
-                         self.write_unary0(bits)}
+            0 => self.write_bit(false),
+            bits @ 1...31 => self
+                .write(value, (1u32 << bits) - 1)
+                .and_then(|()| self.write_bit(false)),
+            32 => self
+                .write(value, 0xFFFFFFFFu32)
+                .and_then(|()| self.write_bit(false)),
+            bits @ 32...63 => self
+                .write(value, (1u64 << bits) - 1)
+                .and_then(|()| self.write_bit(false)),
+            64 => self
+                .write(value, 0xFFFFFFFFFFFFFFFFu64)
+                .and_then(|()| self.write_bit(false)),
+            mut bits => {
+                while bits > 64 {
+                    self.write(64, 0xFFFFFFFFFFFFFFFFu64)?;
+                    bits -= 64;
+                }
+                self.write_unary0(bits)
+            }
         }
     }
 
@@ -379,13 +392,16 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// ```
     pub fn write_unary1(&mut self, value: u32) -> Result<(), io::Error> {
         match value {
-            0        => {self.write_bit(true)}
-            1...32   => {self.write(value, 0u32)
-                             .and_then(|()| self.write_bit(true))}
-            33...64  => {self.write(value, 0u64)
-                             .and_then(|()| self.write_bit(true))}
-            mut bits => {while bits > 64 {self.write(64, 0u64)?; bits -= 64;}
-                         self.write_unary1(bits)}
+            0 => self.write_bit(true),
+            1...32 => self.write(value, 0u32).and_then(|()| self.write_bit(true)),
+            33...64 => self.write(value, 0u64).and_then(|()| self.write_bit(true)),
+            mut bits => {
+                while bits > 64 {
+                    self.write(64, 0u64)?;
+                    bits -= 64;
+                }
+                self.write_unary1(bits)
+            }
         }
     }
 
@@ -404,7 +420,9 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// assert_eq!(writer.byte_aligned(), true);
     /// ```
     #[inline(always)]
-    pub fn byte_aligned(&self) -> bool {self.bitqueue.is_empty()}
+    pub fn byte_aligned(&self) -> bool {
+        self.bitqueue.is_empty()
+    }
 
     /// Pads the stream with 0 bits until it is aligned at a whole byte.
     /// Does nothing if the stream is already aligned.
@@ -494,21 +512,23 @@ impl<W: io::Write> BitWrite<W, BigEndian> {
     /// }
     /// assert_eq!(data, [0b10110111]);
     /// ```
-    pub fn write_signed<S>(&mut self, bits: u32, value: S) ->
-        Result<(), io::Error> where S: SignedNumeric {
-
+    pub fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
+    where
+        S: SignedNumeric,
+    {
         if bits > S::bits_size() {
-            Err(io::Error::new(io::ErrorKind::InvalidInput,
-                               "excessive bits for type written"))
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
         } else if value.is_negative() {
             self.write_bit(true)
-            .and_then(|()| self.write(bits - 1, value.as_unsigned(bits)))
+                .and_then(|()| self.write(bits - 1, value.as_unsigned(bits)))
         } else {
             self.write_bit(false)
-            .and_then(|()| self.write(bits - 1, value))
+                .and_then(|()| self.write(bits - 1, value))
         }
     }
-
 }
 
 impl<W: io::Write> BitWrite<W, LittleEndian> {
@@ -535,39 +555,43 @@ impl<W: io::Write> BitWrite<W, LittleEndian> {
     /// }
     /// assert_eq!(data, [0b10110111]);
     /// ```
-    pub fn write_signed<S>(&mut self, bits: u32, value: S) ->
-        Result<(), io::Error> where S: SignedNumeric {
-
+    pub fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
+    where
+        S: SignedNumeric,
+    {
         if bits > S::bits_size() {
-            Err(io::Error::new(io::ErrorKind::InvalidInput,
-                               "excessive bits for type written"))
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
         } else if value.is_negative() {
             self.write(bits - 1, value.as_unsigned(bits))
-            .and_then(|()| self.write_bit(true))
+                .and_then(|()| self.write_bit(true))
         } else {
             self.write(bits - 1, value)
-            .and_then(|()| self.write_bit(false))
+                .and_then(|()| self.write_bit(false))
         }
     }
-
 }
-
 
 /// A bit writer wrapped around mutable Write references
 pub type BitWriter<'a, E> = BitWrite<&'a mut io::Write, E>;
 
-
 #[inline]
-fn write_byte(writer: &mut io::Write, byte: u8) -> Result<(),io::Error> {
+fn write_byte(writer: &mut io::Write, byte: u8) -> Result<(), io::Error> {
     let buf = [byte];
     writer.write_all(&buf)
 }
 
-fn write_unaligned<E,N>(writer: &mut io::Write,
-                        acc: &mut BitQueue<E,N>,
-                        rem: &mut BitQueue<E,u8>) -> Result<(), io::Error>
-    where E:Endianness, N: Numeric {
-
+fn write_unaligned<E, N>(
+    writer: &mut io::Write,
+    acc: &mut BitQueue<E, N>,
+    rem: &mut BitQueue<E, u8>,
+) -> Result<(), io::Error>
+where
+    E: Endianness,
+    N: Numeric,
+{
     if rem.is_empty() {
         Ok(())
     } else {
@@ -582,10 +606,11 @@ fn write_unaligned<E,N>(writer: &mut io::Write,
     }
 }
 
-fn write_aligned<E,N>(writer: &mut io::Write,
-                      acc: &mut BitQueue<E,N>) -> Result<(), io::Error>
-    where E: Endianness, N: Numeric {
-
+fn write_aligned<E, N>(writer: &mut io::Write, acc: &mut BitQueue<E, N>) -> Result<(), io::Error>
+where
+    E: Endianness,
+    N: Numeric,
+{
     let to_write = (acc.len() / 8) as usize;
     if to_write > 0 {
         // 64-bit types are the maximum supported
