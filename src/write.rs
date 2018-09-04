@@ -77,6 +77,7 @@ use super::{Numeric, SignedNumeric, BitQueue,
             Endianness, BigEndian, LittleEndian};
 use huffman::WriteHuffmanTree;
 
+
 /// For writing bit values to an underlying stream in a given endianness.
 ///
 /// Because this only writes whole bytes to the underlying stream,
@@ -84,15 +85,15 @@ use huffman::WriteHuffmanTree;
 /// writer's lifetime ends.
 /// **Partial bytes will be lost** if the writer is disposed of
 /// before they can be written.
-pub struct BitWriter<'a, E: Endianness> {
-    writer: &'a mut io::Write,
+pub struct BitWrite<W: io::Write, E: Endianness> {
+    writer: W,
     bitqueue: BitQueue<E,u8>
 }
 
-impl<'a, E: Endianness> BitWriter<'a, E> {
+impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// Wraps a BitWriter around something that implements `Write`
-    pub fn new(writer: &mut io::Write) -> BitWriter<E> {
-        BitWriter{writer: writer, bitqueue: BitQueue::new()}
+    pub fn new(writer: W) -> BitWrite<W, E> {
+        BitWrite{writer, bitqueue: BitQueue::new()}
     }
 
     /// Writes a single bit to the stream.
@@ -141,7 +142,7 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     pub fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
         self.bitqueue.push(1, if bit {1} else {0});
         if self.bitqueue.is_full() {
-            write_byte(self.writer, self.bitqueue.pop(8))
+            write_byte(&mut self.writer, self.bitqueue.pop(8))
         } else {
             Ok(())
         }
@@ -469,7 +470,7 @@ impl<'a, E: Endianness> BitWriter<'a, E> {
     }
 }
 
-impl<'a> BitWriter<'a, BigEndian> {
+impl<W: io::Write> BitWrite<W, BigEndian> {
     /// Writes a twos-complement signed value to the stream
     /// with the given number of bits.
     ///
@@ -510,7 +511,7 @@ impl<'a> BitWriter<'a, BigEndian> {
 
 }
 
-impl<'a> BitWriter<'a, LittleEndian> {
+impl<W: io::Write> BitWrite<W, LittleEndian> {
     /// Writes a twos-complement signed value to the stream
     /// with the given number of bits.
     ///
@@ -550,6 +551,11 @@ impl<'a> BitWriter<'a, LittleEndian> {
     }
 
 }
+
+
+/// A bit writer wrapped around mutable Write references
+pub type BitWriter<'a, E> = BitWrite<&'a mut io::Write, E>;
+
 
 #[inline]
 fn write_byte(writer: &mut io::Write, byte: u8) -> Result<(),io::Error> {
