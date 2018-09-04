@@ -579,9 +579,9 @@ where
 {
     let to_write = (acc.len() / 8) as usize;
     if to_write > 0 {
-        // 64-bit types are the maximum supported
-        debug_assert!(to_write <= 8);
-        let mut buf = [0; 8];
+        // 128-bit types are the maximum supported
+        debug_assert!(to_write <= 16);
+        let mut buf = [0; 16];
         for b in buf[0..to_write].iter_mut() {
             *b = acc.pop(8).to_u8();
         }

@@ -611,10 +611,10 @@ where
     E: Endianness,
     N: Numeric,
 {
-    // 64-bit types are the maximum supported
-    debug_assert!(bytes <= 8);
+    // 128-bit types are the maximum supported
+    debug_assert!(bytes <= 16);
 
-    let mut buf = [0; 8];
+    let mut buf = [0; 16];
     reader.read_exact(&mut buf[0..bytes as usize]).map(|()| {
         for b in &buf[0..bytes as usize] {
             acc.push(8, N::from_u8(*b))
