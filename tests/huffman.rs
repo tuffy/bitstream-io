@@ -62,45 +62,41 @@ fn test_huffman_errors() {
 #[test]
 fn test_huffman_values() {
     use bitstream_io::huffman::compile_read_tree;
-    use bitstream_io::{BitReader, BE};
+    use bitstream_io::{BitRead, BigEndian};
     use std::io::Cursor;
     use std::ops::Deref;
     use std::rc::Rc;
 
     let data = [0xB1, 0xED];
-    {
-        // we can lookup values that aren't just integers also
-        let tree = compile_read_tree(vec![
-            (Some(0), vec![0]),
-            (Some(1), vec![1, 0]),
-            (Some(2), vec![1, 1, 0]),
-            (None, vec![1, 1, 1]),
-        ]).unwrap();
-        let mut c = Cursor::new(&data);
-        let mut r = BitReader::<BE>::new(&mut c);
-        assert_eq!(r.read_huffman(&tree).unwrap(), Some(1));
-        assert_eq!(r.read_huffman(&tree).unwrap(), Some(2));
-        assert_eq!(r.read_huffman(&tree).unwrap(), Some(0));
-        assert_eq!(r.read_huffman(&tree).unwrap(), Some(0));
-        assert_eq!(r.read_huffman(&tree).unwrap(), None);
-    }
-    {
-        // we can even lookup potentially large values,
-        // preferably using Rc to avoid making copies of each one
-        let tree = compile_read_tree(vec![
-            (Rc::new("foo".to_owned()), vec![0]),
-            (Rc::new("bar".to_owned()), vec![1, 0]),
-            (Rc::new("baz".to_owned()), vec![1, 1, 0]),
-            (Rc::new("kelp".to_owned()), vec![1, 1, 1]),
-        ]).unwrap();
-        let mut c = Cursor::new(&data);
-        let mut r = BitReader::<BE>::new(&mut c);
-        assert_eq!(r.read_huffman(&tree).unwrap().deref(), "bar");
-        assert_eq!(r.read_huffman(&tree).unwrap().deref(), "baz");
-        assert_eq!(r.read_huffman(&tree).unwrap().deref(), "foo");
-        assert_eq!(r.read_huffman(&tree).unwrap().deref(), "foo");
-        assert_eq!(r.read_huffman(&tree).unwrap().deref(), "kelp");
-    }
+
+    // we can lookup values that aren't just integers also
+    let tree = compile_read_tree(vec![
+        (Some(0), vec![0]),
+        (Some(1), vec![1, 0]),
+        (Some(2), vec![1, 1, 0]),
+        (None, vec![1, 1, 1]),
+    ]).unwrap();
+    let mut r = BitRead::endian(Cursor::new(&data), BigEndian);
+    assert_eq!(r.read_huffman(&tree).unwrap(), Some(1));
+    assert_eq!(r.read_huffman(&tree).unwrap(), Some(2));
+    assert_eq!(r.read_huffman(&tree).unwrap(), Some(0));
+    assert_eq!(r.read_huffman(&tree).unwrap(), Some(0));
+    assert_eq!(r.read_huffman(&tree).unwrap(), None);
+
+    // we can even lookup potentially large values,
+    // preferably using Rc to avoid making copies of each one
+    let tree = compile_read_tree(vec![
+        (Rc::new("foo".to_owned()), vec![0]),
+        (Rc::new("bar".to_owned()), vec![1, 0]),
+        (Rc::new("baz".to_owned()), vec![1, 1, 0]),
+        (Rc::new("kelp".to_owned()), vec![1, 1, 1]),
+    ]).unwrap();
+    let mut r = BitRead::endian(Cursor::new(&data), BigEndian);
+    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "bar");
+    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "baz");
+    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "foo");
+    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "foo");
+    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "kelp");
 }
 
 #[test]

@@ -215,7 +215,8 @@ pub trait Endianness {
 }
 
 /// Big-endian, or most significant bits first
-pub struct BigEndian {}
+#[derive(Copy, Clone)]
+pub struct BigEndian;
 
 /// Big-endian, or most significant bits first
 pub type BE = BigEndian;
@@ -288,7 +289,8 @@ impl Endianness for BigEndian {
 }
 
 /// Little-endian, or least significant bits first
-pub struct LittleEndian {}
+#[derive(Copy, Clone)]
+pub struct LittleEndian;
 
 /// Little-endian, or least significant bits first
 pub type LE = LittleEndian;
