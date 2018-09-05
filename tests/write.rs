@@ -150,7 +150,7 @@ fn test_write_queue_edge_le() {
 
 #[test]
 fn test_writer_be() {
-    use bitstream_io::{BitWrite, BigEndian};
+    use bitstream_io::{BigEndian, BitWrite};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
@@ -270,7 +270,7 @@ fn test_writer_be() {
 
 #[test]
 fn test_writer_edge_cases_be() {
-    use bitstream_io::{BitWrite, BigEndian};
+    use bitstream_io::{BigEndian, BitWrite};
 
     let final_data: Vec<u8> = vec![
         0, 0, 0, 0, 255, 255, 255, 255, 128, 0, 0, 0, 127, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -306,7 +306,7 @@ fn test_writer_edge_cases_be() {
 #[test]
 fn test_writer_huffman_be() {
     use bitstream_io::huffman::compile_write_tree;
-    use bitstream_io::{BitWrite, BigEndian};
+    use bitstream_io::{BigEndian, BitWrite};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let tree = compile_write_tree(vec![
@@ -551,7 +551,7 @@ impl std::io::Write for LimitedWriter {
 
 #[test]
 fn test_writer_io_errors_be() {
-    use bitstream_io::{BitWrite, BigEndian};
+    use bitstream_io::{BigEndian, BitWrite};
     use std::io::ErrorKind;
 
     /*individual bits*/
@@ -731,8 +731,8 @@ fn test_writer_io_errors_le() {
 
 #[test]
 fn test_writer_bits_errors() {
-    use bitstream_io::{BitWrite, BigEndian, LittleEndian};
-    use std::io::{ErrorKind, sink};
+    use bitstream_io::{BigEndian, BitWrite, LittleEndian};
+    use std::io::{sink, ErrorKind};
 
     let mut w = BitWrite::endian(sink(), BigEndian);
     assert_eq!(w.write(9, 0u8).unwrap_err().kind(), ErrorKind::InvalidInput);

@@ -62,7 +62,7 @@ fn test_huffman_errors() {
 #[test]
 fn test_huffman_values() {
     use bitstream_io::huffman::compile_read_tree;
-    use bitstream_io::{BitRead, BigEndian};
+    use bitstream_io::{BigEndian, BitRead};
     use std::io::Cursor;
     use std::ops::Deref;
     use std::rc::Rc;
