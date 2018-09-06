@@ -222,14 +222,15 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
             Ok(self.bitqueue.push(bits, value.to_u8()))
         } else {
             let mut acc = BitQueue::from_value(value, bits);
-            write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)
-                .and_then(|()| write_aligned(&mut self.writer, &mut acc))
-                .and_then(|()| Ok(self.bitqueue.push(acc.len(), acc.value().to_u8())))
+            write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)?;
+            write_aligned(&mut self.writer, &mut acc)?;
+            self.bitqueue.push(acc.len(), acc.value().to_u8());
+            Ok(())
         }
     }
 
     /// Writes the entirety of a byte buffer to the stream.
-    /// If the stream is already byte-aligned, it will often
+    /// If the stream is already byte-aligned, it will
     /// map to a faster `write_all` call.  Otherwise it will
     /// write bytes individually in 8-bit increments.
     ///

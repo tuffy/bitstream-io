@@ -213,11 +213,9 @@ impl<R: io::Read, E: Endianness> BitRead<R, E> {
                     BitQueue::from_value(U::from_u8(self.bitqueue.pop(bitqueue_len)), bitqueue_len);
                 bits -= bitqueue_len;
 
-                read_aligned(&mut self.reader, bits / 8, &mut acc)
-                    .and_then(|()| {
-                        read_unaligned(&mut self.reader, bits % 8, &mut acc, &mut self.bitqueue)
-                    })
-                    .map(|()| acc.value())
+                read_aligned(&mut self.reader, bits / 8, &mut acc)?;
+                read_unaligned(&mut self.reader, bits % 8, &mut acc, &mut self.bitqueue)?;
+                Ok(acc.value())
             }
         } else {
             Err(io::Error::new(
@@ -272,7 +270,7 @@ impl<R: io::Read, E: Endianness> BitRead<R, E> {
     }
 
     /// Completely fills the given buffer with whole bytes.
-    /// If the stream is already byte-aligned, it will typically map
+    /// If the stream is already byte-aligned, it will map
     /// to a faster `read_exact` call.  Otherwise it will read
     /// bytes individually in 8-bit increments.
     ///
@@ -296,7 +294,7 @@ impl<R: io::Read, E: Endianness> BitRead<R, E> {
             self.reader.read_exact(buf)
         } else {
             for b in buf.iter_mut() {
-                *b = self.read::<u8>(8)?;
+                *b = self.read(8)?;
             }
             Ok(())
         }
@@ -620,22 +618,23 @@ where
     E: Endianness,
     N: Numeric,
 {
-    // 128-bit types are the maximum supported
     debug_assert!(bytes <= 16);
 
-    let mut buf = [0; 16];
-    reader.read_exact(&mut buf[0..bytes as usize]).map(|()| {
-        for b in &buf[0..bytes as usize] {
-            acc.push(8, N::from_u8(*b))
+    if bytes > 0 {
+        let mut buf = [0; 16];
+        reader.read_exact(&mut buf[0..bytes as usize])?;
+        for b in buf[0..bytes as usize].into_iter() {
+            acc.push(8, N::from_u8(*b));
         }
-    })
+    }
+    Ok(())
 }
 
 fn skip_aligned(reader: &mut io::Read, mut bytes: u32) -> Result<(), io::Error> {
     use std::cmp::min;
 
-    /*skip 8 bytes at a time
-      (unlike with read_aligned, bytes may be larger than any native type)*/
+    /*skip up to 8 bytes at a time
+      (unlike with read_aligned, "bytes" may be larger than any native type)*/
     let mut buf = [0; 8];
     while bytes > 0 {
         let to_read = min(8, bytes);
@@ -659,13 +658,10 @@ where
     debug_assert!(bits <= 8);
 
     if bits > 0 {
-        read_byte(reader).map(|byte| {
-            rem.set(byte, 8);
-            acc.push(bits, N::from_u8(rem.pop(bits)))
-        })
-    } else {
-        Ok(())
+        rem.set(read_byte(reader)?, 8);
+        acc.push(bits, N::from_u8(rem.pop(bits)));
     }
+    Ok(())
 }
 
 #[inline]
