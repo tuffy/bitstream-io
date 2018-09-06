@@ -554,17 +554,21 @@ impl<W: io::Write> BitWrite<W, LittleEndian> {
 pub type BitWriter<'a, E> = BitWrite<&'a mut io::Write, E>;
 
 #[inline]
-fn write_byte(writer: &mut io::Write, byte: u8) -> Result<(), io::Error> {
+fn write_byte<W>(mut writer: W, byte: u8) -> Result<(), io::Error>
+where
+    W: io::Write,
+{
     let buf = [byte];
     writer.write_all(&buf)
 }
 
-fn write_unaligned<E, N>(
-    writer: &mut io::Write,
+fn write_unaligned<W, E, N>(
+    writer: W,
     acc: &mut BitQueue<E, N>,
     rem: &mut BitQueue<E, u8>,
 ) -> Result<(), io::Error>
 where
+    W: io::Write,
     E: Endianness,
     N: Numeric,
 {
@@ -582,8 +586,9 @@ where
     }
 }
 
-fn write_aligned<E, N>(writer: &mut io::Write, acc: &mut BitQueue<E, N>) -> Result<(), io::Error>
+fn write_aligned<W, E, N>(mut writer: W, acc: &mut BitQueue<E, N>) -> Result<(), io::Error>
 where
+    W: io::Write,
     E: Endianness,
     N: Numeric,
 {

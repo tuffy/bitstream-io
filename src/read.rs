@@ -604,17 +604,21 @@ impl<R: io::Read> BitRead<R, LittleEndian> {
 pub type BitReader<'a, E> = BitRead<&'a mut io::Read, E>;
 
 #[inline]
-fn read_byte(reader: &mut io::Read) -> Result<u8, io::Error> {
+fn read_byte<R>(mut reader: R) -> Result<u8, io::Error>
+where
+    R: io::Read,
+{
     let mut buf = [0; 1];
     reader.read_exact(&mut buf).map(|()| buf[0])
 }
 
-fn read_aligned<E, N>(
-    reader: &mut io::Read,
+fn read_aligned<R, E, N>(
+    mut reader: R,
     bytes: u32,
     acc: &mut BitQueue<E, N>,
 ) -> Result<(), io::Error>
 where
+    R: io::Read,
     E: Endianness,
     N: Numeric,
 {
@@ -630,7 +634,10 @@ where
     Ok(())
 }
 
-fn skip_aligned(reader: &mut io::Read, mut bytes: u32) -> Result<(), io::Error> {
+fn skip_aligned<R>(mut reader: R, mut bytes: u32) -> Result<(), io::Error>
+where
+    R: io::Read,
+{
     use std::cmp::min;
 
     /*skip up to 8 bytes at a time
@@ -645,13 +652,14 @@ fn skip_aligned(reader: &mut io::Read, mut bytes: u32) -> Result<(), io::Error> 
 }
 
 #[inline]
-fn read_unaligned<E, N>(
-    reader: &mut io::Read,
+fn read_unaligned<R, E, N>(
+    reader: R,
     bits: u32,
     acc: &mut BitQueue<E, N>,
     rem: &mut BitQueue<E, u8>,
 ) -> Result<(), io::Error>
 where
+    R: io::Read,
     E: Endianness,
     N: Numeric,
 {
@@ -665,12 +673,9 @@ where
 }
 
 #[inline]
-fn skip_unaligned<E>(
-    reader: &mut io::Read,
-    bits: u32,
-    rem: &mut BitQueue<E, u8>,
-) -> Result<(), io::Error>
+fn skip_unaligned<R, E>(reader: R, bits: u32, rem: &mut BitQueue<E, u8>) -> Result<(), io::Error>
 where
+    R: io::Read,
     E: Endianness,
 {
     debug_assert!(bits <= 8);
@@ -683,19 +688,20 @@ where
 }
 
 #[inline]
-fn read_aligned_unary<E>(
-    reader: &mut io::Read,
+fn read_aligned_unary<R, E>(
+    mut reader: R,
     continue_val: u8,
     rem: &mut BitQueue<E, u8>,
 ) -> Result<u32, io::Error>
 where
+    R: io::Read,
     E: Endianness,
 {
     let mut acc = 0;
-    let mut byte = read_byte(reader)?;
+    let mut byte = read_byte(reader.by_ref())?;
     while byte == continue_val {
         acc += 8;
-        byte = read_byte(reader)?;
+        byte = read_byte(reader.by_ref())?;
     }
     rem.set(byte, 8);
     Ok(acc)
