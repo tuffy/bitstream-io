@@ -612,11 +612,7 @@ where
     reader.read_exact(&mut buf).map(|()| buf[0])
 }
 
-fn read_aligned<R, E, N>(
-    mut reader: R,
-    bytes: u32,
-    acc: &mut BitQueue<E, N>,
-) -> io::Result<()>
+fn read_aligned<R, E, N>(mut reader: R, bytes: u32, acc: &mut BitQueue<E, N>) -> io::Result<()>
 where
     R: io::Read,
     E: Endianness,

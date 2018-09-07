@@ -283,11 +283,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_huffman(&tree, 'd').unwrap();
     /// assert_eq!(writer.writer(), [0b10110111]);
     /// ```
-    pub fn write_huffman<T>(
-        &mut self,
-        tree: &WriteHuffmanTree<E, T>,
-        symbol: T,
-    ) -> io::Result<()>
+    pub fn write_huffman<T>(&mut self, tree: &WriteHuffmanTree<E, T>, symbol: T) -> io::Result<()>
     where
         T: Ord + Copy,
     {
