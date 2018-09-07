@@ -150,7 +150,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_bit(true).unwrap();
     /// assert_eq!(writer.writer(), [0b10110111]);
     /// ```
-    pub fn write_bit(&mut self, bit: bool) -> Result<(), io::Error> {
+    pub fn write_bit(&mut self, bit: bool) -> io::Result<()> {
         self.bitqueue.push(1, if bit { 1 } else { 0 });
         if self.bitqueue.is_full() {
             write_byte(&mut self.writer, self.bitqueue.pop(8))
@@ -204,7 +204,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// assert!(w.write(3, 8).is_err());      // can't write   8 in 3 bits
     /// assert!(w.write(4, 16).is_err());     // can't write  16 in 4 bits
     /// ```
-    pub fn write<U>(&mut self, bits: u32, value: U) -> Result<(), io::Error>
+    pub fn write<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
         U: Numeric,
     {
@@ -250,7 +250,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_bytes(b"bar").unwrap();
     /// assert_eq!(writer.writer(), b"foobar");
     /// ```
-    pub fn write_bytes(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+    pub fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         if self.byte_aligned() {
             self.writer.write_all(buf)
         } else {
@@ -287,7 +287,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
         &mut self,
         tree: &WriteHuffmanTree<E, T>,
         symbol: T,
-    ) -> Result<(), io::Error>
+    ) -> io::Result<()>
     where
         T: Ord + Copy,
     {
@@ -324,7 +324,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_unary0(10).unwrap();
     /// assert_eq!(writer.writer(), [0b11101110, 0b01111111]);
     /// ```
-    pub fn write_unary0(&mut self, value: u32) -> Result<(), io::Error> {
+    pub fn write_unary0(&mut self, value: u32) -> io::Result<()> {
         match value {
             0 => self.write_bit(false),
             bits @ 1...31 => self
@@ -376,7 +376,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_unary1(10).unwrap();
     /// assert_eq!(writer.writer(), [0b00010001, 0b10000000]);
     /// ```
-    pub fn write_unary1(&mut self, value: u32) -> Result<(), io::Error> {
+    pub fn write_unary1(&mut self, value: u32) -> io::Result<()> {
         match value {
             0 => self.write_bit(true),
             1...32 => self.write(value, 0u32).and_then(|()| self.write_bit(true)),
@@ -426,7 +426,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write(8, 0xFF).unwrap();
     /// assert_eq!(writer.writer(), [0x00, 0xFF]);
     /// ```
-    pub fn byte_align(&mut self) -> Result<(), io::Error> {
+    pub fn byte_align(&mut self) -> io::Result<()> {
         while !self.byte_aligned() {
             self.write_bit(false)?;
         }
@@ -491,7 +491,7 @@ impl<W: io::Write> BitWrite<W, BigEndian> {
     /// writer.write_signed(4, 7).unwrap();
     /// assert_eq!(writer.writer(), [0b10110111]);
     /// ```
-    pub fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
+    pub fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
     {
@@ -531,7 +531,7 @@ impl<W: io::Write> BitWrite<W, LittleEndian> {
     /// writer.write_signed(4, -5).unwrap();
     /// assert_eq!(writer.writer(), [0b10110111]);
     /// ```
-    pub fn write_signed<S>(&mut self, bits: u32, value: S) -> Result<(), io::Error>
+    pub fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
     {
@@ -554,7 +554,7 @@ impl<W: io::Write> BitWrite<W, LittleEndian> {
 pub type BitWriter<'a, E> = BitWrite<&'a mut io::Write, E>;
 
 #[inline]
-fn write_byte<W>(mut writer: W, byte: u8) -> Result<(), io::Error>
+fn write_byte<W>(mut writer: W, byte: u8) -> io::Result<()>
 where
     W: io::Write,
 {
@@ -566,7 +566,7 @@ fn write_unaligned<W, E, N>(
     writer: W,
     acc: &mut BitQueue<E, N>,
     rem: &mut BitQueue<E, u8>,
-) -> Result<(), io::Error>
+) -> io::Result<()>
 where
     W: io::Write,
     E: Endianness,
@@ -586,7 +586,7 @@ where
     }
 }
 
-fn write_aligned<W, E, N>(mut writer: W, acc: &mut BitQueue<E, N>) -> Result<(), io::Error>
+fn write_aligned<W, E, N>(mut writer: W, acc: &mut BitQueue<E, N>) -> io::Result<()>
 where
     W: io::Write,
     E: Endianness,
