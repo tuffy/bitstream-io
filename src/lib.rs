@@ -304,8 +304,8 @@ impl Endianness for LittleEndian {
     {
         if !value.is_zero() {
             value <<= queue.bits;
+            queue.value |= value;
         }
-        queue.value |= value;
         queue.bits += bits;
     }
 
