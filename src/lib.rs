@@ -477,6 +477,16 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
         E::pop(self, bits)
     }
 
+    /// Pops all the current bits from the queue
+    /// and resets it to an empty state.
+    #[inline]
+    pub fn pop_all(&mut self) -> N {
+        let to_return = self.value;
+        self.value = N::default();
+        self.bits = 0;
+        to_return
+    }
+
     /// Drops the given number of bits from the head of the queue
     /// without returning them.
     /// Panics if the number of bits dropped is larger than the

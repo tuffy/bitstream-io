@@ -210,7 +210,7 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
                 Ok(U::from_u8(self.bitqueue.pop(bits)))
             } else {
                 let mut acc =
-                    BitQueue::from_value(U::from_u8(self.bitqueue.pop(bitqueue_len)), bitqueue_len);
+                    BitQueue::from_value(U::from_u8(self.bitqueue.pop_all()), bitqueue_len);
                 bits -= bitqueue_len;
 
                 read_aligned(&mut self.reader, bits / 8, &mut acc)?;
@@ -265,8 +265,8 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
             bits -= to_drop;
         }
 
-        skip_aligned(&mut self.reader, bits / 8)
-            .and_then(|()| skip_unaligned(&mut self.reader, bits % 8, &mut self.bitqueue))
+        skip_aligned(&mut self.reader, bits / 8)?;
+        skip_unaligned(&mut self.reader, bits % 8, &mut self.bitqueue)
     }
 
     /// Completely fills the given buffer with whole bytes.
