@@ -67,7 +67,7 @@ pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
 ///          ('d', vec![1, 1, 1])]).unwrap();
 /// let data = [0b10110111];
 /// let mut cursor = Cursor::new(&data);
-/// let mut reader = BitReader::<BigEndian>::new(&mut cursor);
+/// let mut reader = BitReader::endian(&mut cursor, BigEndian);
 /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'b');
 /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'c');
 /// assert_eq!(reader.read_huffman(&tree).unwrap(), 'd');
@@ -269,7 +269,7 @@ impl fmt::Display for HuffmanTreeError {
 ///          ('d', vec![1, 1, 1])]).unwrap();
 /// let mut data = Vec::new();
 /// {
-///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
+///     let mut writer = BitWriter::endian(&mut data, BigEndian);
 ///     writer.write_huffman(&tree, 'b').unwrap();
 ///     writer.write_huffman(&tree, 'c').unwrap();
 ///     writer.write_huffman(&tree, 'd').unwrap();

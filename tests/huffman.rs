@@ -62,7 +62,7 @@ fn test_huffman_errors() {
 #[test]
 fn test_huffman_values() {
     use bitstream_io::huffman::compile_read_tree;
-    use bitstream_io::{BigEndian, BitRead};
+    use bitstream_io::{BigEndian, BitReader};
     use std::io::Cursor;
     use std::ops::Deref;
     use std::rc::Rc;
@@ -76,7 +76,7 @@ fn test_huffman_values() {
         (Some(2), vec![1, 1, 0]),
         (None, vec![1, 1, 1]),
     ]).unwrap();
-    let mut r = BitRead::endian(Cursor::new(&data), BigEndian);
+    let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
     assert_eq!(r.read_huffman(&tree).unwrap(), Some(1));
     assert_eq!(r.read_huffman(&tree).unwrap(), Some(2));
     assert_eq!(r.read_huffman(&tree).unwrap(), Some(0));
@@ -91,7 +91,7 @@ fn test_huffman_values() {
         (Rc::new("baz".to_owned()), vec![1, 1, 0]),
         (Rc::new("kelp".to_owned()), vec![1, 1, 1]),
     ]).unwrap();
-    let mut r = BitRead::endian(Cursor::new(&data), BigEndian);
+    let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
     assert_eq!(r.read_huffman(&tree).unwrap().deref(), "bar");
     assert_eq!(r.read_huffman(&tree).unwrap().deref(), "baz");
     assert_eq!(r.read_huffman(&tree).unwrap().deref(), "foo");

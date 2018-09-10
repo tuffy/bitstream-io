@@ -16,11 +16,11 @@
 //!
 //! ```
 //! use std::io::Write;
-//! use bitstream_io::{BE, BitWriter};
+//! use bitstream_io::{BigEndian, BitWriter};
 //!
 //! let mut flac: Vec<u8> = Vec::new();
 //! {
-//!     let mut writer = BitWriter::<BE>::new(&mut flac);
+//!     let mut writer = BitWriter::endian(&mut flac, BigEndian);
 //!
 //!     // stream marker
 //!     writer.write_bytes(b"fLaC").unwrap();
@@ -83,30 +83,30 @@ use huffman::WriteHuffmanTree;
 /// writer's lifetime ends.
 /// **Partial bytes will be lost** if the writer is disposed of
 /// before they can be written.
-pub struct BitWrite<W: io::Write, E: Endianness> {
+pub struct BitWriter<W: io::Write, E: Endianness> {
     writer: W,
     bitqueue: BitQueue<E, u8>,
 }
 
-impl<W: io::Write, E: Endianness> BitWrite<W, E> {
-    /// Wraps a BitWrite around something that implements `Write`
-    pub fn new(writer: W) -> BitWrite<W, E> {
-        BitWrite {
+impl<W: io::Write, E: Endianness> BitWriter<W, E> {
+    /// Wraps a BitWriter around something that implements `Write`
+    pub fn new(writer: W) -> BitWriter<W, E> {
+        BitWriter {
             writer,
             bitqueue: BitQueue::new(),
         }
     }
 
-    /// Wraps a BitWrite around something that implements `Write`
+    /// Wraps a BitWriter around something that implements `Write`
     /// with the given endianness.
-    pub fn endian(writer: W, _endian: E) -> BitWrite<W, E> {
-        BitWrite {
+    pub fn endian(writer: W, _endian: E) -> BitWriter<W, E> {
+        BitWriter {
             writer,
             bitqueue: BitQueue::new(),
         }
     }
 
-    /// Unwraps internal writer and disposes of BitWrite.
+    /// Unwraps internal writer and disposes of BitWriter.
     /// Any unwritten partial bits are discarded.
     #[inline]
     pub fn into_writer(self) -> W {
@@ -123,8 +123,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// # Examples
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), BigEndian);
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write_bit(true).unwrap();
     /// writer.write_bit(false).unwrap();
     /// writer.write_bit(true).unwrap();
@@ -138,8 +138,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), LittleEndian);
+    /// use bitstream_io::{LittleEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
     /// writer.write_bit(true).unwrap();
     /// writer.write_bit(true).unwrap();
     /// writer.write_bit(true).unwrap();
@@ -173,8 +173,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// # Examples
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), BigEndian);
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write(1, 0b1).unwrap();
     /// writer.write(2, 0b01).unwrap();
     /// writer.write(5, 0b10111).unwrap();
@@ -183,8 +183,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), LittleEndian);
+    /// use bitstream_io::{LittleEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
     /// writer.write(1, 0b1).unwrap();
     /// writer.write(2, 0b11).unwrap();
     /// writer.write(5, 0b10110).unwrap();
@@ -193,8 +193,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     ///
     /// ```
     /// use std::io::{Write, sink};
-    /// use bitstream_io::{BigEndian, BitWrite};
-    /// let mut w = BitWrite::endian(sink(), BigEndian);
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut w = BitWriter::endian(sink(), BigEndian);
     /// assert!(w.write(9, 0u8).is_err());    // can't write  u8 in 9 bits
     /// assert!(w.write(17, 0u16).is_err());  // can't write u16 in 17 bits
     /// assert!(w.write(33, 0u32).is_err());  // can't write u32 in 33 bits
@@ -242,8 +242,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), BigEndian);
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write(8, 0x66).unwrap();
     /// writer.write(8, 0x6F).unwrap();
     /// writer.write(8, 0x6F).unwrap();
@@ -270,14 +270,14 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// # Example
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWrite};
+    /// use bitstream_io::{BigEndian, BitWriter};
     /// use bitstream_io::huffman::compile_write_tree;
     /// let tree = compile_write_tree(
     ///     vec![('a', vec![0]),
     ///          ('b', vec![1, 0]),
     ///          ('c', vec![1, 1, 0]),
     ///          ('d', vec![1, 1, 1])]).unwrap();
-    /// let mut writer = BitWrite::endian(Vec::new(), BigEndian);
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write_huffman(&tree, 'b').unwrap();
     /// writer.write_huffman(&tree, 'c').unwrap();
     /// writer.write_huffman(&tree, 'd').unwrap();
@@ -303,8 +303,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// # Examples
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), BigEndian);
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write_unary0(0).unwrap();
     /// writer.write_unary0(3).unwrap();
     /// writer.write_unary0(10).unwrap();
@@ -313,8 +313,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), LittleEndian);
+    /// use bitstream_io::{LittleEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
     /// writer.write_unary0(0).unwrap();
     /// writer.write_unary0(3).unwrap();
     /// writer.write_unary0(10).unwrap();
@@ -355,8 +355,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// # Example
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), BigEndian);
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write_unary1(0).unwrap();
     /// writer.write_unary1(3).unwrap();
     /// writer.write_unary1(10).unwrap();
@@ -365,8 +365,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), LittleEndian);
+    /// use bitstream_io::{LittleEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
     /// writer.write_unary1(0).unwrap();
     /// writer.write_unary1(3).unwrap();
     /// writer.write_unary1(10).unwrap();
@@ -392,8 +392,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// # Example
     /// ```
     /// use std::io::{Write, sink};
-    /// use bitstream_io::{BigEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(sink(), BigEndian);
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(sink(), BigEndian);
     /// assert_eq!(writer.byte_aligned(), true);
     /// writer.write(1, 0).unwrap();
     /// assert_eq!(writer.byte_aligned(), false);
@@ -415,8 +415,8 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// # Example
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), BigEndian);
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write(1, 0).unwrap();
     /// writer.byte_align().unwrap();
     /// writer.write(8, 0xFF).unwrap();
@@ -438,7 +438,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
     /// let (bits, value) = {
-    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
+    ///     let mut writer = BitWriter::endian(&mut data, BigEndian);
     ///     writer.write(15, 0b1010_0101_0101_101).unwrap();
     ///     writer.into_unwritten()
     /// };
@@ -452,7 +452,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// use bitstream_io::{BigEndian, BitWriter};
     /// let mut data = Vec::new();
     /// let (bits, value) = {
-    ///     let mut writer = BitWriter::<BigEndian>::new(&mut data);
+    ///     let mut writer = BitWriter::endian(&mut data, BigEndian);
     ///     writer.write(8, 0b1010_0101).unwrap();
     ///     writer.into_unwritten()
     /// };
@@ -466,7 +466,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     }
 }
 
-impl<W: io::Write> BitWrite<W, BigEndian> {
+impl<W: io::Write> BitWriter<W, BigEndian> {
     /// Writes a twos-complement signed value to the stream
     /// with the given number of bits.
     ///
@@ -481,8 +481,8 @@ impl<W: io::Write> BitWrite<W, BigEndian> {
     /// # Example
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), BigEndian);
+    /// use bitstream_io::{BigEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write_signed(4, -5).unwrap();
     /// writer.write_signed(4, 7).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
@@ -506,7 +506,7 @@ impl<W: io::Write> BitWrite<W, BigEndian> {
     }
 }
 
-impl<W: io::Write> BitWrite<W, LittleEndian> {
+impl<W: io::Write> BitWriter<W, LittleEndian> {
     /// Writes a twos-complement signed value to the stream
     /// with the given number of bits.
     ///
@@ -521,8 +521,8 @@ impl<W: io::Write> BitWrite<W, LittleEndian> {
     /// # Example
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWrite};
-    /// let mut writer = BitWrite::endian(Vec::new(), LittleEndian);
+    /// use bitstream_io::{LittleEndian, BitWriter};
+    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
     /// writer.write_signed(4, 7).unwrap();
     /// writer.write_signed(4, -5).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
@@ -545,9 +545,6 @@ impl<W: io::Write> BitWrite<W, LittleEndian> {
         }
     }
 }
-
-/// A bit writer wrapped around mutable Write references
-pub type BitWriter<'a, E> = BitWrite<&'a mut io::Write, E>;
 
 #[inline]
 fn write_byte<W>(mut writer: W, byte: u8) -> io::Result<()>

@@ -19,7 +19,7 @@ macro_rules! define_roundtrip {
                 let max = 1 << bits;
                 let mut output: Vec<u8> = Vec::with_capacity(max);
                 {
-                    let mut writer = BitWriter::<$endianness>::new(&mut output);
+                    let mut writer = BitWriter::endian(&mut output, $endianness);
                     for value in 0..max {
                         writer.write(bits, value as u32).unwrap();
                     }
@@ -27,7 +27,7 @@ macro_rules! define_roundtrip {
                 }
                 {
                     let mut c = Cursor::new(&output);
-                    let mut reader = BitReader::<$endianness>::new(&mut c);
+                    let mut reader = BitReader::endian(&mut c, $endianness);
                     for value in 0..max {
                         assert_eq!(reader.read::<u32>(bits).unwrap(), value as u32);
                     }
@@ -40,7 +40,7 @@ macro_rules! define_roundtrip {
                 let max = 1i32 << (bits - 1);
                 let mut output: Vec<u8> = Vec::with_capacity(max as usize);
                 {
-                    let mut writer = BitWriter::<$endianness>::new(&mut output);
+                    let mut writer = BitWriter::endian(&mut output, $endianness);
                     for value in min..max {
                         writer.write_signed(bits, value as i32).unwrap();
                     }
@@ -48,7 +48,7 @@ macro_rules! define_roundtrip {
                 }
                 {
                     let mut c = Cursor::new(&output);
-                    let mut reader = BitReader::<$endianness>::new(&mut c);
+                    let mut reader = BitReader::endian(&mut c, $endianness);
                     for value in min..max {
                         assert_eq!(reader.read_signed::<i32>(bits).unwrap(), value as i32);
                     }
@@ -67,7 +67,7 @@ macro_rules! define_unary_roundtrip {
         fn $func_name() {
             let mut output: Vec<u8> = Vec::new();
             {
-                let mut writer = BitWriter::<$endianness>::new(&mut output);
+                let mut writer = BitWriter::endian(&mut output, $endianness);
                 for value in 0..1024 {
                     writer.write_unary0(value).unwrap();
                 }
@@ -75,7 +75,7 @@ macro_rules! define_unary_roundtrip {
             }
             {
                 let mut c = Cursor::new(&output);
-                let mut reader = BitReader::<$endianness>::new(&mut c);
+                let mut reader = BitReader::endian(&mut c, $endianness);
                 for value in 0..1024 {
                     assert_eq!(reader.read_unary0().unwrap(), value);
                 }
@@ -83,7 +83,7 @@ macro_rules! define_unary_roundtrip {
 
             let mut output: Vec<u8> = Vec::new();
             {
-                let mut writer = BitWriter::<$endianness>::new(&mut output);
+                let mut writer = BitWriter::endian(&mut output, $endianness);
                 for value in 0..1024 {
                     writer.write_unary1(value).unwrap();
                 }
@@ -91,7 +91,7 @@ macro_rules! define_unary_roundtrip {
             }
             {
                 let mut c = Cursor::new(&output);
-                let mut reader = BitReader::<$endianness>::new(&mut c);
+                let mut reader = BitReader::endian(&mut c, $endianness);
                 for value in 0..1024 {
                     assert_eq!(reader.read_unary1().unwrap(), value);
                 }
