@@ -109,7 +109,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// Unwraps internal writer and disposes of BitWrite.
     /// Any unwritten partial bits are discarded.
     #[inline]
-    pub fn writer(self) -> W {
+    pub fn into_writer(self) -> W {
         self.writer
     }
 
@@ -133,7 +133,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_bit(true).unwrap();
     /// writer.write_bit(true).unwrap();
     /// writer.write_bit(true).unwrap();
-    /// assert_eq!(writer.writer(), [0b10110111]);
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
     /// ```
@@ -148,7 +148,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_bit(true).unwrap();
     /// writer.write_bit(false).unwrap();
     /// writer.write_bit(true).unwrap();
-    /// assert_eq!(writer.writer(), [0b10110111]);
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     pub fn write_bit(&mut self, bit: bool) -> io::Result<()> {
         self.bitqueue.push(1, if bit { 1 } else { 0 });
@@ -178,7 +178,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write(1, 0b1).unwrap();
     /// writer.write(2, 0b01).unwrap();
     /// writer.write(5, 0b10111).unwrap();
-    /// assert_eq!(writer.writer(), [0b10110111]);
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
     /// ```
@@ -188,7 +188,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write(1, 0b1).unwrap();
     /// writer.write(2, 0b11).unwrap();
     /// writer.write(5, 0b10110).unwrap();
-    /// assert_eq!(writer.writer(), [0b10110111]);
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
     /// ```
@@ -248,7 +248,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write(8, 0x6F).unwrap();
     /// writer.write(8, 0x6F).unwrap();
     /// writer.write_bytes(b"bar").unwrap();
-    /// assert_eq!(writer.writer(), b"foobar");
+    /// assert_eq!(writer.into_writer(), b"foobar");
     /// ```
     pub fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         if self.byte_aligned() {
@@ -281,7 +281,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_huffman(&tree, 'b').unwrap();
     /// writer.write_huffman(&tree, 'c').unwrap();
     /// writer.write_huffman(&tree, 'd').unwrap();
-    /// assert_eq!(writer.writer(), [0b10110111]);
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     pub fn write_huffman<T>(&mut self, tree: &WriteHuffmanTree<E, T>, symbol: T) -> io::Result<()>
     where
@@ -308,7 +308,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_unary0(0).unwrap();
     /// writer.write_unary0(3).unwrap();
     /// writer.write_unary0(10).unwrap();
-    /// assert_eq!(writer.writer(), [0b01110111, 0b11111110]);
+    /// assert_eq!(writer.into_writer(), [0b01110111, 0b11111110]);
     /// ```
     ///
     /// ```
@@ -318,7 +318,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_unary0(0).unwrap();
     /// writer.write_unary0(3).unwrap();
     /// writer.write_unary0(10).unwrap();
-    /// assert_eq!(writer.writer(), [0b11101110, 0b01111111]);
+    /// assert_eq!(writer.into_writer(), [0b11101110, 0b01111111]);
     /// ```
     pub fn write_unary0(&mut self, value: u32) -> io::Result<()> {
         match value {
@@ -360,7 +360,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_unary1(0).unwrap();
     /// writer.write_unary1(3).unwrap();
     /// writer.write_unary1(10).unwrap();
-    /// assert_eq!(writer.writer(), [0b10001000, 0b00000001]);
+    /// assert_eq!(writer.into_writer(), [0b10001000, 0b00000001]);
     /// ```
     ///
     /// ```
@@ -370,7 +370,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write_unary1(0).unwrap();
     /// writer.write_unary1(3).unwrap();
     /// writer.write_unary1(10).unwrap();
-    /// assert_eq!(writer.writer(), [0b00010001, 0b10000000]);
+    /// assert_eq!(writer.into_writer(), [0b00010001, 0b10000000]);
     /// ```
     pub fn write_unary1(&mut self, value: u32) -> io::Result<()> {
         match value {
@@ -420,7 +420,7 @@ impl<W: io::Write, E: Endianness> BitWrite<W, E> {
     /// writer.write(1, 0).unwrap();
     /// writer.byte_align().unwrap();
     /// writer.write(8, 0xFF).unwrap();
-    /// assert_eq!(writer.writer(), [0x00, 0xFF]);
+    /// assert_eq!(writer.into_writer(), [0x00, 0xFF]);
     /// ```
     pub fn byte_align(&mut self) -> io::Result<()> {
         while !self.byte_aligned() {
@@ -485,7 +485,7 @@ impl<W: io::Write> BitWrite<W, BigEndian> {
     /// let mut writer = BitWrite::endian(Vec::new(), BigEndian);
     /// writer.write_signed(4, -5).unwrap();
     /// writer.write_signed(4, 7).unwrap();
-    /// assert_eq!(writer.writer(), [0b10110111]);
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     pub fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
@@ -525,7 +525,7 @@ impl<W: io::Write> BitWrite<W, LittleEndian> {
     /// let mut writer = BitWrite::endian(Vec::new(), LittleEndian);
     /// writer.write_signed(4, 7).unwrap();
     /// writer.write_signed(4, -5).unwrap();
-    /// assert_eq!(writer.writer(), [0b10110111]);
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     pub fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where

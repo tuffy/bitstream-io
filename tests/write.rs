@@ -172,7 +172,7 @@ fn test_writer_be() {
     w.write_bit(true).unwrap();
     w.write_bit(false).unwrap();
     w.write_bit(true).unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data[0..2]);
+    assert_eq!(w.into_writer().as_slice(), &final_data[0..2]);
 
     /*writing unsigned values*/
     let mut w = BitWrite::endian(Vec::with_capacity(4), BigEndian);
@@ -187,7 +187,7 @@ fn test_writer_be() {
     assert!(!w.byte_aligned());
     w.write(19, 0x53BC1u32).unwrap();
     assert!(w.byte_aligned());
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing signed values*/
     let mut w = BitWrite::endian(Vec::with_capacity(4), BigEndian);
@@ -196,7 +196,7 @@ fn test_writer_be() {
     w.write_signed(5, 7).unwrap();
     w.write_signed(3, -3).unwrap();
     w.write_signed(19, -181311).unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing unary 0 values*/
     let mut w = BitWrite::endian(Vec::with_capacity(4), BigEndian);
@@ -215,7 +215,7 @@ fn test_writer_be() {
     w.write_unary0(0).unwrap();
     w.write_unary0(0).unwrap();
     w.write(1, 1u32).unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing unary 1 values*/
     let mut w = BitWrite::endian(Vec::with_capacity(4), BigEndian);
@@ -237,7 +237,7 @@ fn test_writer_be() {
     w.write_unary1(0).unwrap();
     w.write_unary1(0).unwrap();
     w.write_unary1(5).unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*byte aligning*/
     let aligned_data = [0xA0, 0xE0, 0x3B, 0xC0];
@@ -251,13 +251,13 @@ fn test_writer_be() {
     w.byte_align().unwrap();
     w.write(4, 12u32).unwrap();
     w.byte_align().unwrap();
-    assert_eq!(w.writer().as_slice(), &aligned_data);
+    assert_eq!(w.into_writer().as_slice(), &aligned_data);
 
     /*writing bytes, aligned*/
     let final_data = [0xB1, 0xED];
     let mut w = BitWrite::endian(Vec::with_capacity(2), BigEndian);
     w.write_bytes(b"\xB1\xED").unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing bytes, un-aligned*/
     let final_data = [0xBB, 0x1E, 0xD0];
@@ -265,7 +265,7 @@ fn test_writer_be() {
     w.write(4, 11u32).unwrap();
     w.write_bytes(b"\xB1\xED").unwrap();
     w.byte_align().unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 }
 
 #[test]
@@ -288,7 +288,7 @@ fn test_writer_edge_cases_be() {
     w.write(64, 0xFFFFFFFFFFFFFFFFu64).unwrap();
     w.write(64, 9223372036854775808u64).unwrap();
     w.write(64, 9223372036854775807u64).unwrap();
-    assert_eq!(w.writer(), final_data);
+    assert_eq!(w.into_writer(), final_data);
 
     /*signed 32 and 64-bit values*/
     let mut w = BitWrite::endian(Vec::with_capacity(48), BigEndian);
@@ -300,7 +300,7 @@ fn test_writer_edge_cases_be() {
     w.write(64, -1i64).unwrap();
     w.write(64, -9223372036854775808i64).unwrap();
     w.write(64, 9223372036854775807i64).unwrap();
-    assert_eq!(w.writer(), final_data);
+    assert_eq!(w.into_writer(), final_data);
 }
 
 #[test]
@@ -333,7 +333,7 @@ fn test_writer_huffman_be() {
     w.write_huffman(&tree, 4).unwrap();
     w.write_huffman(&tree, 2).unwrap();
     w.byte_align().unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 }
 
 #[test]
@@ -360,7 +360,7 @@ fn test_writer_le() {
     w.write_bit(true).unwrap();
     w.write_bit(true).unwrap();
     w.write_bit(true).unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data[0..2]);
+    assert_eq!(w.into_writer().as_slice(), &final_data[0..2]);
 
     /*writing unsigned values*/
     let mut w = BitWrite::endian(Vec::with_capacity(4), LittleEndian);
@@ -375,7 +375,7 @@ fn test_writer_le() {
     assert!(!w.byte_aligned());
     w.write(19, 0x609DFu32).unwrap();
     assert!(w.byte_aligned());
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing signed values*/
     let mut w = BitWrite::endian(Vec::with_capacity(4), LittleEndian);
@@ -384,7 +384,7 @@ fn test_writer_le() {
     w.write_signed(5, 13).unwrap();
     w.write_signed(3, 3).unwrap();
     w.write_signed(19, -128545).unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing unary 0 values*/
     let mut w = BitWrite::endian(Vec::with_capacity(4), LittleEndian);
@@ -403,7 +403,7 @@ fn test_writer_le() {
     w.write_unary0(0).unwrap();
     w.write_unary0(0).unwrap();
     w.write(2, 3u32).unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing unary 1 values*/
     let mut w = BitWrite::endian(Vec::with_capacity(4), LittleEndian);
@@ -425,7 +425,7 @@ fn test_writer_le() {
     w.write_unary1(2).unwrap();
     w.write_unary1(5).unwrap();
     w.write_unary1(0).unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*byte aligning*/
     let aligned_data = [0x05, 0x07, 0x3B, 0x0C];
@@ -439,13 +439,13 @@ fn test_writer_le() {
     w.byte_align().unwrap();
     w.write(4, 12u32).unwrap();
     w.byte_align().unwrap();
-    assert_eq!(w.writer().as_slice(), &aligned_data);
+    assert_eq!(w.into_writer().as_slice(), &aligned_data);
 
     /*writing bytes, aligned*/
     let final_data = [0xB1, 0xED];
     let mut w = BitWrite::endian(Vec::with_capacity(2), LittleEndian);
     w.write_bytes(b"\xB1\xED").unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing bytes, un-aligned*/
     let final_data = [0x1B, 0xDB, 0x0E];
@@ -453,7 +453,7 @@ fn test_writer_le() {
     w.write(4, 11u32).unwrap();
     w.write_bytes(b"\xB1\xED").unwrap();
     w.byte_align().unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 }
 
 #[test]
@@ -476,7 +476,7 @@ fn test_writer_edge_cases_le() {
     w.write(64, 0xFFFFFFFFFFFFFFFFu64).unwrap();
     w.write(64, 9223372036854775808u64).unwrap();
     w.write(64, 9223372036854775807u64).unwrap();
-    assert_eq!(w.writer(), final_data);
+    assert_eq!(w.into_writer(), final_data);
 
     /*signed 32 and 64-bit values*/
     let mut w = BitWrite::endian(Vec::with_capacity(48), LittleEndian);
@@ -488,7 +488,7 @@ fn test_writer_edge_cases_le() {
     w.write(64, -1i64).unwrap();
     w.write(64, -9223372036854775808i64).unwrap();
     w.write(64, 9223372036854775807i64).unwrap();
-    assert_eq!(w.writer(), final_data);
+    assert_eq!(w.into_writer(), final_data);
 }
 
 #[test]
@@ -520,7 +520,7 @@ fn test_writer_huffman_le() {
     w.write_huffman(&tree, 4).unwrap();
     w.write_huffman(&tree, 3).unwrap();
     w.write(1, 1).unwrap();
-    assert_eq!(w.writer().as_slice(), &final_data);
+    assert_eq!(w.into_writer().as_slice(), &final_data);
 }
 
 struct LimitedWriter {

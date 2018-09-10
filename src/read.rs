@@ -110,7 +110,7 @@ impl<R: io::Read, E: Endianness> BitRead<R, E> {
     /// Unwraps internal reader and disposes of BitRead.
     /// Any unread partial bits are discarded.
     #[inline]
-    pub fn reader(self) -> R {
+    pub fn into_reader(self) -> R {
         self.reader
     }
 
