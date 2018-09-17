@@ -106,11 +106,11 @@ where
     T: Clone,
 {
     match tree {
-        &FinalHuffmanTree::Leaf(ref value) => {
+        FinalHuffmanTree::Leaf(ref value) => {
             let len = queue.len();
             ReadHuffmanTree::Done(value.clone(), queue.value(), len, PhantomData)
         }
-        &FinalHuffmanTree::Tree(ref bit0, ref bit1) => {
+        FinalHuffmanTree::Tree(ref bit0, ref bit1) => {
             if queue.is_empty() {
                 ReadHuffmanTree::Continue(
                     (0..256)
@@ -118,12 +118,10 @@ where
                         .collect::<Vec<ReadHuffmanTree<E, T>>>()
                         .into_boxed_slice(),
                 )
+            } else if queue.pop(1) == 0 {
+                compile_queue(queue, bit0)
             } else {
-                if queue.pop(1) == 0 {
-                    compile_queue(queue, bit0)
-                } else {
-                    compile_queue(queue, bit1)
-                }
+                compile_queue(queue, bit1)
             }
         }
     }
@@ -139,7 +137,7 @@ impl<T: Clone> FinalHuffmanTree<T> {
     fn new(values: Vec<(T, Vec<u8>)>) -> Result<FinalHuffmanTree<T>, HuffmanTreeError> {
         let mut tree = WipHuffmanTree::new_empty();
 
-        for (symbol, code) in values.into_iter() {
+        for (symbol, code) in values {
             tree.add(code.as_slice(), symbol)?;
         }
 
@@ -184,8 +182,8 @@ impl<T: Clone> WipHuffmanTree<T> {
 
     fn add(&mut self, code: &[u8], symbol: T) -> Result<(), HuffmanTreeError> {
         match self {
-            &mut WipHuffmanTree::Empty => {
-                if code.len() == 0 {
+            WipHuffmanTree::Empty => {
+                if code.is_empty() {
                     *self = WipHuffmanTree::new_leaf(symbol);
                     Ok(())
                 } else {
@@ -193,13 +191,13 @@ impl<T: Clone> WipHuffmanTree<T> {
                     self.add(code, symbol)
                 }
             }
-            &mut WipHuffmanTree::Leaf(_) => Err(if code.len() == 0 {
+            WipHuffmanTree::Leaf(_) => Err(if code.is_empty() {
                 HuffmanTreeError::DuplicateLeaf
             } else {
                 HuffmanTreeError::OrphanedLeaf
             }),
-            &mut WipHuffmanTree::Tree(ref mut zero, ref mut one) => {
-                if code.len() == 0 {
+            WipHuffmanTree::Tree(ref mut zero, ref mut one) => {
+                if code.is_empty() {
                     Err(HuffmanTreeError::DuplicateLeaf)
                 } else {
                     match code[0] {
@@ -287,7 +285,7 @@ where
 
     let mut map = BTreeMap::new();
 
-    for (symbol, code) in values.into_iter() {
+    for (symbol, code) in values {
         let mut encoded = Vec::new();
         for bits in code.chunks(32) {
             let mut acc = BitQueue::<E, u32>::new();
@@ -301,11 +299,12 @@ where
             let len = acc.len();
             encoded.push((len, acc.value()))
         }
-        map.entry(symbol).or_insert(encoded.into_boxed_slice());
+        map.entry(symbol)
+            .or_insert_with(|| encoded.into_boxed_slice());
     }
 
     Ok(WriteHuffmanTree {
-        map: map,
+        map,
         phantom: PhantomData,
     })
 }
@@ -319,13 +318,15 @@ pub struct WriteHuffmanTree<E: Endianness, T: Ord> {
 
 impl<E: Endianness, T: Ord + Clone> WriteHuffmanTree<E, T> {
     /// Returns true if symbol is in tree.
-    pub fn has_symbol(&self, symbol: T) -> bool {
-        self.map.contains_key(&symbol)
+    #[inline]
+    pub fn has_symbol(&self, symbol: &T) -> bool {
+        self.map.contains_key(symbol)
     }
 
     /// Given symbol, returns (bits, value) pairs for writing code.
     /// Panics if symbol is not found.
-    pub fn get(&self, symbol: T) -> &[(u32, u32)] {
-        self.map[&symbol].as_ref()
+    #[inline]
+    pub fn get(&self, symbol: &T) -> &[(u32, u32)] {
+        self.map[symbol].as_ref()
     }
 }

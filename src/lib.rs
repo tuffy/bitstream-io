@@ -388,8 +388,8 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
         }
         BitQueue {
             phantom: PhantomData,
-            value: value,
-            bits: bits,
+            value,
+            bits,
         }
     }
 

@@ -331,12 +331,12 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
     /// ```
     pub fn read_unary0(&mut self) -> io::Result<u32> {
         if self.bitqueue.is_empty() {
-            read_aligned_unary(&mut self.reader, 0b11111111, &mut self.bitqueue)
+            read_aligned_unary(&mut self.reader, 0b1111_1111, &mut self.bitqueue)
                 .map(|u| u + self.bitqueue.pop_1())
         } else if self.bitqueue.all_1() {
             let base = self.bitqueue.len();
             self.bitqueue.clear();
-            read_aligned_unary(&mut self.reader, 0b11111111, &mut self.bitqueue)
+            read_aligned_unary(&mut self.reader, 0b1111_1111, &mut self.bitqueue)
                 .map(|u| base + u + self.bitqueue.pop_1())
         } else {
             Ok(self.bitqueue.pop_1())
@@ -374,12 +374,12 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
     /// ```
     pub fn read_unary1(&mut self) -> io::Result<u32> {
         if self.bitqueue.is_empty() {
-            read_aligned_unary(&mut self.reader, 0b00000000, &mut self.bitqueue)
+            read_aligned_unary(&mut self.reader, 0b0000_0000, &mut self.bitqueue)
                 .map(|u| u + self.bitqueue.pop_0())
         } else if self.bitqueue.all_0() {
             let base = self.bitqueue.len();
             self.bitqueue.clear();
-            read_aligned_unary(&mut self.reader, 0b00000000, &mut self.bitqueue)
+            read_aligned_unary(&mut self.reader, 0b0000_0000, &mut self.bitqueue)
                 .map(|u| base + u + self.bitqueue.pop_0())
         } else {
             Ok(self.bitqueue.pop_0())
@@ -453,14 +453,14 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
         let mut result: &ReadHuffmanTree<E, T> = &tree[self.bitqueue.to_state()];
         loop {
             match result {
-                &ReadHuffmanTree::Done(ref value, ref queue_val, ref queue_bits, _) => {
+                ReadHuffmanTree::Done(ref value, ref queue_val, ref queue_bits, _) => {
                     self.bitqueue.set(*queue_val, *queue_bits);
                     return Ok(value.clone());
                 }
-                &ReadHuffmanTree::Continue(ref tree) => {
+                ReadHuffmanTree::Continue(ref tree) => {
                     result = &tree[read_byte(&mut self.reader)? as usize];
                 }
-                &ReadHuffmanTree::InvalidState => {
+                ReadHuffmanTree::InvalidState => {
                     panic!("invalid state");
                 }
             }
@@ -620,7 +620,7 @@ where
     if bytes > 0 {
         let mut buf = [0; 16];
         reader.read_exact(&mut buf[0..bytes as usize])?;
-        for b in buf[0..bytes as usize].into_iter() {
+        for b in &buf[0..bytes as usize] {
             acc.push(8, N::from_u8(*b));
         }
     }

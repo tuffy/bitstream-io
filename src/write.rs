@@ -219,7 +219,8 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
                 "excessive value for bits written",
             ))
         } else if bits < self.bitqueue.remaining_len() {
-            Ok(self.bitqueue.push(bits, value.to_u8()))
+            self.bitqueue.push(bits, value.to_u8());
+            Ok(())
         } else {
             let mut acc = BitQueue::from_value(value, bits);
             write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)?;
@@ -287,7 +288,7 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     where
         T: Ord + Copy,
     {
-        for &(bits, value) in tree.get(symbol) {
+        for &(bits, value) in tree.get(&symbol) {
             self.write(bits, value)?;
         }
         Ok(())
@@ -327,17 +328,17 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
                 .write(value, (1u32 << bits) - 1)
                 .and_then(|()| self.write_bit(false)),
             32 => self
-                .write(value, 0xFFFFFFFFu32)
+                .write(value, 0xFFFF_FFFFu32)
                 .and_then(|()| self.write_bit(false)),
             bits @ 32...63 => self
                 .write(value, (1u64 << bits) - 1)
                 .and_then(|()| self.write_bit(false)),
             64 => self
-                .write(value, 0xFFFFFFFFFFFFFFFFu64)
+                .write(value, 0xFFFF_FFFF_FFFF_FFFFu64)
                 .and_then(|()| self.write_bit(false)),
             mut bits => {
                 while bits > 64 {
-                    self.write(64, 0xFFFFFFFFFFFFFFFFu64)?;
+                    self.write(64, 0xFFFF_FFFF_FFFF_FFFFu64)?;
                     bits -= 64;
                 }
                 self.write_unary0(bits)
