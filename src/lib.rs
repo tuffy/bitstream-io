@@ -30,6 +30,7 @@
 
 #![warn(missing_docs)]
 
+use std::io;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
@@ -212,6 +213,14 @@ pub trait Endianness: Sized {
     fn next_ones<N>(queue: &BitQueue<Self, N>) -> u32
     where
         N: Numeric;
+
+    /// Reads signed value from reader in this endianness
+    fn read_signed<R,S>(r: &mut BitReader<R,Self>, bits: u32) -> io::Result<S>
+    where R: io::Read, S: SignedNumeric;
+
+    /// Writes signed value to writer in this endianness
+    fn write_signed<W,S>(w: &mut BitWriter<W,Self>, bits: u32, value: S) -> io::Result<()>
+    where W: io::Write, S: SignedNumeric;
 }
 
 /// Big-endian, or most significant bits first
@@ -287,6 +296,40 @@ impl Endianness for BigEndian {
             (!queue.value).leading_zeros()
         }
     }
+
+    fn read_signed<R,S>(r: &mut BitReader<R,Self>, bits: u32) -> io::Result<S>
+    where R: io::Read, S: SignedNumeric {
+        if bits <= S::bits_size() {
+            let is_negative = r.read_bit()?;
+            let unsigned = r.read::<S>(bits - 1)?;
+            Ok(if is_negative {
+                unsigned.as_negative(bits)
+            } else {
+                unsigned
+            })
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
+        }
+    }
+
+    fn write_signed<W,S>(w: &mut BitWriter<W,Self>, bits: u32, value: S) -> io::Result<()>
+    where W: io::Write, S: SignedNumeric {
+        if bits > S::bits_size() {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
+        } else if value.is_negative() {
+            w.write_bit(true)
+             .and_then(|()| w.write(bits - 1, value.as_unsigned(bits)))
+        } else {
+            w.write_bit(false)
+             .and_then(|()| w.write(bits - 1, value))
+        }
+    }
 }
 
 /// Little-endian, or least significant bits first
@@ -355,6 +398,40 @@ impl Endianness for LittleEndian {
         N: Numeric,
     {
         (queue.value ^ !N::default()).trailing_zeros()
+    }
+
+    fn read_signed<R,S>(r: &mut BitReader<R,Self>, bits: u32) -> io::Result<S>
+    where R: io::Read, S: SignedNumeric {
+        if bits <= S::bits_size() {
+            let unsigned = r.read::<S>(bits - 1)?;
+            let is_negative = r.read_bit()?;
+            Ok(if is_negative {
+                unsigned.as_negative(bits)
+            } else {
+                unsigned
+            })
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
+        }
+    }
+
+    fn write_signed<W,S>(w: &mut BitWriter<W,Self>, bits: u32, value: S) -> io::Result<()>
+    where W: io::Write, S: SignedNumeric {
+        if bits > S::bits_size() {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
+        } else if value.is_negative() {
+            w.write(bits - 1, value.as_unsigned(bits))
+             .and_then(|()| w.write_bit(true))
+        } else {
+            w.write(bits - 1, value)
+             .and_then(|()| w.write_bit(false))
+        }
     }
 }
 

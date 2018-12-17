@@ -76,7 +76,7 @@
 
 use std::io;
 
-use super::{BigEndian, BitQueue, Endianness, LittleEndian, Numeric, SignedNumeric};
+use super::{BitQueue, Endianness, Numeric, SignedNumeric};
 use huffman::ReadHuffmanTree;
 
 /// For reading non-aligned bits from a stream of bytes in a given endianness.
@@ -223,6 +223,51 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
                 "excessive bits for type read",
             ))
         }
+    }
+
+    /// Reads a twos-complement signed value from the stream with
+    /// the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Also returns an error if the output type is too small
+    /// to hold the requested number of bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, BitReader};
+    /// let data = [0b10110111];
+    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{LittleEndian, BitReader};
+    /// let data = [0b10110111];
+    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
+    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, BitReader};
+    /// let data = [0;10];
+    /// let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// assert!(r.read_signed::<i8>(9).is_err());   // can't read 9 bits to i8
+    /// assert!(r.read_signed::<i16>(17).is_err()); // can't read 17 bits to i16
+    /// assert!(r.read_signed::<i32>(33).is_err()); // can't read 33 bits to i32
+    /// assert!(r.read_signed::<i64>(65).is_err()); // can't read 65 bits to i64
+    /// ```
+    #[inline]
+    pub fn read_signed<S>(&mut self, bits: u32) -> io::Result<S>
+    where
+        S: SignedNumeric {
+        E::read_signed(self, bits)
     }
 
     /// Skips the given number of bits in the stream.
@@ -495,108 +540,6 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
     #[inline]
     pub fn into_unread(self) -> (u32, u8) {
         (self.bitqueue.len(), self.bitqueue.value())
-    }
-}
-
-impl<R: io::Read> BitReader<R, BigEndian> {
-    /// Reads a twos-complement signed value from the stream with
-    /// the given number of bits.
-    ///
-    /// # Errors
-    ///
-    /// Passes along any I/O error from the underlying stream.
-    /// Also returns an error if the output type is too small
-    /// to hold the requested number of bits.
-    ///
-    /// # Examples
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{BigEndian, BitReader};
-    /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
-    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
-    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{BigEndian, BitReader};
-    /// let data = [0;10];
-    /// let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    /// assert!(r.read_signed::<i8>(9).is_err());   // can't read 9 bits to i8
-    /// assert!(r.read_signed::<i16>(17).is_err()); // can't read 17 bits to i16
-    /// assert!(r.read_signed::<i32>(33).is_err()); // can't read 33 bits to i32
-    /// assert!(r.read_signed::<i64>(65).is_err()); // can't read 65 bits to i64
-    /// ```
-    pub fn read_signed<S>(&mut self, bits: u32) -> io::Result<S>
-    where
-        S: SignedNumeric,
-    {
-        if bits <= S::bits_size() {
-            let is_negative = self.read_bit()?;
-            let unsigned = self.read::<S>(bits - 1)?;
-            Ok(if is_negative {
-                unsigned.as_negative(bits)
-            } else {
-                unsigned
-            })
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
-    }
-}
-
-impl<R: io::Read> BitReader<R, LittleEndian> {
-    /// Reads a twos-complement signed value from the stream with
-    /// the given number of bits.
-    ///
-    /// # Errors
-    ///
-    /// Passes along any I/O error from the underlying stream.
-    /// Also returns an error if the output type is too small
-    /// to hold the requested number of bits.
-    ///
-    /// # Examples
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{LittleEndian, BitReader};
-    /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
-    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), 7);
-    /// assert_eq!(reader.read_signed::<i8>(4).unwrap(), -5);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{LittleEndian, BitReader};
-    /// let data = [0;10];
-    /// let mut r = BitReader::endian(Cursor::new(&data), LittleEndian);
-    /// assert!(r.read_signed::<i8>(9).is_err());   // can't read 9 bits to i8
-    /// assert!(r.read_signed::<i16>(17).is_err()); // can't read 17 bits to i16
-    /// assert!(r.read_signed::<i32>(33).is_err()); // can't read 33 bits to i32
-    /// assert!(r.read_signed::<i64>(65).is_err()); // can't read 65 bits to i64
-    /// ```
-    pub fn read_signed<S>(&mut self, bits: u32) -> io::Result<S>
-    where
-        S: SignedNumeric,
-    {
-        if bits <= S::bits_size() {
-            let unsigned = self.read::<S>(bits - 1)?;
-            let is_negative = self.read_bit()?;
-            Ok(if is_negative {
-                unsigned.as_negative(bits)
-            } else {
-                unsigned
-            })
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
     }
 }
 
