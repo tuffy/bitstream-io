@@ -472,11 +472,11 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// Panics if the value is larger than the given number of bits.
     #[inline]
     pub fn from_value(value: N, bits: u32) -> BitQueue<E, N> {
-        if bits < N::bits_size() {
-            assert!(value < (N::one() << bits));
+        assert!(if bits < N::bits_size() {
+            value < (N::one() << bits)
         } else {
-            assert!(bits <= N::bits_size());
-        }
+            bits <= N::bits_size()
+        });
         BitQueue {
             phantom: PhantomData,
             value,
@@ -488,11 +488,11 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// Panics if the value is larger than the given number of bits
     #[inline]
     pub fn set(&mut self, value: N, bits: u32) {
-        if bits < N::bits_size() {
-            assert!(value < (N::one() << bits));
+        assert!(if bits < N::bits_size() {
+            value < (N::one() << bits)
         } else {
-            assert!(bits <= N::bits_size());
-        }
+            bits <= N::bits_size()
+        });
         self.value = value;
         self.bits = bits;
     }

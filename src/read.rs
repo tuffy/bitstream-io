@@ -266,7 +266,8 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
     #[inline]
     pub fn read_signed<S>(&mut self, bits: u32) -> io::Result<S>
     where
-        S: SignedNumeric {
+        S: SignedNumeric,
+    {
         E::read_signed(self, bits)
     }
 
@@ -577,7 +578,7 @@ where
     use std::cmp::min;
 
     /*skip up to 8 bytes at a time
-      (unlike with read_aligned, "bytes" may be larger than any native type)*/
+    (unlike with read_aligned, "bytes" may be larger than any native type)*/
     let mut buf = [0; 8];
     while bytes > 0 {
         let to_read = min(8, bytes);

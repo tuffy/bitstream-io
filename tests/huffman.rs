@@ -75,7 +75,8 @@ fn test_huffman_values() {
         (Some(1), vec![1, 0]),
         (Some(2), vec![1, 1, 0]),
         (None, vec![1, 1, 1]),
-    ]).unwrap();
+    ])
+    .unwrap();
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
     assert_eq!(r.read_huffman(&tree).unwrap(), Some(1));
     assert_eq!(r.read_huffman(&tree).unwrap(), Some(2));
@@ -90,7 +91,8 @@ fn test_huffman_values() {
         (Rc::new("bar".to_owned()), vec![1, 0]),
         (Rc::new("baz".to_owned()), vec![1, 1, 0]),
         (Rc::new("kelp".to_owned()), vec![1, 1, 1]),
-    ]).unwrap();
+    ])
+    .unwrap();
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
     assert_eq!(r.read_huffman(&tree).unwrap().deref(), "bar");
     assert_eq!(r.read_huffman(&tree).unwrap().deref(), "baz");

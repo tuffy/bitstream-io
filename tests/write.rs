@@ -315,7 +315,8 @@ fn test_writer_huffman_be() {
         (2, vec![0, 1]),
         (3, vec![0, 0, 1]),
         (4, vec![0, 0, 0]),
-    ]).unwrap();
+    ])
+    .unwrap();
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     w.write_huffman(&tree, 1).unwrap();
     w.write_huffman(&tree, 0).unwrap();
@@ -503,7 +504,8 @@ fn test_writer_huffman_le() {
         (2, vec![0, 1]),
         (3, vec![0, 0, 1]),
         (4, vec![0, 0, 0]),
-    ]).unwrap();
+    ])
+    .unwrap();
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.write_huffman(&tree, 1).unwrap();
     w.write_huffman(&tree, 3).unwrap();

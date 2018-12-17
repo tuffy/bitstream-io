@@ -206,7 +206,8 @@ fn test_reader_huffman_be() {
         (2, vec![0, 1]),
         (3, vec![0, 0, 1]),
         (4, vec![0, 0, 0]),
-    ]).unwrap();
+    ])
+    .unwrap();
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
@@ -376,7 +377,8 @@ fn test_reader_huffman_le() {
         (2, vec![0, 1]),
         (3, vec![0, 0, 1]),
         (4, vec![0, 0, 0]),
-    ]).unwrap();
+    ])
+    .unwrap();
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);

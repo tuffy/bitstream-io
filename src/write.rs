@@ -262,7 +262,8 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     #[inline]
     pub fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
-        S: SignedNumeric {
+        S: SignedNumeric,
+    {
         E::write_signed(self, bits, value)
     }
 
