@@ -281,8 +281,6 @@ where
     E: Endianness,
     T: Ord + Clone,
 {
-    use super::BitQueue;
-
     let mut map = BTreeMap::new();
 
     for (symbol, code) in values {

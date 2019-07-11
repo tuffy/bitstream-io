@@ -29,11 +29,13 @@
 //! Many of Rust's built-in integer types are supported by default.
 
 #![warn(missing_docs)]
+#![forbid(unsafe_code)]
 
 use std::fmt::Debug;
 use std::io;
 use std::marker::PhantomData;
 use std::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
+use std::mem;
 
 pub mod huffman;
 pub mod read;
@@ -87,7 +89,7 @@ pub trait Numeric:
 }
 
 macro_rules! define_numeric {
-    ($t:ty, $bits:expr) => {
+    ($t:ty) => {
         impl Numeric for $t {
             #[inline(always)]
             fn one() -> Self {
@@ -119,7 +121,7 @@ macro_rules! define_numeric {
             }
             #[inline(always)]
             fn bits_size() -> u32 {
-                $bits
+                mem::size_of::<$t>() as u32 * 8
             }
         }
     };
@@ -159,16 +161,16 @@ macro_rules! define_signed_numeric {
     };
 }
 
-define_numeric!(u8, 8);
-define_numeric!(i8, 8);
-define_numeric!(u16, 16);
-define_numeric!(i16, 16);
-define_numeric!(u32, 32);
-define_numeric!(i32, 32);
-define_numeric!(u64, 64);
-define_numeric!(i64, 64);
-define_numeric!(u128, 128);
-define_numeric!(i128, 128);
+define_numeric!(u8);
+define_numeric!(i8);
+define_numeric!(u16);
+define_numeric!(i16);
+define_numeric!(u32);
+define_numeric!(i32);
+define_numeric!(u64);
+define_numeric!(i64);
+define_numeric!(u128);
+define_numeric!(i128);
 
 define_signed_numeric!(i8);
 define_signed_numeric!(i16);
