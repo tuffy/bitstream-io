@@ -34,8 +34,8 @@
 use std::fmt::Debug;
 use std::io;
 use std::marker::PhantomData;
-use std::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
 use std::mem;
+use std::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
 
 pub mod huffman;
 pub mod read;

@@ -73,8 +73,7 @@
 
 use std::io;
 
-use super::{BitQueue, Endianness, Numeric, SignedNumeric};
-use huffman::WriteHuffmanTree;
+use super::{huffman::WriteHuffmanTree, BitQueue, Endianness, Numeric, SignedNumeric};
 
 /// For writing bit values to an underlying stream in a given endianness.
 ///
@@ -361,13 +360,13 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     pub fn write_unary0(&mut self, value: u32) -> io::Result<()> {
         match value {
             0 => self.write_bit(false),
-            bits @ 1...31 => self
+            bits @ 1..=31 => self
                 .write(value, (1u32 << bits) - 1)
                 .and_then(|()| self.write_bit(false)),
             32 => self
                 .write(value, 0xFFFF_FFFFu32)
                 .and_then(|()| self.write_bit(false)),
-            bits @ 32...63 => self
+            bits @ 32..=63 => self
                 .write(value, (1u64 << bits) - 1)
                 .and_then(|()| self.write_bit(false)),
             64 => self
@@ -413,8 +412,8 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     pub fn write_unary1(&mut self, value: u32) -> io::Result<()> {
         match value {
             0 => self.write_bit(true),
-            1...32 => self.write(value, 0u32).and_then(|()| self.write_bit(true)),
-            33...64 => self.write(value, 0u64).and_then(|()| self.write_bit(true)),
+            1..=32 => self.write(value, 0u32).and_then(|()| self.write_bit(true)),
+            33..=64 => self.write(value, 0u64).and_then(|()| self.write_bit(true)),
             mut bits => {
                 while bits > 64 {
                     self.write(64, 0u64)?;

@@ -76,8 +76,7 @@
 
 use std::io;
 
-use super::{BitQueue, Endianness, Numeric, SignedNumeric};
-use huffman::ReadHuffmanTree;
+use super::{huffman::ReadHuffmanTree, BitQueue, Endianness, Numeric, SignedNumeric};
 
 /// For reading non-aligned bits from a stream of bytes in a given endianness.
 ///
