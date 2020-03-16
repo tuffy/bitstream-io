@@ -367,7 +367,7 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
             32 => self
                 .write(value, 0xFFFF_FFFFu32)
                 .and_then(|()| self.write_bit(false)),
-            bits @ 32..=63 => self
+            bits @ 33..=63 => self
                 .write(value, (1u64 << bits) - 1)
                 .and_then(|()| self.write_bit(false)),
             64 => self
