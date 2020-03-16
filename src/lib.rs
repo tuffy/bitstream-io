@@ -475,7 +475,7 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     #[inline]
     pub fn from_value(value: N, bits: u32) -> BitQueue<E, N> {
         assert!(if bits < N::bits_size() {
-            value < (N::one() << bits)
+            value <= !(N::one() << (N::bits_size() - 1)) >> (N::bits_size() - bits - 1)
         } else {
             bits <= N::bits_size()
         });

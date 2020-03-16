@@ -212,10 +212,11 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
             ))
-        } else if (bits < U::bits_size()) && (value >= (U::one() << bits)) {
+        } else if (bits < U::bits_size()) && (value > (!(U::one() << (U::bits_size() - 1)) >> (U::bits_size() - bits - 1))) {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "excessive value for bits written",
+                format!("Value {:?} is greater then max value for {:?} bits: {:?}",
+                    value, bits, !(U::one() << (U::bits_size() - 1)) >> (U::bits_size() - bits - 1))
             ))
         } else if bits < self.bitqueue.remaining_len() {
             self.bitqueue.push(bits, value.to_u8());
