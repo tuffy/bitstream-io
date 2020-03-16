@@ -587,7 +587,8 @@ fn test_writer_io_errors_be() {
     );
 
     /*signed values*/
-    let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
+    let mut w = BitWriter::endian(LimitedWriter::new(2), BigEndian);
+    assert!(w.write_signed(8, -40i8).is_ok());
     assert!(w.write_signed(2, -2).is_ok());
     assert!(w.write_signed(3, -2).is_ok());
     assert!(w.write_signed(5, 7).is_ok());
@@ -677,7 +678,8 @@ fn test_writer_io_errors_le() {
     );
 
     /*signed values*/
-    let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
+    let mut w = BitWriter::endian(LimitedWriter::new(3), LittleEndian);
+    assert!(w.write_signed(16, 10i16).is_ok());
     assert!(w.write_signed(2, 1).is_ok());
     assert!(w.write_signed(3, -4).is_ok());
     assert!(w.write_signed(5, 13).is_ok());
