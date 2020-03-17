@@ -63,6 +63,9 @@ pub trait Numeric:
     + Not<Output = Self>
     + Sub<Self, Output = Self>
 {
+    /// The raw byte representation of this numeric type
+    type Bytes: AsRef<[u8]>;
+
     /// The value of 1 in this type
     fn one() -> Self;
 
@@ -86,11 +89,19 @@ pub trait Numeric:
 
     /// Size of type in bits
     fn bits_size() -> u32;
+
+    /// Our value in big-endian bytes
+    fn to_be_bytes(self) -> Self::Bytes;
+
+    /// Our value in little-endian bytes
+    fn to_le_bytes(self) -> Self::Bytes;
 }
 
 macro_rules! define_numeric {
     ($t:ty) => {
         impl Numeric for $t {
+            type Bytes = [u8; mem::size_of::<$t>()];
+
             #[inline(always)]
             fn one() -> Self {
                 1
@@ -122,6 +133,14 @@ macro_rules! define_numeric {
             #[inline(always)]
             fn bits_size() -> u32 {
                 mem::size_of::<$t>() as u32 * 8
+            }
+            #[inline(always)]
+            fn to_be_bytes(self) -> Self::Bytes {
+                self.to_be_bytes()
+            }
+            #[inline(always)]
+            fn to_le_bytes(self) -> Self::Bytes {
+                self.to_le_bytes()
             }
         }
     };
@@ -334,6 +353,8 @@ impl Endianness for BigEndian {
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
             ))
+        } else if bits == S::bits_size() {
+            w.write_bytes(value.to_be_bytes().as_ref())
         } else if value.is_negative() {
             w.write_bit(true)
                 .and_then(|()| w.write(bits - 1, value.as_unsigned(bits)))
@@ -442,6 +463,8 @@ impl Endianness for LittleEndian {
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
             ))
+        } else if bits == S::bits_size() {
+            w.write_bytes(value.to_le_bytes().as_ref())
         } else if value.is_negative() {
             w.write(bits - 1, value.as_unsigned(bits))
                 .and_then(|()| w.write_bit(true))

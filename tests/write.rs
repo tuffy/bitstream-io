@@ -301,6 +301,86 @@ fn test_writer_edge_cases_be() {
     w.write(64, -9223372036854775808i64).unwrap();
     w.write(64, 9223372036854775807i64).unwrap();
     assert_eq!(w.into_writer(), final_data);
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(8, std::i8::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i8::MAX.to_be_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(8, std::i8::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i8::MIN.to_be_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(16, std::i16::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i16::MAX.to_be_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(16, std::i16::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i16::MIN.to_be_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(32, std::i32::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i32::MAX.to_be_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(32, std::i32::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i32::MIN.to_be_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(64, std::i64::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i64::MAX.to_be_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(64, std::i64::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i64::MIN.to_be_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(128, std::i128::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i128::MAX.to_be_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, BigEndian)
+            .write_signed(128, std::i128::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i128::MIN.to_be_bytes());
 }
 
 #[test]
@@ -490,6 +570,86 @@ fn test_writer_edge_cases_le() {
     w.write(64, -9223372036854775808i64).unwrap();
     w.write(64, 9223372036854775807i64).unwrap();
     assert_eq!(w.into_writer(), final_data);
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(8, std::i8::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i8::MAX.to_le_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(8, std::i8::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i8::MIN.to_le_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(16, std::i16::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i16::MAX.to_le_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(16, std::i16::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i16::MIN.to_le_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(32, std::i32::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i32::MAX.to_le_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(32, std::i32::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i32::MIN.to_le_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(64, std::i64::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i64::MAX.to_le_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(64, std::i64::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i64::MIN.to_le_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(128, std::i128::MAX)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i128::MAX.to_le_bytes());
+
+    let mut bytes = Vec::new();
+    {
+        BitWriter::endian(&mut bytes, LittleEndian)
+            .write_signed(128, std::i128::MIN)
+            .unwrap();
+    }
+    assert_eq!(bytes, std::i128::MIN.to_le_bytes());
 }
 
 #[test]
