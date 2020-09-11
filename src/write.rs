@@ -106,6 +106,9 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     }
 
     /// Unwraps internal writer and disposes of BitWriter.
+    ///
+    /// # Warning
+    ///
     /// Any unwritten partial bits are discarded.
     #[inline]
     pub fn into_writer(self) -> W {
@@ -121,6 +124,27 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
         } else {
             None
         }
+    }
+
+    /// Converts `BitWriter` to `ByteWriter` in the same endianness.
+    ///
+    /// # Warning
+    ///
+    /// Any written partial bits are discarded.
+    #[inline]
+    pub fn into_bytewriter(self) -> ByteWriter<W, E> {
+        ByteWriter::new(self.into_writer())
+    }
+
+    /// If stream is byte-aligned, provides temporary `ByteWriter`
+    /// in the same endianness.  Otherwise returns `None`
+    ///
+    /// # Warning
+    ///
+    /// Any unwritten bits left over when `ByteWriter` is dropped are lost.
+    #[inline]
+    pub fn bytewriter(&mut self) -> Option<ByteWriter<&mut W, E>> {
+        self.writer().map(ByteWriter::new)
     }
 
     /// Writes a single bit to the stream.
@@ -593,7 +617,7 @@ impl<W: io::Write, E: Endianness> ByteWriter<W, E> {
         }
     }
 
-    /// Unwraps internal writer and disposes of ByteWriter.
+    /// Unwraps internal writer and disposes of `ByteWriter`.
     /// Any unwritten partial bits are discarded.
     #[inline]
     pub fn into_writer(self) -> W {
@@ -604,6 +628,22 @@ impl<W: io::Write, E: Endianness> ByteWriter<W, E> {
     #[inline]
     pub fn writer(&mut self) -> &mut W {
         &mut self.writer
+    }
+
+    /// Converts `ByteWriter` to `BitWriter` in the same endianness.
+    #[inline]
+    pub fn into_bitwriter(self) -> BitWriter<W, E> {
+        BitWriter::new(self.into_writer())
+    }
+
+    /// Provides temporary `BitWriter` in the same endianness.
+    ///
+    /// # Warning
+    ///
+    /// Any unwritten bits left over when `BitWriter` is dropped are lost.
+    #[inline]
+    pub fn bitwriter(&mut self) -> BitWriter<&mut W, E> {
+        BitWriter::new(self.writer())
     }
 
     /// Writes whole numeric value to stream

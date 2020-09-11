@@ -107,6 +107,9 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
     }
 
     /// Unwraps internal reader and disposes of BitReader.
+    ///
+    /// # Warning
+    ///
     /// Any unread partial bits are discarded.
     #[inline]
     pub fn into_reader(self) -> R {
@@ -122,6 +125,27 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
         } else {
             None
         }
+    }
+
+    /// Converts `BitReader` to `ByteReader` in the same endianness.
+    ///
+    /// # Warning
+    ///
+    /// Any unread partial bits are discarded.
+    #[inline]
+    pub fn into_bytereader(self) -> ByteReader<R, E> {
+        ByteReader::new(self.into_reader())
+    }
+
+    /// If stream is byte-aligned, provides temporary `ByteReader`
+    /// in the same endianness.  Otherwise returns `None`
+    ///
+    /// # Warning
+    ///
+    /// Any reader bits left over when `ByteReader` is dropped are lost.
+    #[inline]
+    pub fn bytereader(&mut self) -> Option<ByteReader<&mut R, E>> {
+        self.reader().map(ByteReader::new)
     }
 
     /// Reads a single bit from the stream.
@@ -680,15 +704,32 @@ impl<R: io::Read, E: Endianness> ByteReader<R, E> {
         }
     }
 
-    /// Unwraps internal reader and disposes of ByteReader.
+    /// Unwraps internal reader and disposes of `ByteReader`.
     #[inline]
     pub fn into_reader(self) -> R {
         self.reader
     }
 
     /// Provides mutable reference to internal reader
+    #[inline]
     pub fn reader(&mut self) -> &mut R {
         &mut self.reader
+    }
+
+    /// Converts `ByteReader` to `BitReader` in the same endianness.
+    #[inline]
+    pub fn into_bitreader(self) -> BitReader<R, E> {
+        BitReader::new(self.into_reader())
+    }
+
+    /// Provides temporary `BitReader` in the same endianness.
+    ///
+    /// # Warning
+    ///
+    /// Any unread bits left over when `BitReader` is dropped are lost.
+    #[inline]
+    pub fn bitreader(&mut self) -> BitReader<&mut R, E> {
+        BitReader::new(self.reader())
     }
 
     /// Reads whole numeric value from stream
