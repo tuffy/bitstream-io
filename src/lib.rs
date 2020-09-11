@@ -40,8 +40,8 @@ use std::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, Sh
 pub mod huffman;
 pub mod read;
 pub mod write;
-pub use read::BitReader;
-pub use write::BitWriter;
+pub use read::{BitReader, ByteReader};
+pub use write::{BitWriter, ByteWriter};
 
 /// This trait extends many common integer types (both unsigned and signed)
 /// with a few trivial methods so that they can be used
@@ -64,7 +64,7 @@ pub trait Numeric:
     + Sub<Self, Output = Self>
 {
     /// The raw byte representation of this numeric type
-    type Bytes: AsRef<[u8]>;
+    type Bytes: AsRef<[u8]> + AsMut<[u8]>;
 
     /// The value of 1 in this type
     fn one() -> Self;
@@ -90,11 +90,20 @@ pub trait Numeric:
     /// Size of type in bits
     fn bits_size() -> u32;
 
+    /// An empty buffer of this type's size
+    fn buffer() -> Self::Bytes;
+
     /// Our value in big-endian bytes
     fn to_be_bytes(self) -> Self::Bytes;
 
     /// Our value in little-endian bytes
     fn to_le_bytes(self) -> Self::Bytes;
+
+    /// Convert big-endian bytes to our value
+    fn from_be_bytes(bytes: Self::Bytes) -> Self;
+
+    /// Convert little-endian bytes to out value
+    fn from_le_bytes(bytes: Self::Bytes) -> Self;
 }
 
 macro_rules! define_numeric {
@@ -135,12 +144,24 @@ macro_rules! define_numeric {
                 mem::size_of::<$t>() as u32 * 8
             }
             #[inline(always)]
+            fn buffer() -> Self::Bytes {
+                [0; mem::size_of::<$t>()]
+            }
+            #[inline(always)]
             fn to_be_bytes(self) -> Self::Bytes {
                 self.to_be_bytes()
             }
             #[inline(always)]
             fn to_le_bytes(self) -> Self::Bytes {
                 self.to_le_bytes()
+            }
+            #[inline(always)]
+            fn from_be_bytes(bytes: Self::Bytes) -> Self {
+                <$t>::from_be_bytes(bytes)
+            }
+            #[inline(always)]
+            fn from_le_bytes(bytes: Self::Bytes) -> Self {
+                <$t>::from_le_bytes(bytes)
             }
         }
     };
@@ -246,6 +267,18 @@ pub trait Endianness: Sized {
     where
         W: io::Write,
         S: SignedNumeric;
+
+    /// Reads entire numeric value from reader in this endianness
+    fn read_numeric<R, N>(r: R) -> io::Result<N>
+    where
+        R: io::Read,
+        N: Numeric;
+
+    /// Writes entire numeric value from reader in this endianness
+    fn write_numeric<W, N>(w: W, value: N) -> io::Result<()>
+    where
+        W: io::Write,
+        N: Numeric;
 }
 
 /// Big-endian, or most significant bits first
@@ -362,6 +395,25 @@ impl Endianness for BigEndian {
             w.write_bit(false).and_then(|()| w.write(bits - 1, value))
         }
     }
+
+    fn read_numeric<R, N>(mut r: R) -> io::Result<N>
+    where
+        R: io::Read,
+        N: Numeric,
+    {
+        let mut buffer = N::buffer();
+        r.read_exact(buffer.as_mut())?;
+        Ok(N::from_be_bytes(buffer))
+    }
+
+    #[inline]
+    fn write_numeric<W, N>(mut w: W, value: N) -> io::Result<()>
+    where
+        W: io::Write,
+        N: Numeric,
+    {
+        w.write_all(value.to_be_bytes().as_ref())
+    }
 }
 
 /// Little-endian, or least significant bits first
@@ -471,6 +523,25 @@ impl Endianness for LittleEndian {
         } else {
             w.write(bits - 1, value).and_then(|()| w.write_bit(false))
         }
+    }
+
+    fn read_numeric<R, N>(mut r: R) -> io::Result<N>
+    where
+        R: io::Read,
+        N: Numeric,
+    {
+        let mut buffer = N::buffer();
+        r.read_exact(buffer.as_mut())?;
+        Ok(N::from_le_bytes(buffer))
+    }
+
+    #[inline]
+    fn write_numeric<W, N>(mut w: W, value: N) -> io::Result<()>
+    where
+        W: io::Write,
+        N: Numeric,
+    {
+        w.write_all(value.to_le_bytes().as_ref())
     }
 }
 

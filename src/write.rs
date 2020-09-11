@@ -73,7 +73,7 @@
 
 use std::io;
 
-use super::{huffman::WriteHuffmanTree, BitQueue, Endianness, Numeric, SignedNumeric};
+use super::{huffman::WriteHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, SignedNumeric};
 
 /// For writing bit values to an underlying stream in a given endianness.
 ///
@@ -110,6 +110,17 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     #[inline]
     pub fn into_writer(self) -> W {
         self.writer
+    }
+
+    /// If stream is byte-aligned, provides mutable reference
+    /// to internal writer.  Otherwise returns `None`
+    #[inline]
+    pub fn writer(&mut self) -> Option<&mut W> {
+        if self.byte_aligned() {
+            Some(&mut self.writer)
+        } else {
+            None
+        }
     }
 
     /// Writes a single bit to the stream.
@@ -553,5 +564,81 @@ where
         writer.write_all(&buf[0..to_write])
     } else {
         Ok(())
+    }
+}
+
+/// For writing aligned bytes to a stream of bytes in a given endianness.
+///
+/// This only writes aligned values and maintains no internal state.
+pub struct ByteWriter<W: io::Write, E: Endianness> {
+    phantom: PhantomData<E>,
+    writer: W,
+}
+
+impl<W: io::Write, E: Endianness> ByteWriter<W, E> {
+    /// Wraps a ByteWriter around something that implements `Write`
+    pub fn new(writer: W) -> ByteWriter<W, E> {
+        ByteWriter {
+            phantom: PhantomData,
+            writer,
+        }
+    }
+
+    /// Wraps a BitWriter around something that implements `Write`
+    /// with the given endianness.
+    pub fn endian(writer: W, _endian: E) -> ByteWriter<W, E> {
+        ByteWriter {
+            phantom: PhantomData,
+            writer,
+        }
+    }
+
+    /// Unwraps internal writer and disposes of ByteWriter.
+    /// Any unwritten partial bits are discarded.
+    #[inline]
+    pub fn into_writer(self) -> W {
+        self.writer
+    }
+
+    /// Provides mutable reference to internal writer.
+    #[inline]
+    pub fn writer(&mut self) -> &mut W {
+        &mut self.writer
+    }
+
+    /// Writes whole numeric value to stream
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// # Examples
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, ByteWriter};
+    /// let mut writer = ByteWriter::endian(Vec::new(), BigEndian);
+    /// writer.write(0b0000000011111111u16).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b00000000, 0b11111111]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{LittleEndian, ByteWriter};
+    /// let mut writer = ByteWriter::endian(Vec::new(), LittleEndian);
+    /// writer.write(0b0000000011111111u16).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b11111111, 0b00000000]);
+    /// ```
+    #[inline]
+    pub fn write<N: Numeric>(&mut self, value: N) -> io::Result<()> {
+        E::write_numeric(&mut self.writer, value)
+    }
+
+    /// Writes the entirety of a byte buffer to the stream.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    #[inline]
+    pub fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.writer.write_all(buf)
     }
 }
