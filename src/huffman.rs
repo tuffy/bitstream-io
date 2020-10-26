@@ -58,7 +58,7 @@ pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
 ///
 /// ```
 /// use std::io::{Read, Cursor};
-/// use bitstream_io::{BigEndian, BitReader};
+/// use bitstream_io::{BigEndian, BitReader, HuffmanRead};
 /// use bitstream_io::huffman::compile_read_tree;
 /// let tree = compile_read_tree(
 ///     vec![('a', vec![0]),
