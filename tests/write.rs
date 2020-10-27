@@ -150,7 +150,7 @@ fn test_write_queue_edge_le() {
 
 #[test]
 fn test_writer_be() {
-    use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    use bitstream_io::{BigEndian, BitWrite, BitWriter};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
@@ -270,7 +270,7 @@ fn test_writer_be() {
 
 #[test]
 fn test_writer_edge_cases_be() {
-    use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    use bitstream_io::{BigEndian, BitWrite, BitWriter};
 
     let final_data: Vec<u8> = vec![
         0, 0, 0, 0, 255, 255, 255, 255, 128, 0, 0, 0, 127, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -386,7 +386,7 @@ fn test_writer_edge_cases_be() {
 #[test]
 fn test_writer_huffman_be() {
     use bitstream_io::huffman::compile_write_tree;
-    use bitstream_io::{BigEndian, BitWriter, HuffmanWrite, BitWrite};
+    use bitstream_io::{BigEndian, BitWrite, BitWriter, HuffmanWrite};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let tree = compile_write_tree(vec![
@@ -419,7 +419,7 @@ fn test_writer_huffman_be() {
 
 #[test]
 fn test_writer_le() {
-    use bitstream_io::{BitWriter, LittleEndian, BitWrite};
+    use bitstream_io::{BitWrite, BitWriter, LittleEndian};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
@@ -539,7 +539,7 @@ fn test_writer_le() {
 
 #[test]
 fn test_writer_edge_cases_le() {
-    use bitstream_io::{BitWriter, LittleEndian, BitWrite};
+    use bitstream_io::{BitWrite, BitWriter, LittleEndian};
 
     let final_data: Vec<u8> = vec![
         0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 128, 255, 255, 255, 127, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -655,7 +655,7 @@ fn test_writer_edge_cases_le() {
 #[test]
 fn test_writer_huffman_le() {
     use bitstream_io::huffman::compile_write_tree;
-    use bitstream_io::{BitWriter, LittleEndian, HuffmanWrite, BitWrite};
+    use bitstream_io::{BitWrite, BitWriter, HuffmanWrite, LittleEndian};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let tree = compile_write_tree(vec![
@@ -713,7 +713,7 @@ impl std::io::Write for LimitedWriter {
 
 #[test]
 fn test_writer_io_errors_be() {
-    use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    use bitstream_io::{BigEndian, BitWrite, BitWriter};
     use std::io::ErrorKind;
 
     /*individual bits*/
@@ -803,7 +803,7 @@ fn test_writer_io_errors_be() {
 
 #[test]
 fn test_writer_io_errors_le() {
-    use bitstream_io::{BitWriter, LittleEndian, BitWrite};
+    use bitstream_io::{BitWrite, BitWriter, LittleEndian};
     use std::io::ErrorKind;
 
     /*individual bits*/
@@ -893,7 +893,7 @@ fn test_writer_io_errors_le() {
 
 #[test]
 fn test_writer_bits_errors() {
-    use bitstream_io::{BigEndian, BitWriter, LittleEndian, BitWrite};
+    use bitstream_io::{BigEndian, BitWrite, BitWriter, LittleEndian};
     use std::io::{sink, ErrorKind};
 
     let mut w = BitWriter::endian(sink(), BigEndian);
@@ -1043,4 +1043,303 @@ fn test_writer_bits_errors() {
         w.write_signed(65, 0i64).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
+}
+
+#[test]
+fn test_counter_be() {
+    use bitstream_io::write::BitCounter;
+    use bitstream_io::{BigEndian, BitWrite};
+
+    /*writing individual bits*/
+    let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
+    w.write_bit(true).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(true).unwrap();
+    assert_eq!(w.written(), 16);
+
+    /*writing unsigned values*/
+    let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
+    assert!(w.byte_aligned());
+    w.write(2, 2u32).unwrap();
+    assert!(!w.byte_aligned());
+    w.write(3, 6u32).unwrap();
+    assert!(!w.byte_aligned());
+    w.write(5, 7u32).unwrap();
+    assert!(!w.byte_aligned());
+    w.write(3, 5u32).unwrap();
+    assert!(!w.byte_aligned());
+    w.write(19, 0x53BC1u32).unwrap();
+    assert!(w.byte_aligned());
+    assert_eq!(w.written(), 32);
+
+    /*writing signed values*/
+    let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
+    w.write_signed(2, -2).unwrap();
+    w.write_signed(3, -2).unwrap();
+    w.write_signed(5, 7).unwrap();
+    w.write_signed(3, -3).unwrap();
+    w.write_signed(19, -181311).unwrap();
+    assert_eq!(w.written(), 32);
+
+    /*writing unary 0 values*/
+    let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
+    w.write_unary0(1).unwrap();
+    w.write_unary0(2).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(4).unwrap();
+    w.write_unary0(2).unwrap();
+    w.write_unary0(1).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(3).unwrap();
+    w.write_unary0(4).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write(1, 1u32).unwrap();
+    assert_eq!(w.written(), 32);
+
+    /*writing unary 1 values*/
+    let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(1).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(3).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(1).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(1).unwrap();
+    w.write_unary1(2).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(1).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(5).unwrap();
+    assert_eq!(w.written(), 32);
+
+    /*byte aligning*/
+    let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
+    w.write(3, 5u32).unwrap();
+    w.byte_align().unwrap();
+    w.write(3, 7u32).unwrap();
+    w.byte_align().unwrap();
+    w.byte_align().unwrap();
+    w.write(8, 59u32).unwrap();
+    w.byte_align().unwrap();
+    w.write(4, 12u32).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.written(), 32);
+
+    /*writing bytes, aligned*/
+    let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
+    w.write_bytes(b"\xB1\xED").unwrap();
+    assert_eq!(w.written(), 16);
+
+    /*writing bytes, un-aligned*/
+    let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
+    w.write(4, 11u32).unwrap();
+    w.write_bytes(b"\xB1\xED").unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.written(), 24);
+}
+
+#[test]
+fn test_counter_huffman_be() {
+    use bitstream_io::huffman::compile_write_tree;
+    use bitstream_io::write::BitCounter;
+    use bitstream_io::{BigEndian, BitWrite, HuffmanWrite};
+
+    let tree = compile_write_tree(vec![
+        (0, vec![1, 1]),
+        (1, vec![1, 0]),
+        (2, vec![0, 1]),
+        (3, vec![0, 0, 1]),
+        (4, vec![0, 0, 0]),
+    ])
+    .unwrap();
+    let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
+    w.write_huffman(&tree, 1).unwrap();
+    w.write_huffman(&tree, 0).unwrap();
+    w.write_huffman(&tree, 4).unwrap();
+    w.write_huffman(&tree, 0).unwrap();
+    w.write_huffman(&tree, 0).unwrap();
+    w.write_huffman(&tree, 2).unwrap();
+    w.write_huffman(&tree, 1).unwrap();
+    w.write_huffman(&tree, 1).unwrap();
+    w.write_huffman(&tree, 2).unwrap();
+    w.write_huffman(&tree, 0).unwrap();
+    w.write_huffman(&tree, 2).unwrap();
+    w.write_huffman(&tree, 0).unwrap();
+    w.write_huffman(&tree, 1).unwrap();
+    w.write_huffman(&tree, 4).unwrap();
+    w.write_huffman(&tree, 2).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.written(), 32);
+}
+
+#[test]
+fn test_counter_le() {
+    use bitstream_io::write::BitCounter;
+    use bitstream_io::{BitWrite, LittleEndian};
+
+    /*writing individual bits*/
+    let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
+    w.write_bit(true).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(false).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    w.write_bit(true).unwrap();
+    assert_eq!(w.written(), 16);
+
+    /*writing unsigned values*/
+    let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
+    assert!(w.byte_aligned());
+    w.write(2, 1u32).unwrap();
+    assert!(!w.byte_aligned());
+    w.write(3, 4u32).unwrap();
+    assert!(!w.byte_aligned());
+    w.write(5, 13u32).unwrap();
+    assert!(!w.byte_aligned());
+    w.write(3, 3u32).unwrap();
+    assert!(!w.byte_aligned());
+    w.write(19, 0x609DFu32).unwrap();
+    assert!(w.byte_aligned());
+    assert_eq!(w.written(), 32);
+
+    /*writing signed values*/
+    let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
+    w.write_signed(2, 1).unwrap();
+    w.write_signed(3, -4).unwrap();
+    w.write_signed(5, 13).unwrap();
+    w.write_signed(3, 3).unwrap();
+    w.write_signed(19, -128545).unwrap();
+    assert_eq!(w.written(), 32);
+
+    /*writing unary 0 values*/
+    let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
+    w.write_unary0(1).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(2).unwrap();
+    w.write_unary0(2).unwrap();
+    w.write_unary0(2).unwrap();
+    w.write_unary0(5).unwrap();
+    w.write_unary0(3).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(1).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write_unary0(0).unwrap();
+    w.write(2, 3u32).unwrap();
+    assert_eq!(w.written(), 32);
+
+    /*writing unary 1 values*/
+    let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(3).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(1).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(1).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(1).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(1).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(0).unwrap();
+    w.write_unary1(2).unwrap();
+    w.write_unary1(5).unwrap();
+    w.write_unary1(0).unwrap();
+    assert_eq!(w.written(), 32);
+
+    /*byte aligning*/
+    let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
+    w.write(3, 5u32).unwrap();
+    w.byte_align().unwrap();
+    w.write(3, 7u32).unwrap();
+    w.byte_align().unwrap();
+    w.byte_align().unwrap();
+    w.write(8, 59u32).unwrap();
+    w.byte_align().unwrap();
+    w.write(4, 12u32).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.written(), 32);
+
+    /*writing bytes, aligned*/
+    let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
+    w.write_bytes(b"\xB1\xED").unwrap();
+    assert_eq!(w.written(), 16);
+
+    /*writing bytes, un-aligned*/
+    let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
+    w.write(4, 11u32).unwrap();
+    w.write_bytes(b"\xB1\xED").unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.written(), 24);
+}
+
+#[test]
+fn test_counter_huffman_le() {
+    use bitstream_io::huffman::compile_write_tree;
+    use bitstream_io::write::BitCounter;
+    use bitstream_io::{BitWrite, HuffmanWrite, LittleEndian};
+
+    let tree = compile_write_tree(vec![
+        (0, vec![1, 1]),
+        (1, vec![1, 0]),
+        (2, vec![0, 1]),
+        (3, vec![0, 0, 1]),
+        (4, vec![0, 0, 0]),
+    ])
+    .unwrap();
+    let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
+    w.write_huffman(&tree, 1).unwrap();
+    w.write_huffman(&tree, 3).unwrap();
+    w.write_huffman(&tree, 1).unwrap();
+    w.write_huffman(&tree, 0).unwrap();
+    w.write_huffman(&tree, 2).unwrap();
+    w.write_huffman(&tree, 1).unwrap();
+    w.write_huffman(&tree, 0).unwrap();
+    w.write_huffman(&tree, 0).unwrap();
+    w.write_huffman(&tree, 1).unwrap();
+    w.write_huffman(&tree, 0).unwrap();
+    w.write_huffman(&tree, 1).unwrap();
+    w.write_huffman(&tree, 2).unwrap();
+    w.write_huffman(&tree, 4).unwrap();
+    w.write_huffman(&tree, 3).unwrap();
+    w.write(1, 1).unwrap();
+    assert_eq!(w.written(), 32);
 }

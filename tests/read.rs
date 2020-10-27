@@ -59,7 +59,7 @@ fn test_read_queue_le() {
 
 #[test]
 fn test_reader_be() {
-    use bitstream_io::{BigEndian, BitReader, BitRead};
+    use bitstream_io::{BigEndian, BitRead, BitReader};
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
@@ -156,7 +156,7 @@ fn test_reader_be() {
 
 #[test]
 fn test_edge_cases_be() {
-    use bitstream_io::{BigEndian, BitReader, BitRead};
+    use bitstream_io::{BigEndian, BitRead, BitReader};
 
     let data: Vec<u8> = vec![
         0, 0, 0, 0, 255, 255, 255, 255, 128, 0, 0, 0, 127, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -231,7 +231,7 @@ fn test_reader_huffman_be() {
 
 #[test]
 fn test_reader_le() {
-    use bitstream_io::{BitReader, LittleEndian, BitRead};
+    use bitstream_io::{BitRead, BitReader, LittleEndian};
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
@@ -328,7 +328,7 @@ fn test_reader_le() {
 
 #[test]
 fn test_edge_cases_le() {
-    use bitstream_io::{BitReader, LittleEndian, BitRead};
+    use bitstream_io::{BitRead, BitReader, LittleEndian};
 
     let data: Vec<u8> = vec![
         0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 128, 255, 255, 255, 127, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -369,7 +369,7 @@ fn test_edge_cases_le() {
 #[test]
 fn test_reader_huffman_le() {
     use bitstream_io::huffman::compile_read_tree;
-    use bitstream_io::{BitReader, LittleEndian, HuffmanRead};
+    use bitstream_io::{BitReader, HuffmanRead, LittleEndian};
 
     let tree = compile_read_tree(vec![
         (0, vec![1, 1]),
@@ -401,7 +401,7 @@ fn test_reader_huffman_le() {
 
 #[test]
 fn test_reader_io_errors_be() {
-    use bitstream_io::{BigEndian, BitReader, BitRead};
+    use bitstream_io::{BigEndian, BitRead, BitReader};
     use std::io::ErrorKind;
 
     let actual_data: [u8; 1] = [0xB1];
@@ -474,7 +474,7 @@ fn test_reader_io_errors_be() {
 
 #[test]
 fn test_reader_io_errors_le() {
-    use bitstream_io::{BitReader, LittleEndian, BitRead};
+    use bitstream_io::{BitRead, BitReader, LittleEndian};
     use std::io::ErrorKind;
 
     let actual_data: [u8; 1] = [0xB1];
@@ -547,7 +547,7 @@ fn test_reader_io_errors_le() {
 
 #[test]
 fn test_reader_bits_errors() {
-    use bitstream_io::{BigEndian, BitReader, BitRead, LittleEndian};
+    use bitstream_io::{BigEndian, BitRead, BitReader, LittleEndian};
     use std::io::ErrorKind;
     let actual_data = [0u8; 10];
 

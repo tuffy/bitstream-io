@@ -71,7 +71,10 @@
 
 #![warn(missing_docs)]
 
+use std::cmp::Ordering;
+use std::convert::From;
 use std::io;
+use std::ops::{AddAssign, Rem};
 
 use super::{huffman::WriteHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, SignedNumeric};
 
@@ -561,6 +564,134 @@ impl<W: io::Write, E: Endianness> HuffmanWrite<E> for BitWriter<W, E> {
             self.write(bits, value)?;
         }
         Ok(())
+    }
+}
+
+/// For counting the number of bits written but generating no output.
+///
+/// # Example
+/// ```
+/// use bitstream_io::{BigEndian, BitWrite};
+/// use bitstream_io::write::BitCounter;
+/// let mut writer: BitCounter<u32, BigEndian> = BitCounter::new();
+/// writer.write(1, 0b1).unwrap();
+/// writer.write(2, 0b01).unwrap();
+/// writer.write(5, 0b10111).unwrap();
+/// assert_eq!(writer.written(), 8);
+/// ```
+pub struct BitCounter<N, E: Endianness> {
+    bits: N,
+    phantom: PhantomData<E>,
+}
+
+impl<N: Default + Copy, E: Endianness> BitCounter<N, E> {
+    /// Creates new counter
+    #[inline]
+    pub fn new() -> Self {
+        BitCounter {
+            bits: N::default(),
+            phantom: PhantomData,
+        }
+    }
+
+    /// Creates new counter with the given endiannness
+    #[inline]
+    pub fn endian(_endian: E) -> Self {
+        BitCounter {
+            bits: N::default(),
+            phantom: PhantomData,
+        }
+    }
+
+    /// Returns number of bits written
+    #[inline]
+    pub fn written(&self) -> N {
+        self.bits
+    }
+}
+
+impl<N, E> BitWrite for BitCounter<N, E>
+where
+    E: Endianness,
+    N: Copy + AddAssign + From<u32> + Rem<Output = N> + PartialEq,
+{
+    #[inline]
+    fn write_bit(&mut self, _bit: bool) -> io::Result<()> {
+        self.bits += 1.into();
+        Ok(())
+    }
+
+    fn write<U>(&mut self, bits: u32, value: U) -> io::Result<()>
+    where
+        U: Numeric,
+    {
+        if bits > U::bits_size() {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
+        } else if (bits < U::bits_size()) && (value >= (U::one() << bits)) {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            ))
+        } else {
+            self.bits += bits.into();
+            Ok(())
+        }
+    }
+
+    #[inline]
+    fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
+    where
+        S: SignedNumeric,
+    {
+        E::write_signed(self, bits, value)
+    }
+
+    #[inline]
+    fn byte_aligned(&self) -> bool {
+        self.bits % 8.into() == 0.into()
+    }
+}
+
+impl<N, E> HuffmanWrite<E> for BitCounter<N, E>
+where
+    E: Endianness,
+    N: AddAssign + From<u32>,
+{
+    fn write_huffman<T>(&mut self, tree: &WriteHuffmanTree<E, T>, symbol: T) -> io::Result<()>
+    where
+        T: Ord + Copy,
+    {
+        for &(bits, _) in tree.get(&symbol) {
+            let bits: N = bits.into();
+            self.bits += bits;
+        }
+        Ok(())
+    }
+}
+
+impl<N: Eq, E: Endianness> Eq for BitCounter<N, E> {}
+
+impl<N: PartialEq, E: Endianness> PartialEq for BitCounter<N, E> {
+    #[inline]
+    fn eq(&self, other: &BitCounter<N, E>) -> bool {
+        self.bits == other.bits
+    }
+}
+
+impl<N: PartialEq + PartialOrd, E: Endianness> PartialOrd for BitCounter<N, E> {
+    #[inline]
+    fn partial_cmp(&self, other: &BitCounter<N, E>) -> Option<Ordering> {
+        self.bits.partial_cmp(&other.bits)
+    }
+}
+
+impl<N: Eq + Ord, E: Endianness> Ord for BitCounter<N, E> {
+    #[inline]
+    fn cmp(&self, other: &BitCounter<N, E>) -> Ordering {
+        self.bits.cmp(&other.bits)
     }
 }
 

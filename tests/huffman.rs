@@ -104,7 +104,7 @@ fn test_huffman_values() {
 #[test]
 fn test_lengthy_huffman_values() {
     use bitstream_io::huffman::{compile_read_tree, compile_write_tree};
-    use bitstream_io::{BitReader, BitWriter, BE, LE, HuffmanRead, HuffmanWrite, BitWrite};
+    use bitstream_io::{BitReader, BitWrite, BitWriter, HuffmanRead, HuffmanWrite, BE, LE};
     use std::io::Cursor;
 
     let max_bits = 70;

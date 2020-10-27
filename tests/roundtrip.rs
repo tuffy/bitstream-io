@@ -7,7 +7,7 @@
 // except according to those terms.
 
 extern crate bitstream_io;
-use bitstream_io::{BigEndian, BitReader, BitWriter, LittleEndian, BitRead, BitWrite};
+use bitstream_io::{BigEndian, BitRead, BitReader, BitWrite, BitWriter, LittleEndian};
 use std::io::Cursor;
 
 macro_rules! define_roundtrip {
