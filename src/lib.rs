@@ -41,7 +41,7 @@ pub mod huffman;
 pub mod read;
 pub mod write;
 pub use read::{BitReader, ByteReader, BitRead, HuffmanRead};
-pub use write::{BitWriter, ByteWriter};
+pub use write::{BitWriter, ByteWriter, BitWrite, HuffmanWrite};
 
 /// This trait extends many common integer types (both unsigned and signed)
 /// with a few trivial methods so that they can be used
@@ -263,9 +263,9 @@ pub trait Endianness: Sized {
         S: SignedNumeric;
 
     /// Writes signed value to writer in this endianness
-    fn write_signed<W, S>(w: &mut BitWriter<W, Self>, bits: u32, value: S) -> io::Result<()>
+    fn write_signed<W, S>(w: &mut W, bits: u32, value: S) -> io::Result<()>
     where
-        W: io::Write,
+        W: BitWrite,
         S: SignedNumeric;
 
     /// Reads entire numeric value from reader in this endianness
@@ -376,9 +376,9 @@ impl Endianness for BigEndian {
         }
     }
 
-    fn write_signed<W, S>(w: &mut BitWriter<W, Self>, bits: u32, value: S) -> io::Result<()>
+    fn write_signed<W, S>(w: &mut W, bits: u32, value: S) -> io::Result<()>
     where
-        W: io::Write,
+        W: BitWrite,
         S: SignedNumeric,
     {
         if bits > S::bits_size() {
@@ -505,9 +505,9 @@ impl Endianness for LittleEndian {
         }
     }
 
-    fn write_signed<W, S>(w: &mut BitWriter<W, Self>, bits: u32, value: S) -> io::Result<()>
+    fn write_signed<W, S>(w: &mut W, bits: u32, value: S) -> io::Result<()>
     where
-        W: io::Write,
+        W: BitWrite,
         S: SignedNumeric,
     {
         if bits > S::bits_size() {

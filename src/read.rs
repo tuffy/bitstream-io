@@ -152,7 +152,7 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     fn read_unary0(&mut self) -> io::Result<u32> {
         let mut unary = 0;
-        while self.read_bit()? == true {
+        while self.read_bit()? {
             unary += 1;
         }
         Ok(unary)
@@ -168,7 +168,7 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     fn read_unary1(&mut self) -> io::Result<u32> {
         let mut unary = 0;
-        while self.read_bit()? == false {
+        while !(self.read_bit()?) {
             unary += 1;
         }
         Ok(unary)

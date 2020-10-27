@@ -258,7 +258,7 @@ impl fmt::Display for HuffmanTreeError {
 ///
 /// ```
 /// use std::io::Write;
-/// use bitstream_io::{BigEndian, BitWriter};
+/// use bitstream_io::{BigEndian, BitWriter, HuffmanWrite};
 /// use bitstream_io::huffman::compile_write_tree;
 /// let tree = compile_write_tree(
 ///     vec![('a', vec![0]),
