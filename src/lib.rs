@@ -104,6 +104,9 @@ pub trait Numeric:
 
     /// Convert little-endian bytes to out value
     fn from_le_bytes(bytes: Self::Bytes) -> Self;
+
+    /// Convert to a generic unsigned write value for stream recording purposes
+    fn unsigned_value(self) -> write::UnsignedValue;
 }
 
 macro_rules! define_numeric {
@@ -163,6 +166,10 @@ macro_rules! define_numeric {
             fn from_le_bytes(bytes: Self::Bytes) -> Self {
                 <$t>::from_le_bytes(bytes)
             }
+            #[inline(always)]
+            fn unsigned_value(self) -> write::UnsignedValue {
+                self.into()
+            }
         }
     };
 }
@@ -180,6 +187,9 @@ pub trait SignedNumeric: Numeric {
     /// Given a negative value and a certain number of bits,
     /// returns this value as a twos-complement positive number.
     fn as_unsigned(self, bits: u32) -> Self;
+
+    /// Converts to a generic signed value for stream recording purposes.
+    fn signed_value(self) -> write::SignedValue;
 }
 
 macro_rules! define_signed_numeric {
@@ -196,6 +206,10 @@ macro_rules! define_signed_numeric {
             #[inline(always)]
             fn as_unsigned(self, bits: u32) -> Self {
                 self - (-1 << (bits - 1))
+            }
+            #[inline(always)]
+            fn signed_value(self) -> write::SignedValue {
+                self.into()
             }
         }
     };

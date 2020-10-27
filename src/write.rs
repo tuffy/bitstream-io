@@ -556,14 +556,14 @@ impl<W: io::Write, E: Endianness> HuffmanWrite<E> for BitWriter<W, E> {
     /// writer.write_huffman(&tree, 'd').unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
+    #[inline]
     fn write_huffman<T>(&mut self, tree: &WriteHuffmanTree<E, T>, symbol: T) -> io::Result<()>
     where
         T: Ord + Copy,
     {
-        for &(bits, value) in tree.get(&symbol) {
-            self.write(bits, value)?;
-        }
-        Ok(())
+        tree.get(&symbol)
+            .iter()
+            .try_for_each(|(bits, value)| self.write(*bits, *value))
     }
 }
 
@@ -650,6 +650,12 @@ where
     }
 
     #[inline]
+    fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.bits += (buf.len() as u32 * 8).into();
+        Ok(())
+    }
+
+    #[inline]
     fn byte_aligned(&self) -> bool {
         self.bits % 8.into() == 0.into()
     }
@@ -691,6 +697,261 @@ impl<N: PartialEq + PartialOrd, E: Endianness> PartialOrd for BitCounter<N, E> {
 impl<N: Eq + Ord, E: Endianness> Ord for BitCounter<N, E> {
     #[inline]
     fn cmp(&self, other: &BitCounter<N, E>) -> Ordering {
+        self.bits.cmp(&other.bits)
+    }
+}
+
+/// A generic unsigned value for stream recording purposes
+pub struct UnsignedValue(InnerUnsignedValue);
+
+enum InnerUnsignedValue {
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    U128(u128),
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    I128(i128),
+}
+
+macro_rules! define_unsigned_value {
+    ($t:ty, $n:ident) => {
+        impl From<$t> for UnsignedValue {
+            #[inline]
+            fn from(v: $t) -> Self {
+                UnsignedValue(InnerUnsignedValue::$n(v))
+            }
+        }
+    };
+}
+define_unsigned_value!(u8, U8);
+define_unsigned_value!(u16, U16);
+define_unsigned_value!(u32, U32);
+define_unsigned_value!(u64, U64);
+define_unsigned_value!(u128, U128);
+define_unsigned_value!(i8, I8);
+define_unsigned_value!(i16, I16);
+define_unsigned_value!(i32, I32);
+define_unsigned_value!(i64, I64);
+define_unsigned_value!(i128, I128);
+
+/// A generic signed value for stream recording purposes
+pub struct SignedValue(InnerSignedValue);
+
+enum InnerSignedValue {
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    I128(i128),
+}
+
+macro_rules! define_signed_value {
+    ($t:ty, $n:ident) => {
+        impl From<$t> for SignedValue {
+            #[inline]
+            fn from(v: $t) -> Self {
+                SignedValue(InnerSignedValue::$n(v))
+            }
+        }
+    };
+}
+define_signed_value!(i8, I8);
+define_signed_value!(i16, I16);
+define_signed_value!(i32, I32);
+define_signed_value!(i64, I64);
+define_signed_value!(i128, I128);
+
+enum WriteRecord {
+    Bit(bool),
+    Unsigned { bits: u32, value: UnsignedValue },
+    Signed { bits: u32, value: SignedValue },
+    Bytes(Box<[u8]>),
+}
+
+impl WriteRecord {
+    fn playback<W: BitWrite>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            WriteRecord::Bit(v) => writer.write_bit(*v),
+            WriteRecord::Unsigned {
+                bits,
+                value: UnsignedValue(value),
+            } => match value {
+                InnerUnsignedValue::U8(v) => writer.write(*bits, *v),
+                InnerUnsignedValue::U16(v) => writer.write(*bits, *v),
+                InnerUnsignedValue::U32(v) => writer.write(*bits, *v),
+                InnerUnsignedValue::U64(v) => writer.write(*bits, *v),
+                InnerUnsignedValue::U128(v) => writer.write(*bits, *v),
+                InnerUnsignedValue::I8(v) => writer.write(*bits, *v),
+                InnerUnsignedValue::I16(v) => writer.write(*bits, *v),
+                InnerUnsignedValue::I32(v) => writer.write(*bits, *v),
+                InnerUnsignedValue::I64(v) => writer.write(*bits, *v),
+                InnerUnsignedValue::I128(v) => writer.write(*bits, *v),
+            },
+            WriteRecord::Signed {
+                bits,
+                value: SignedValue(value),
+            } => match value {
+                InnerSignedValue::I8(v) => writer.write_signed(*bits, *v),
+                InnerSignedValue::I16(v) => writer.write_signed(*bits, *v),
+                InnerSignedValue::I32(v) => writer.write_signed(*bits, *v),
+                InnerSignedValue::I64(v) => writer.write_signed(*bits, *v),
+                InnerSignedValue::I128(v) => writer.write_signed(*bits, *v),
+            },
+            WriteRecord::Bytes(bytes) => writer.write_bytes(bytes),
+        }
+    }
+}
+
+/// For recording writes in order to play them back on another writer
+/// # Example
+/// ```
+/// use std::io::Write;
+/// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+/// use bitstream_io::write::BitRecorder;
+/// let mut recorder: BitRecorder<u32, BigEndian> = BitRecorder::new();
+/// recorder.write(1, 0b1).unwrap();
+/// recorder.write(2, 0b01).unwrap();
+/// recorder.write(5, 0b10111).unwrap();
+/// assert_eq!(recorder.written(), 8);
+/// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+/// recorder.playback(&mut writer);
+/// assert_eq!(writer.into_writer(), [0b10110111]);
+/// ```
+pub struct BitRecorder<N, E: Endianness> {
+    bits: N,
+    records: Vec<WriteRecord>,
+    phantom: PhantomData<E>,
+}
+
+impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
+    /// Creates new recorder
+    #[inline]
+    pub fn new() -> Self {
+        BitRecorder {
+            bits: N::default(),
+            records: Vec::new(),
+            phantom: PhantomData,
+        }
+    }
+
+    /// Creates new recorder with the given endiannness
+    #[inline]
+    pub fn endian(_endian: E) -> Self {
+        BitRecorder {
+            bits: N::default(),
+            records: Vec::new(),
+            phantom: PhantomData,
+        }
+    }
+
+    /// Returns number of bits written
+    #[inline]
+    pub fn written(&self) -> N {
+        self.bits
+    }
+
+    /// Plays recorded writes to the given writer
+    #[inline]
+    pub fn playback<W: BitWrite>(&self, writer: &mut W) -> io::Result<()> {
+        self.records
+            .iter()
+            .try_for_each(|record| record.playback(writer))
+    }
+}
+
+impl<N, E> BitWrite for BitRecorder<N, E>
+where
+    E: Endianness,
+    N: Copy + From<u32> + AddAssign + Rem<Output = N> + Eq,
+{
+    fn write_bit(&mut self, bit: bool) -> io::Result<()> {
+        self.records.push(WriteRecord::Bit(bit));
+        self.bits += 1.into();
+        Ok(())
+    }
+
+    fn write<U>(&mut self, bits: u32, value: U) -> io::Result<()>
+    where
+        U: Numeric,
+    {
+        // since we're sanity-checking value at playback-time,
+        // it shouldn't be necessary to check at record-time
+        self.records.push(WriteRecord::Unsigned {
+            bits,
+            value: value.unsigned_value(),
+        });
+        self.bits += bits.into();
+        Ok(())
+    }
+
+    fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
+    where
+        S: SignedNumeric,
+    {
+        // since we're sanity-checking value at playback-time,
+        // it shouldn't be necessary to check at record-time
+        self.records.push(WriteRecord::Signed {
+            bits,
+            value: value.signed_value(),
+        });
+        self.bits += bits.into();
+        Ok(())
+    }
+
+    #[inline]
+    fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.records.push(WriteRecord::Bytes(buf.into()));
+        // this presumes buf size is relatively small
+        // and won't be bumping into the 32-bit limit
+        self.bits += (buf.len() as u32 * 8).into();
+        Ok(())
+    }
+
+    #[inline]
+    fn byte_aligned(&self) -> bool {
+        self.bits % 8.into() == 0.into()
+    }
+}
+
+impl<N, E> HuffmanWrite<E> for BitRecorder<N, E>
+where
+    E: Endianness,
+    N: Copy + From<u32> + AddAssign + Rem<Output = N> + Eq,
+{
+    #[inline]
+    fn write_huffman<T>(&mut self, tree: &WriteHuffmanTree<E, T>, symbol: T) -> io::Result<()>
+    where
+        T: Ord + Copy,
+    {
+        tree.get(&symbol)
+            .iter()
+            .try_for_each(|(bits, value)| self.write(*bits, *value))
+    }
+}
+
+impl<N: Eq, E: Endianness> Eq for BitRecorder<N, E> {}
+
+impl<N: PartialEq, E: Endianness> PartialEq for BitRecorder<N, E> {
+    #[inline]
+    fn eq(&self, other: &BitRecorder<N, E>) -> bool {
+        self.bits == other.bits
+    }
+}
+
+impl<N: PartialEq + PartialOrd, E: Endianness> PartialOrd for BitRecorder<N, E> {
+    #[inline]
+    fn partial_cmp(&self, other: &BitRecorder<N, E>) -> Option<Ordering> {
+        self.bits.partial_cmp(&other.bits)
+    }
+}
+
+impl<N: Eq + Ord, E: Endianness> Ord for BitRecorder<N, E> {
+    #[inline]
+    fn cmp(&self, other: &BitRecorder<N, E>) -> Ordering {
         self.bits.cmp(&other.bits)
     }
 }
