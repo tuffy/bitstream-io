@@ -135,7 +135,12 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()>;
+    fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        for b in buf.iter_mut() {
+            *b = self.read(8)?;
+        }
+        Ok(())
+    }
 
     /// Counts the number of 1 bits in the stream until the next
     /// 0 bit and returns the amount read.
@@ -145,7 +150,13 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn read_unary0(&mut self) -> io::Result<u32>;
+    fn read_unary0(&mut self) -> io::Result<u32> {
+        let mut unary = 0;
+        while self.read_bit()? == true {
+            unary += 1;
+        }
+        Ok(unary)
+    }
 
     /// Counts the number of 0 bits in the stream until the next
     /// 1 bit and returns the amount read.
@@ -155,7 +166,13 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn read_unary1(&mut self) -> io::Result<u32>;
+    fn read_unary1(&mut self) -> io::Result<u32> {
+        let mut unary = 0;
+        while self.read_bit()? == false {
+            unary += 1;
+        }
+        Ok(unary)
+    }
 
     /// Returns true if the stream is aligned at a whole byte.
     fn byte_aligned(&self) -> bool;
