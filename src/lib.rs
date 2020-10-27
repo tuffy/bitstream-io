@@ -257,9 +257,9 @@ pub trait Endianness: Sized {
         N: Numeric;
 
     /// Reads signed value from reader in this endianness
-    fn read_signed<R, S>(r: &mut BitReader<R, Self>, bits: u32) -> io::Result<S>
+    fn read_signed<R, S>(r: &mut R, bits: u32) -> io::Result<S>
     where
-        R: io::Read,
+        R: BitRead,
         S: SignedNumeric;
 
     /// Writes signed value to writer in this endianness
@@ -355,9 +355,9 @@ impl Endianness for BigEndian {
         }
     }
 
-    fn read_signed<R, S>(r: &mut BitReader<R, Self>, bits: u32) -> io::Result<S>
+    fn read_signed<R, S>(r: &mut R, bits: u32) -> io::Result<S>
     where
-        R: io::Read,
+        R: BitRead,
         S: SignedNumeric,
     {
         if bits <= S::bits_size() {
@@ -484,9 +484,9 @@ impl Endianness for LittleEndian {
         (queue.value ^ !N::default()).trailing_zeros()
     }
 
-    fn read_signed<R, S>(r: &mut BitReader<R, Self>, bits: u32) -> io::Result<S>
+    fn read_signed<R, S>(r: &mut R, bits: u32) -> io::Result<S>
     where
-        R: io::Read,
+        R: BitRead,
         S: SignedNumeric,
     {
         if bits <= S::bits_size() {
