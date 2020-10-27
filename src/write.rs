@@ -579,13 +579,12 @@ where
 {
     let to_write = (acc.len() / 8) as usize;
     if to_write > 0 {
-        // 128-bit types are the maximum supported
-        debug_assert!(to_write <= 16);
-        let mut buf = [0; 16];
-        for b in buf[0..to_write].iter_mut() {
+        let mut buf = N::buffer();
+        let buf_ref: &mut [u8] = buf.as_mut();
+        for b in buf_ref[0..to_write].iter_mut() {
             *b = acc.pop(8).to_u8();
         }
-        writer.write_all(&buf[0..to_write])
+        writer.write_all(&buf_ref[0..to_write])
     } else {
         Ok(())
     }
