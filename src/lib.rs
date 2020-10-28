@@ -28,6 +28,16 @@
 //! types of any possible size.
 //! Many of Rust's built-in integer types are supported by default.
 
+//! # Migrating From Pre 1.0.0
+//!
+//! There are now `BitRead` and `BitWrite` traits for bitstream
+//! reading and writing (analogous to the standard library's
+//! `Read` and `Write` traits) which you will also need to import.
+//! The upside to this approach is that library consumers
+//! can now make functions and methods generic over any sort
+//! of bit reader or bit writer, regardless of the underlying
+//! stream byte source or endianness.
+
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 

@@ -227,9 +227,6 @@ pub trait BitWrite {
         S: SignedNumeric;
 
     /// Writes the entirety of a byte buffer to the stream.
-    /// If the stream is already byte-aligned, it will
-    /// map to a faster `write_all` call.  Otherwise it will
-    /// write bytes individually in 8-bit increments.
     ///
     /// # Errors
     ///
