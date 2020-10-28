@@ -836,7 +836,7 @@ impl WriteRecord {
 /// assert_eq!(writer.into_writer(), [0b10110111]);
 /// ```
 pub struct BitRecorder<N, E: Endianness> {
-    bits: N,
+    counter: BitCounter<N, E>,
     records: Vec<WriteRecord>,
     phantom: PhantomData<E>,
 }
@@ -846,7 +846,7 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
     #[inline]
     pub fn new() -> Self {
         BitRecorder {
-            bits: N::default(),
+            counter: BitCounter::new(),
             records: Vec::new(),
             phantom: PhantomData,
         }
@@ -856,7 +856,7 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
     #[inline]
     pub fn endian(_endian: E) -> Self {
         BitRecorder {
-            bits: N::default(),
+            counter: BitCounter::new(),
             records: Vec::new(),
             phantom: PhantomData,
         }
@@ -865,7 +865,7 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
     /// Returns number of bits written
     #[inline]
     pub fn written(&self) -> N {
-        self.bits
+        self.counter.written()
     }
 
     /// Plays recorded writes to the given writer
@@ -884,8 +884,7 @@ where
 {
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
         self.records.push(WriteRecord::Bit(bit));
-        self.bits += 1.into();
-        Ok(())
+        self.counter.write_bit(bit)
     }
 
     fn write<U>(&mut self, bits: u32, value: U) -> io::Result<()>
@@ -898,8 +897,7 @@ where
             bits,
             value: value.unsigned_value(),
         });
-        self.bits += bits.into();
-        Ok(())
+        self.counter.write(bits, value)
     }
 
     fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
@@ -912,34 +910,28 @@ where
             bits,
             value: value.signed_value(),
         });
-        self.bits += bits.into();
-        Ok(())
+        self.counter.write_signed(bits, value)
     }
 
     fn write_unary0(&mut self, value: u32) -> io::Result<()> {
         self.records.push(WriteRecord::Unary0(value));
-        self.bits += (value + 1).into();
-        Ok(())
+        self.counter.write_unary0(value)
     }
 
     fn write_unary1(&mut self, value: u32) -> io::Result<()> {
         self.records.push(WriteRecord::Unary1(value));
-        self.bits += (value + 1).into();
-        Ok(())
+        self.counter.write_unary1(value)
     }
 
     #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         self.records.push(WriteRecord::Bytes(buf.into()));
-        // this presumes buf size is relatively small
-        // and won't be bumping into the 32-bit limit
-        self.bits += (buf.len() as u32 * 8).into();
-        Ok(())
+        self.counter.write_bytes(buf)
     }
 
     #[inline]
     fn byte_aligned(&self) -> bool {
-        self.bits % 8.into() == 0.into()
+        self.counter.byte_aligned()
     }
 }
 
@@ -964,21 +956,21 @@ impl<N: Eq, E: Endianness> Eq for BitRecorder<N, E> {}
 impl<N: PartialEq, E: Endianness> PartialEq for BitRecorder<N, E> {
     #[inline]
     fn eq(&self, other: &BitRecorder<N, E>) -> bool {
-        self.bits == other.bits
+        self.counter == other.counter
     }
 }
 
 impl<N: PartialEq + PartialOrd, E: Endianness> PartialOrd for BitRecorder<N, E> {
     #[inline]
     fn partial_cmp(&self, other: &BitRecorder<N, E>) -> Option<Ordering> {
-        self.bits.partial_cmp(&other.bits)
+        self.counter.partial_cmp(&other.counter)
     }
 }
 
 impl<N: Eq + Ord, E: Endianness> Ord for BitRecorder<N, E> {
     #[inline]
     fn cmp(&self, other: &BitRecorder<N, E>) -> Ordering {
-        self.bits.cmp(&other.bits)
+        self.counter.cmp(&other.counter)
     }
 }
 
