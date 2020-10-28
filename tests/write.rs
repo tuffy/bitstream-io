@@ -1047,8 +1047,7 @@ fn test_writer_bits_errors() {
 
 #[test]
 fn test_counter_be() {
-    use bitstream_io::write::BitCounter;
-    use bitstream_io::{BigEndian, BitWrite};
+    use bitstream_io::{BigEndian, BitWrite, BitCounter};
 
     /*writing individual bits*/
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
@@ -1164,8 +1163,7 @@ fn test_counter_be() {
 #[test]
 fn test_counter_huffman_be() {
     use bitstream_io::huffman::compile_write_tree;
-    use bitstream_io::write::BitCounter;
-    use bitstream_io::{BigEndian, BitWrite, HuffmanWrite};
+    use bitstream_io::{BigEndian, BitWrite, HuffmanWrite, BitCounter};
 
     let tree = compile_write_tree(vec![
         (0, vec![1, 1]),
@@ -1197,8 +1195,7 @@ fn test_counter_huffman_be() {
 
 #[test]
 fn test_counter_le() {
-    use bitstream_io::write::BitCounter;
-    use bitstream_io::{BitWrite, LittleEndian};
+    use bitstream_io::{BitWrite, LittleEndian, BitCounter};
 
     /*writing individual bits*/
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
@@ -1314,8 +1311,7 @@ fn test_counter_le() {
 #[test]
 fn test_counter_huffman_le() {
     use bitstream_io::huffman::compile_write_tree;
-    use bitstream_io::write::BitCounter;
-    use bitstream_io::{BitWrite, HuffmanWrite, LittleEndian};
+    use bitstream_io::{BitWrite, HuffmanWrite, LittleEndian, BitCounter};
 
     let tree = compile_write_tree(vec![
         (0, vec![1, 1]),
@@ -1346,8 +1342,7 @@ fn test_counter_huffman_le() {
 
 #[test]
 fn test_recorder_be() {
-    use bitstream_io::write::BitRecorder;
-    use bitstream_io::{BigEndian, BitWrite, BitWriter};
+    use bitstream_io::{BigEndian, BitWrite, BitWriter, BitRecorder};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
@@ -1491,8 +1486,7 @@ fn test_recorder_be() {
 #[test]
 fn test_recorder_huffman_be() {
     use bitstream_io::huffman::compile_write_tree;
-    use bitstream_io::write::BitRecorder;
-    use bitstream_io::{BigEndian, BitWrite, BitWriter, HuffmanWrite};
+    use bitstream_io::{BigEndian, BitWrite, BitWriter, HuffmanWrite, BitRecorder};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let tree = compile_write_tree(vec![
@@ -1527,8 +1521,7 @@ fn test_recorder_huffman_be() {
 
 #[test]
 fn test_recorder_le() {
-    use bitstream_io::write::BitRecorder;
-    use bitstream_io::{BitWrite, BitWriter, LittleEndian};
+    use bitstream_io::{BitWrite, BitWriter, LittleEndian, BitRecorder};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
@@ -1673,8 +1666,7 @@ fn test_recorder_le() {
 #[test]
 fn test_recorder_huffman_le() {
     use bitstream_io::huffman::compile_write_tree;
-    use bitstream_io::write::BitRecorder;
-    use bitstream_io::{BitWrite, BitWriter, HuffmanWrite, LittleEndian};
+    use bitstream_io::{BitWrite, BitWriter, HuffmanWrite, LittleEndian, BitRecorder};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let tree = compile_write_tree(vec![

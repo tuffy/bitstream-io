@@ -71,7 +71,6 @@
 
 #![warn(missing_docs)]
 
-use std::cmp::Ordering;
 use std::convert::From;
 use std::io;
 use std::ops::{AddAssign, Rem};
@@ -567,8 +566,7 @@ impl<W: io::Write, E: Endianness> HuffmanWrite<E> for BitWriter<W, E> {
 ///
 /// # Example
 /// ```
-/// use bitstream_io::{BigEndian, BitWrite};
-/// use bitstream_io::write::BitCounter;
+/// use bitstream_io::{BigEndian, BitWrite, BitCounter};
 /// let mut writer: BitCounter<u32, BigEndian> = BitCounter::new();
 /// writer.write(1, 0b1).unwrap();
 /// writer.write(2, 0b01).unwrap();
@@ -687,29 +685,6 @@ where
     }
 }
 
-impl<N: Eq, E: Endianness> Eq for BitCounter<N, E> {}
-
-impl<N: PartialEq, E: Endianness> PartialEq for BitCounter<N, E> {
-    #[inline]
-    fn eq(&self, other: &BitCounter<N, E>) -> bool {
-        self.bits == other.bits
-    }
-}
-
-impl<N: PartialEq + PartialOrd, E: Endianness> PartialOrd for BitCounter<N, E> {
-    #[inline]
-    fn partial_cmp(&self, other: &BitCounter<N, E>) -> Option<Ordering> {
-        self.bits.partial_cmp(&other.bits)
-    }
-}
-
-impl<N: Eq + Ord, E: Endianness> Ord for BitCounter<N, E> {
-    #[inline]
-    fn cmp(&self, other: &BitCounter<N, E>) -> Ordering {
-        self.bits.cmp(&other.bits)
-    }
-}
-
 /// A generic unsigned value for stream recording purposes
 pub struct UnsignedValue(InnerUnsignedValue);
 
@@ -823,8 +798,7 @@ impl WriteRecord {
 /// # Example
 /// ```
 /// use std::io::Write;
-/// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-/// use bitstream_io::write::BitRecorder;
+/// use bitstream_io::{BigEndian, BitWriter, BitWrite, BitRecorder};
 /// let mut recorder: BitRecorder<u32, BigEndian> = BitRecorder::new();
 /// recorder.write(1, 0b1).unwrap();
 /// recorder.write(2, 0b01).unwrap();
@@ -946,29 +920,6 @@ where
     {
         tree.get(&symbol)
             .try_for_each(|(bits, value)| self.write(*bits, *value))
-    }
-}
-
-impl<N: Eq, E: Endianness> Eq for BitRecorder<N, E> {}
-
-impl<N: PartialEq, E: Endianness> PartialEq for BitRecorder<N, E> {
-    #[inline]
-    fn eq(&self, other: &BitRecorder<N, E>) -> bool {
-        self.counter == other.counter
-    }
-}
-
-impl<N: PartialEq + PartialOrd, E: Endianness> PartialOrd for BitRecorder<N, E> {
-    #[inline]
-    fn partial_cmp(&self, other: &BitRecorder<N, E>) -> Option<Ordering> {
-        self.counter.partial_cmp(&other.counter)
-    }
-}
-
-impl<N: Eq + Ord, E: Endianness> Ord for BitRecorder<N, E> {
-    #[inline]
-    fn cmp(&self, other: &BitRecorder<N, E>) -> Ordering {
-        self.counter.cmp(&other.counter)
     }
 }
 
