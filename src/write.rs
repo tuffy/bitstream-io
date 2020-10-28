@@ -621,6 +621,7 @@ where
         Ok(())
     }
 
+    #[inline]
     fn write<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
         U: Numeric,
@@ -649,11 +650,13 @@ where
         E::write_signed(self, bits, value)
     }
 
+    #[inline]
     fn write_unary1(&mut self, value: u32) -> io::Result<()> {
         self.bits += (value + 1).into();
         Ok(())
     }
 
+    #[inline]
     fn write_unary0(&mut self, value: u32) -> io::Result<()> {
         self.bits += (value + 1).into();
         Ok(())
@@ -882,42 +885,45 @@ where
     E: Endianness,
     N: Copy + From<u32> + AddAssign + Rem<Output = N> + Eq,
 {
+    #[inline]
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
         self.records.push(WriteRecord::Bit(bit));
         self.counter.write_bit(bit)
     }
 
+    #[inline]
     fn write<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
         U: Numeric,
     {
-        // since we're sanity-checking value at playback-time,
-        // it shouldn't be necessary to check at record-time
+        self.counter.write(bits, value)?;
         self.records.push(WriteRecord::Unsigned {
             bits,
             value: value.unsigned_value(),
         });
-        self.counter.write(bits, value)
+        Ok(())
     }
 
+    #[inline]
     fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
     {
-        // since we're sanity-checking value at playback-time,
-        // it shouldn't be necessary to check at record-time
+        self.counter.write_signed(bits, value)?;
         self.records.push(WriteRecord::Signed {
             bits,
             value: value.signed_value(),
         });
-        self.counter.write_signed(bits, value)
+        Ok(())
     }
 
+    #[inline]
     fn write_unary0(&mut self, value: u32) -> io::Result<()> {
         self.records.push(WriteRecord::Unary0(value));
         self.counter.write_unary0(value)
     }
 
+    #[inline]
     fn write_unary1(&mut self, value: u32) -> io::Result<()> {
         self.records.push(WriteRecord::Unary1(value));
         self.counter.write_unary1(value)
