@@ -562,7 +562,6 @@ impl<W: io::Write, E: Endianness> HuffmanWrite<E> for BitWriter<W, E> {
         T: Ord + Copy,
     {
         tree.get(&symbol)
-            .iter()
             .try_for_each(|(bits, value)| self.write(*bits, *value))
     }
 }
@@ -949,7 +948,6 @@ where
         T: Ord + Copy,
     {
         tree.get(&symbol)
-            .iter()
             .try_for_each(|(bits, value)| self.write(*bits, *value))
     }
 }

@@ -321,10 +321,11 @@ impl<E: Endianness, T: Ord + Clone> WriteHuffmanTree<E, T> {
         self.map.contains_key(symbol)
     }
 
-    /// Given symbol, returns (bits, value) pairs for writing code.
+    /// Given symbol, returns iterator of
+    /// (bits, value) pairs for writing code.
     /// Panics if symbol is not found.
     #[inline]
-    pub fn get(&self, symbol: &T) -> &[(u32, u32)] {
-        self.map[symbol].as_ref()
+    pub fn get(&self, symbol: &T) -> impl Iterator<Item = &(u32, u32)> {
+        self.map[symbol].iter()
     }
 }
