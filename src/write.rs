@@ -573,6 +573,7 @@ impl<W: io::Write, E: Endianness> HuffmanWrite<E> for BitWriter<W, E> {
 /// writer.write(5, 0b10111).unwrap();
 /// assert_eq!(writer.written(), 8);
 /// ```
+#[derive(Default)]
 pub struct BitCounter<N, E: Endianness> {
     bits: N,
     phantom: PhantomData<E>,
@@ -582,15 +583,6 @@ impl<N: Default + Copy, E: Endianness> BitCounter<N, E> {
     /// Creates new counter
     #[inline]
     pub fn new() -> Self {
-        BitCounter {
-            bits: N::default(),
-            phantom: PhantomData,
-        }
-    }
-
-    /// Creates new counter with the given endiannness
-    #[inline]
-    pub fn endian(_endian: E) -> Self {
         BitCounter {
             bits: N::default(),
             phantom: PhantomData,
@@ -808,6 +800,7 @@ impl WriteRecord {
 /// recorder.playback(&mut writer);
 /// assert_eq!(writer.into_writer(), [0b10110111]);
 /// ```
+#[derive(Default)]
 pub struct BitRecorder<N, E: Endianness> {
     counter: BitCounter<N, E>,
     records: Vec<WriteRecord>,

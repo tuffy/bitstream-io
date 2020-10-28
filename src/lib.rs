@@ -51,7 +51,7 @@ pub mod huffman;
 pub mod read;
 pub mod write;
 pub use read::{BitRead, BitReader, ByteReader, HuffmanRead};
-pub use write::{BitWrite, BitWriter, ByteWriter, HuffmanWrite, BitCounter, BitRecorder};
+pub use write::{BitCounter, BitRecorder, BitWrite, BitWriter, ByteWriter, HuffmanWrite};
 
 /// This trait extends many common integer types (both unsigned and signed)
 /// with a few trivial methods so that they can be used
@@ -571,6 +571,7 @@ impl Endianness for LittleEndian {
 
 /// A queue for efficiently pushing bits onto a value
 /// and popping them off a value.
+#[derive(Default)]
 pub struct BitQueue<E: Endianness, N: Numeric> {
     phantom: PhantomData<E>,
     value: N,
