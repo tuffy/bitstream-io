@@ -841,7 +841,6 @@ impl WriteRecord {
 pub struct BitRecorder<N, E: Endianness> {
     counter: BitCounter<N, E>,
     records: Vec<WriteRecord>,
-    phantom: PhantomData<E>,
 }
 
 impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
@@ -851,7 +850,6 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
         BitRecorder {
             counter: BitCounter::new(),
             records: Vec::new(),
-            phantom: PhantomData,
         }
     }
 
@@ -861,7 +859,6 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
         BitRecorder {
             counter: BitCounter::new(),
             records: Vec::new(),
-            phantom: PhantomData,
         }
     }
 
