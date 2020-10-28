@@ -649,6 +649,16 @@ where
         E::write_signed(self, bits, value)
     }
 
+    fn write_unary1(&mut self, value: u32) -> io::Result<()> {
+        self.bits += (value + 1).into();
+        Ok(())
+    }
+
+    fn write_unary0(&mut self, value: u32) -> io::Result<()> {
+        self.bits += (value + 1).into();
+        Ok(())
+    }
+
     #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         self.bits += (buf.len() as u32 * 8).into();
@@ -769,6 +779,8 @@ enum WriteRecord {
     Bit(bool),
     Unsigned { bits: u32, value: UnsignedValue },
     Signed { bits: u32, value: SignedValue },
+    Unary0(u32),
+    Unary1(u32),
     Bytes(Box<[u8]>),
 }
 
@@ -801,6 +813,8 @@ impl WriteRecord {
                 InnerSignedValue::I64(v) => writer.write_signed(*bits, *v),
                 InnerSignedValue::I128(v) => writer.write_signed(*bits, *v),
             },
+            WriteRecord::Unary0(v) => writer.write_unary0(*v),
+            WriteRecord::Unary1(v) => writer.write_unary1(*v),
             WriteRecord::Bytes(bytes) => writer.write_bytes(bytes),
         }
     }
@@ -899,6 +913,18 @@ where
             value: value.signed_value(),
         });
         self.bits += bits.into();
+        Ok(())
+    }
+
+    fn write_unary0(&mut self, value: u32) -> io::Result<()> {
+        self.records.push(WriteRecord::Unary0(value));
+        self.bits += (value + 1).into();
+        Ok(())
+    }
+
+    fn write_unary1(&mut self, value: u32) -> io::Result<()> {
+        self.records.push(WriteRecord::Unary1(value));
+        self.bits += (value + 1).into();
         Ok(())
     }
 
