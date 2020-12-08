@@ -1022,7 +1022,10 @@ impl<W: io::Write, E: Endianness> ByteWriter<W, E> {
     pub fn bitwriter(&mut self) -> BitWriter<&mut W, E> {
         BitWriter::new(self.writer())
     }
+}
 
+/// A trait for anything that can write aligned values to an output stream
+pub trait ByteWrite {
     /// Writes whole numeric value to stream
     ///
     /// # Errors
@@ -1031,7 +1034,7 @@ impl<W: io::Write, E: Endianness> ByteWriter<W, E> {
     /// # Examples
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, ByteWriter};
+    /// use bitstream_io::{BigEndian, ByteWriter, ByteWrite};
     /// let mut writer = ByteWriter::endian(Vec::new(), BigEndian);
     /// writer.write(0b0000000011111111u16).unwrap();
     /// assert_eq!(writer.into_writer(), [0b00000000, 0b11111111]);
@@ -1039,23 +1042,29 @@ impl<W: io::Write, E: Endianness> ByteWriter<W, E> {
     ///
     /// ```
     /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, ByteWriter};
+    /// use bitstream_io::{LittleEndian, ByteWriter, ByteWrite};
     /// let mut writer = ByteWriter::endian(Vec::new(), LittleEndian);
     /// writer.write(0b0000000011111111u16).unwrap();
     /// assert_eq!(writer.into_writer(), [0b11111111, 0b00000000]);
     /// ```
-    #[inline]
-    pub fn write<N: Numeric>(&mut self, value: N) -> io::Result<()> {
-        E::write_numeric(&mut self.writer, value)
-    }
+    fn write<N: Numeric>(&mut self, value: N) -> io::Result<()>;
 
     /// Writes the entirety of a byte buffer to the stream.
     ///
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()>;
+}
+
+impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
     #[inline]
-    pub fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
+    fn write<N: Numeric>(&mut self, value: N) -> io::Result<()> {
+        E::write_numeric(&mut self.writer, value)
+    }
+
+    #[inline]
+    fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         self.writer.write_all(buf)
     }
 }

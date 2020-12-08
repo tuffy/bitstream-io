@@ -723,6 +723,40 @@ where
     Ok(acc)
 }
 
+/// A trait for anything that can read aligned values from an input stream
+pub trait ByteRead {
+    /// Reads whole numeric value from stream
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, ByteReader, ByteRead};
+    /// let data = [0b00000000, 0b11111111];
+    /// let mut reader = ByteReader::endian(Cursor::new(&data), BigEndian);
+    /// assert_eq!(reader.read::<u16>().unwrap(), 0b0000000011111111);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{LittleEndian, ByteReader, ByteRead};
+    /// let data = [0b00000000, 0b11111111];
+    /// let mut reader = ByteReader::endian(Cursor::new(&data), LittleEndian);
+    /// assert_eq!(reader.read::<u16>().unwrap(), 0b1111111100000000);
+    /// ```
+    fn read<N: Numeric>(&mut self) -> Result<N, io::Error>;
+
+    /// Completely fills the given buffer with whole bytes.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()>;
+}
+
 /// For reading aligned bytes from a stream of bytes in a given endianness.
 ///
 /// This only reads aligned values and maintains no internal state.
@@ -776,44 +810,16 @@ impl<R: io::Read, E: Endianness> ByteReader<R, E> {
     pub fn bitreader(&mut self) -> BitReader<&mut R, E> {
         BitReader::new(self.reader())
     }
+}
 
-    /// Reads whole numeric value from stream
-    ///
-    /// # Errors
-    ///
-    /// Passes along any I/O error from the underlying stream.
-    ///
-    /// # Examples
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{BigEndian, ByteReader};
-    /// let data = [0b00000000, 0b11111111];
-    /// let mut reader = ByteReader::endian(Cursor::new(&data), BigEndian);
-    /// assert_eq!(reader.read::<u16>().unwrap(), 0b0000000011111111);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{LittleEndian, ByteReader};
-    /// let data = [0b00000000, 0b11111111];
-    /// let mut reader = ByteReader::endian(Cursor::new(&data), LittleEndian);
-    /// assert_eq!(reader.read::<u16>().unwrap(), 0b1111111100000000);
-    /// ```
+impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     #[inline]
-    pub fn read<N>(&mut self) -> Result<N, io::Error>
-    where
-        N: Numeric,
-    {
+    fn read<N: Numeric>(&mut self) -> Result<N, io::Error> {
         E::read_numeric(&mut self.reader)
     }
 
-    /// Completely fills the given buffer with whole bytes.
-    ///
-    /// # Errors
-    ///
-    /// Passes along any I/O error from the underlying stream.
     #[inline]
-    pub fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()> {
+    fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()> {
         self.reader.read_exact(buf)
     }
 }

@@ -50,8 +50,10 @@ use std::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, Sh
 pub mod huffman;
 pub mod read;
 pub mod write;
-pub use read::{BitRead, BitReader, ByteReader, HuffmanRead};
-pub use write::{BitCounter, BitRecorder, BitWrite, BitWriter, ByteWriter, HuffmanWrite};
+pub use read::{BitRead, BitReader, ByteRead, ByteReader, HuffmanRead};
+pub use write::{
+    BitCounter, BitRecorder, BitWrite, BitWriter, ByteWrite, ByteWriter, HuffmanWrite,
+};
 
 /// This trait extends many common integer types (both unsigned and signed)
 /// with a few trivial methods so that they can be used
