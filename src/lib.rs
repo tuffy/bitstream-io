@@ -422,6 +422,7 @@ impl Endianness for BigEndian {
         }
     }
 
+    #[inline]
     fn read_numeric<R, N>(mut r: R) -> io::Result<N>
     where
         R: io::Read,

@@ -754,7 +754,12 @@ pub trait ByteRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()>;
+    fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        for b in buf.iter_mut() {
+            *b = self.read()?;
+        }
+        Ok(())
+    }
 }
 
 /// For reading aligned bytes from a stream of bytes in a given endianness.
