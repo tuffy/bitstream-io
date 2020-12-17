@@ -184,6 +184,17 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     pub fn into_unwritten(self) -> (u32, u8) {
         (self.bitqueue.len(), self.bitqueue.value())
     }
+
+    /// Flushes output stream to disk, if necessary.
+    /// Any partial bytes are not flushed.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any errors from the underlying stream.
+    #[inline(always)]
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.writer.flush()
+    }
 }
 
 /// A trait for anything that can write a variable number of
