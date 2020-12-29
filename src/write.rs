@@ -827,6 +827,15 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
         }
     }
 
+    /// Creates new recorder sized for the given number of writes
+    #[inline]
+    pub fn with_capacity(writes: usize) -> Self {
+        BitRecorder {
+            counter: BitCounter::new(),
+            records: Vec::with_capacity(writes),
+        }
+    }
+
     /// Creates new recorder with the given endiannness
     #[inline]
     pub fn endian(_endian: E) -> Self {
