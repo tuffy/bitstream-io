@@ -574,7 +574,7 @@ impl Endianness for LittleEndian {
 
 /// A queue for efficiently pushing bits onto a value
 /// and popping them off a value.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct BitQueue<E: Endianness, N: Numeric> {
     phantom: PhantomData<E>,
     value: N,
