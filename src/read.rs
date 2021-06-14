@@ -201,6 +201,7 @@ pub trait HuffmanRead<E: Endianness> {
 /// This will read exactly as many whole bytes needed to return
 /// the requested number of bits.  It may cache up to a single partial byte
 /// but no more.
+#[derive(Clone)]
 pub struct BitReader<R: io::Read, E: Endianness> {
     reader: R,
     bitqueue: BitQueue<E, u8>,
