@@ -114,7 +114,7 @@ where
             if queue.is_empty() {
                 ReadHuffmanTree::Continue(
                     (0..256)
-                        .map(|byte| compile_queue(BitQueue::from_value(byte as u8, 8), &tree))
+                        .map(|byte| compile_queue(BitQueue::from_value(byte as u8, 8), tree))
                         .collect::<Vec<ReadHuffmanTree<E, T>>>()
                         .into_boxed_slice(),
                 )
