@@ -235,6 +235,8 @@ impl fmt::Display for HuffmanTreeError {
     }
 }
 
+impl std::error::Error for HuffmanTreeError {}
+
 /// Given a vector of symbol/code pairs, compiles a Huffman tree
 /// for writing.
 ///
