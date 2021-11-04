@@ -585,6 +585,73 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     }
 }
 
+impl<R, E> BitReader<R, E>
+where
+    E: Endianness,
+    R: io::Read + io::Seek,
+{
+    /// # Example
+    /// ```
+    /// use std::io::{Read, Cursor, SeekFrom};
+    /// use bitstream_io::{BigEndian, BitReader, BitRead};
+    /// let data = [0x00, 0xFF];
+    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// assert_eq!(reader.position_in_bits().unwrap(), 0);
+    ///
+    /// let pos = reader.seek_bits(SeekFrom::Start(5)).unwrap();
+    /// assert!(pos == 5 && 5 == reader.position_in_bits().unwrap());
+    ///
+    /// let pos = reader.seek_bits(SeekFrom::Current(-2)).unwrap();
+    /// assert!(pos == 3 && 3 == reader.position_in_bits().unwrap());    ///
+    ///
+    /// let pos = reader.seek_bits(SeekFrom::End(5)).unwrap();
+    /// assert!(pos == 11 && 11 == reader.position_in_bits().unwrap());
+    /// ```
+    pub fn seek_bits(&mut self, from: io::SeekFrom) -> io::Result<u64> {
+        match from {
+            io::SeekFrom::Start(from_start_pos) => {
+                let (bytes, bits) = (from_start_pos / 8, (from_start_pos % 8) as u32);
+                self.byte_align();
+                self.reader.seek(io::SeekFrom::Start(bytes))?;
+                self.skip(bits)?;
+                Ok(from_start_pos)
+            }
+            io::SeekFrom::End(from_end_pos) => {
+                let reader_end = self.reader.seek(io::SeekFrom::End(0))?;
+                let new_pos = (reader_end * 8) as i64 - from_end_pos;
+                assert!(new_pos >= 0, "The final position should be greater than 0");
+                self.seek_bits(io::SeekFrom::Start(new_pos as u64))
+            }
+            io::SeekFrom::Current(offset) => {
+                let new_pos = self.position_in_bits()? as i64 + offset;
+                assert!(new_pos >= 0, "The final position should be greater than 0");
+                self.seek_bits(io::SeekFrom::Start(new_pos as u64))
+            }
+        }
+    }
+
+    /// # Example
+    /// ```
+    /// use std::fs::read;
+    /// use std::io::{Read, Cursor, SeekFrom};
+    /// use bitstream_io::{BigEndian, BitReader, BitRead};
+    /// let data = [0x00, 0xFF];
+    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// assert_eq!(reader.position_in_bits().unwrap(), 0);
+    ///
+    /// let _: i32 = reader.read_signed(5).unwrap();
+    /// assert_eq!(reader.position_in_bits().unwrap(), 5);
+    ///
+    /// reader.read_bit().unwrap();
+    /// assert_eq!(reader.position_in_bits().unwrap(), 6);
+    /// ```
+    #[inline]
+    pub fn position_in_bits(&mut self) -> io::Result<u64> {
+        let bytes = self.reader.stream_position()?;
+        Ok(bytes * 8 - (self.bitqueue.len() as u64))
+    }
+}
+
 impl<R: io::Read, E: Endianness> HuffmanRead<E> for BitReader<R, E> {
     /// # Example
     /// ```
