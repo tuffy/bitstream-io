@@ -645,3 +645,18 @@ fn test_clone() {
     }
     let _r = BitReader::endian(NotCloneRead(&actual_data[..]), BigEndian);
 }
+
+#[test]
+fn test_read_bytes() {
+    use bitstream_io::{BigEndian, BitRead, BitReader, LittleEndian};
+
+    let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
+    let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
+    let read_data: [u8; 4] = r.read_to_bytes().unwrap();
+    assert_eq!(actual_data, read_data);
+
+    let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
+    let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
+    let read_data: [u8; 4] = r.read_to_bytes().unwrap();
+    assert_eq!(actual_data, read_data);
+}

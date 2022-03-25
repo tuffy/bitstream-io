@@ -142,6 +142,20 @@ pub trait BitRead {
         Ok(())
     }
 
+    /// Completely fills a whole buffer with bytes and returns it.
+    /// If the stream is already byte-aligned, it will map
+    /// to a faster `read_exact` call.  Otherwise it will read
+    /// bytes individually in 8-bit increments.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn read_to_bytes<const SIZE: usize>(&mut self) -> io::Result<[u8; SIZE]> {
+        let mut buf = [0; SIZE];
+        self.read_bytes(&mut buf)?;
+        Ok(buf)
+    }
+
     /// Counts the number of 1 bits in the stream until the next
     /// 0 bit and returns the amount read.
     /// Because this field is variably-sized and may be large,
