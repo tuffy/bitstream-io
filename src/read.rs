@@ -387,7 +387,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     where
         U: Numeric,
     {
-        if bits <= U::bits_size() {
+        if bits <= U::BITS_SIZE {
             let bitqueue_len = self.bitqueue.len();
             if bits <= bitqueue_len {
                 Ok(U::from_u8(self.bitqueue.pop(bits)))
@@ -720,12 +720,10 @@ where
     E: Endianness,
     N: Numeric,
 {
-    debug_assert!(bytes <= 16);
-
     if bytes > 0 {
-        let mut buf = [0; 16];
-        reader.read_exact(&mut buf[0..bytes as usize])?;
-        for b in &buf[0..bytes as usize] {
+        let mut buf = N::buffer();
+        reader.read_exact(&mut buf.as_mut()[0..bytes as usize])?;
+        for b in &buf.as_ref()[0..bytes as usize] {
             acc.push(8, N::from_u8(*b));
         }
     }
@@ -841,6 +839,17 @@ pub trait ByteRead {
             *b = self.read()?;
         }
         Ok(())
+    }
+
+    /// Completely fills a whole buffer with bytes and returns it.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn read_to_bytes<const SIZE: usize>(&mut self) -> io::Result<[u8; SIZE]> {
+        let mut buf = [0; SIZE];
+        self.read_bytes(&mut buf)?;
+        Ok(buf)
     }
 }
 

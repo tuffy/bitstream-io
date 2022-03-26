@@ -78,8 +78,11 @@ pub trait Numeric:
     /// The raw byte representation of this numeric type
     type Bytes: AsRef<[u8]> + AsMut<[u8]>;
 
+    /// Size of type in bits
+    const BITS_SIZE: u32;
+
     /// The value of 1 in this type
-    fn one() -> Self;
+    const ONE: Self;
 
     /// Returns true if this value is 0, in its type
     fn is_zero(self) -> bool;
@@ -98,9 +101,6 @@ pub trait Numeric:
 
     /// Counts the number of trailing zeros
     fn trailing_zeros(self) -> u32;
-
-    /// Size of type in bits
-    fn bits_size() -> u32;
 
     /// An empty buffer of this type's size
     fn buffer() -> Self::Bytes;
@@ -126,10 +126,10 @@ macro_rules! define_numeric {
         impl Numeric for $t {
             type Bytes = [u8; mem::size_of::<$t>()];
 
-            #[inline(always)]
-            fn one() -> Self {
-                1
-            }
+            const BITS_SIZE: u32 = mem::size_of::<$t>() as u32 * 8;
+
+            const ONE: Self = 1;
+
             #[inline(always)]
             fn is_zero(self) -> bool {
                 self == 0
@@ -153,10 +153,6 @@ macro_rules! define_numeric {
             #[inline(always)]
             fn trailing_zeros(self) -> u32 {
                 self.trailing_zeros()
-            }
-            #[inline(always)]
-            fn bits_size() -> u32 {
-                mem::size_of::<$t>() as u32 * 8
             }
             #[inline(always)]
             fn buffer() -> Self::Bytes {
@@ -335,7 +331,7 @@ impl Endianness for BigEndian {
         if bits < queue.bits {
             let offset = queue.bits - bits;
             let to_return = queue.value >> offset;
-            queue.value %= N::one() << offset;
+            queue.value %= N::ONE << offset;
             queue.bits -= bits;
             to_return
         } else {
@@ -352,7 +348,7 @@ impl Endianness for BigEndian {
         N: Numeric,
     {
         if bits < queue.bits {
-            queue.value %= N::one() << (queue.bits - bits);
+            queue.value %= N::ONE << (queue.bits - bits);
             queue.bits -= bits;
         } else {
             queue.value = N::default();
@@ -365,7 +361,7 @@ impl Endianness for BigEndian {
     where
         N: Numeric,
     {
-        queue.value.leading_zeros() - (N::bits_size() - queue.bits)
+        queue.value.leading_zeros() - (N::BITS_SIZE - queue.bits)
     }
 
     #[inline]
@@ -373,9 +369,9 @@ impl Endianness for BigEndian {
     where
         N: Numeric,
     {
-        if queue.bits < N::bits_size() {
-            (queue.value ^ ((N::one() << queue.bits) - N::one())).leading_zeros()
-                - (N::bits_size() - queue.bits)
+        if queue.bits < N::BITS_SIZE {
+            (queue.value ^ ((N::ONE << queue.bits) - N::ONE)).leading_zeros()
+                - (N::BITS_SIZE - queue.bits)
         } else {
             (!queue.value).leading_zeros()
         }
@@ -386,7 +382,7 @@ impl Endianness for BigEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        if bits <= S::bits_size() {
+        if bits <= S::BITS_SIZE {
             let is_negative = r.read_bit()?;
             let unsigned = r.read::<S>(bits - 1)?;
             Ok(if is_negative {
@@ -407,12 +403,12 @@ impl Endianness for BigEndian {
         W: BitWrite,
         S: SignedNumeric,
     {
-        if bits > S::bits_size() {
+        if bits > S::BITS_SIZE {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
             ))
-        } else if bits == S::bits_size() {
+        } else if bits == S::BITS_SIZE {
             w.write_bytes(value.to_be_bytes().as_ref())
         } else if value.is_negative() {
             w.write_bit(true)
@@ -469,7 +465,7 @@ impl Endianness for LittleEndian {
         N: Numeric,
     {
         if bits < queue.bits {
-            let to_return = queue.value % (N::one() << bits);
+            let to_return = queue.value % (N::ONE << bits);
             queue.value >>= bits;
             queue.bits -= bits;
             to_return
@@ -516,7 +512,7 @@ impl Endianness for LittleEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        if bits <= S::bits_size() {
+        if bits <= S::BITS_SIZE {
             let unsigned = r.read::<S>(bits - 1)?;
             let is_negative = r.read_bit()?;
             Ok(if is_negative {
@@ -537,12 +533,12 @@ impl Endianness for LittleEndian {
         W: BitWrite,
         S: SignedNumeric,
     {
-        if bits > S::bits_size() {
+        if bits > S::BITS_SIZE {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
             ))
-        } else if bits == S::bits_size() {
+        } else if bits == S::BITS_SIZE {
             w.write_bytes(value.to_le_bytes().as_ref())
         } else if value.is_negative() {
             w.write(bits - 1, value.as_unsigned(bits))
@@ -596,10 +592,10 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// Panics if the value is larger than the given number of bits.
     #[inline]
     pub fn from_value(value: N, bits: u32) -> BitQueue<E, N> {
-        assert!(if bits < N::bits_size() {
-            value < (N::one() << bits)
+        assert!(if bits < N::BITS_SIZE {
+            value < (N::ONE << bits)
         } else {
-            bits <= N::bits_size()
+            bits <= N::BITS_SIZE
         });
         BitQueue {
             phantom: PhantomData,
@@ -612,10 +608,10 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// Panics if the value is larger than the given number of bits
     #[inline]
     pub fn set(&mut self, value: N, bits: u32) {
-        assert!(if bits < N::bits_size() {
-            value < (N::one() << bits)
+        assert!(if bits < N::BITS_SIZE {
+            value < (N::ONE << bits)
         } else {
-            bits <= N::bits_size()
+            bits <= N::BITS_SIZE
         });
         self.value = value;
         self.bits = bits;
@@ -636,7 +632,7 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// Returns the maximum bits the queue can hold
     #[inline(always)]
     pub fn max_len(&self) -> u32 {
-        N::bits_size()
+        N::BITS_SIZE
     }
 
     /// Returns the remaining bits the queue can hold
@@ -654,7 +650,7 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     /// Returns true if the queue is full
     #[inline(always)]
     pub fn is_full(&self) -> bool {
-        self.bits == N::bits_size()
+        self.bits == N::BITS_SIZE
     }
 
     /// Drops all values in the queue

@@ -472,12 +472,12 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     where
         U: Numeric,
     {
-        if bits > U::bits_size() {
+        if bits > U::BITS_SIZE {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
             ))
-        } else if (bits < U::bits_size()) && (value >= (U::one() << bits)) {
+        } else if (bits < U::BITS_SIZE) && (value >= (U::ONE << bits)) {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive value for bits written",
@@ -623,12 +623,12 @@ where
     where
         U: Numeric,
     {
-        if bits > U::bits_size() {
+        if bits > U::BITS_SIZE {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
             ))
-        } else if (bits < U::bits_size()) && (value >= (U::one() << bits)) {
+        } else if (bits < U::BITS_SIZE) && (value >= (U::ONE << bits)) {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive value for bits written",
