@@ -18,48 +18,71 @@
 //! use std::io::Write;
 //! use bitstream_io::{BigEndian, BitWriter, BitWrite};
 //!
-//! let mut flac: Vec<u8> = Vec::new();
-//! {
-//!     let mut writer = BitWriter::endian(&mut flac, BigEndian);
 //!
-//!     // stream marker
-//!     writer.write_bytes(b"fLaC").unwrap();
-//!
-//!     // metadata block header
-//!     let last_block: bool = false;
-//!     let block_type: u8 = 0;
-//!     let block_size: u32 = 34;
-//!     writer.write_bit(last_block).unwrap();
-//!     writer.write(7, block_type).unwrap();
-//!     writer.write(24, block_size).unwrap();
-//!
-//!     // STREAMINFO block
-//!     let minimum_block_size: u16 = 4096;
-//!     let maximum_block_size: u16 = 4096;
-//!     let minimum_frame_size: u32 = 1542;
-//!     let maximum_frame_size: u32 = 8546;
-//!     let sample_rate: u32 = 44100;
-//!     let channels: u8 = 2;
-//!     let bits_per_sample: u8 = 16;
-//!     let total_samples: u64 = 304844;
-//!     writer.write(16, minimum_block_size).unwrap();
-//!     writer.write(16, maximum_block_size).unwrap();
-//!     writer.write(24, minimum_frame_size).unwrap();
-//!     writer.write(24, maximum_frame_size).unwrap();
-//!     writer.write(20, sample_rate).unwrap();
-//!     writer.write(3, channels - 1).unwrap();
-//!     writer.write(5, bits_per_sample - 1).unwrap();
-//!     writer.write(36, total_samples).unwrap();
+//! #[derive(Debug, PartialEq, Eq)]
+//! struct BlockHeader {
+//!     last_block: bool,
+//!     block_type: u8,
+//!     block_size: u32,
 //! }
 //!
-//! // STREAMINFO's MD5 sum
+//! impl BlockHeader {
+//!     fn write<W: std::io::Write>(&self, w: &mut BitWriter<W, BigEndian>) -> std::io::Result<()> {
+//!         w.write_bit(self.last_block)?;
+//!         w.write(7, self.block_type)?;
+//!         w.write(24, self.block_size)
+//!     }
+//! }
 //!
-//! // Note that the wrapped writer can be used once bitstream writing
-//! // is finished at exactly the position one would expect.
+//! #[derive(Debug, PartialEq, Eq)]
+//! struct Streaminfo {
+//!     minimum_block_size: u16,
+//!     maximum_block_size: u16,
+//!     minimum_frame_size: u32,
+//!     maximum_frame_size: u32,
+//!     sample_rate: u32,
+//!     channels: u8,
+//!     bits_per_sample: u8,
+//!     total_samples: u64,
+//!     md5: [u8; 16],
+//! }
 //!
-//! flac.write_all(
-//!     b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92")
-//!     .unwrap();
+//! impl Streaminfo {
+//!     fn write<W: std::io::Write>(&self, w: &mut BitWriter<W, BigEndian>) -> std::io::Result<()> {
+//!         w.write(16, self.minimum_block_size)?;
+//!         w.write(16, self.maximum_block_size)?;
+//!         w.write(24, self.minimum_frame_size)?;
+//!         w.write(24, self.maximum_frame_size)?;
+//!         w.write(20, self.sample_rate)?;
+//!         w.write(3, self.channels - 1)?;
+//!         w.write(5, self.bits_per_sample - 1)?;
+//!         w.write(36, self.total_samples)?;
+//!         w.write_bytes(&self.md5)
+//!     }
+//! }
+//!
+//! let mut flac: Vec<u8> = Vec::new();
+//!
+//! let mut writer = BitWriter::endian(&mut flac, BigEndian);
+//!
+//! // stream marker
+//! writer.write_bytes(b"fLaC").unwrap();
+//!
+//! // metadata block header
+//! (BlockHeader { last_block: false, block_type: 0, block_size: 34 }).write(&mut writer).unwrap();
+//!
+//! // STREAMINFO block
+//! (Streaminfo {
+//!     minimum_block_size: 4096,
+//!     maximum_block_size: 4096,
+//!     minimum_frame_size: 1542,
+//!     maximum_frame_size: 8546,
+//!     sample_rate: 44100,
+//!     channels: 2,
+//!     bits_per_sample: 16,
+//!     total_samples: 304844,
+//!     md5: *b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92",
+//! }).write(&mut writer).unwrap();
 //!
 //! assert_eq!(flac, vec![0x66,0x4C,0x61,0x43,0x00,0x00,0x00,0x22,
 //!                       0x10,0x00,0x10,0x00,0x00,0x06,0x06,0x00,

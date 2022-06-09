@@ -25,52 +25,80 @@
 //!                          0x2D,0x5B,0x30,0x01,0x76,0xB4,0x62,0x88,
 //!                          0x7D,0x92];
 //!
-//! let mut cursor = Cursor::new(&flac);
-//! {
-//!     let mut reader = BitReader::endian(&mut cursor, BigEndian);
-//!
-//!     // stream marker
-//!     let mut file_header: [u8; 4] = [0, 0, 0, 0];
-//!     reader.read_bytes(&mut file_header).unwrap();
-//!     assert_eq!(&file_header, b"fLaC");
-//!
-//!     // metadata block header
-//!     let last_block: bool = reader.read_bit().unwrap();
-//!     let block_type: u8 = reader.read(7).unwrap();
-//!     let block_size: u32 = reader.read(24).unwrap();
-//!     assert_eq!(last_block, false);
-//!     assert_eq!(block_type, 0);
-//!     assert_eq!(block_size, 34);
-//!
-//!     // STREAMINFO block
-//!     let minimum_block_size: u16 = reader.read(16).unwrap();
-//!     let maximum_block_size: u16 = reader.read(16).unwrap();
-//!     let minimum_frame_size: u32 = reader.read(24).unwrap();
-//!     let maximum_frame_size: u32 = reader.read(24).unwrap();
-//!     let sample_rate: u32 = reader.read(20).unwrap();
-//!     let channels = reader.read::<u8>(3).unwrap() + 1;
-//!     let bits_per_sample = reader.read::<u8>(5).unwrap() + 1;
-//!     let total_samples: u64 = reader.read(36).unwrap();
-//!     assert_eq!(minimum_block_size, 4096);
-//!     assert_eq!(maximum_block_size, 4096);
-//!     assert_eq!(minimum_frame_size, 1542);
-//!     assert_eq!(maximum_frame_size, 8546);
-//!     assert_eq!(sample_rate, 44100);
-//!     assert_eq!(channels, 2);
-//!     assert_eq!(bits_per_sample, 16);
-//!     assert_eq!(total_samples, 304844);
+//! #[derive(Debug, PartialEq, Eq)]
+//! struct BlockHeader {
+//!     last_block: bool,
+//!     block_type: u8,
+//!     block_size: u32,
 //! }
 //!
-//! // STREAMINFO's MD5 sum
+//! impl BlockHeader {
+//!     fn read<R: std::io::Read>(r: &mut BitReader<R, BigEndian>) -> std::io::Result<Self> {
+//!         Ok(Self {
+//!             last_block: r.read_bit()?,
+//!             block_type: r.read(7)?,
+//!             block_size: r.read(24)?,
+//!         })
+//!     }
+//! }
 //!
-//! // Note that the wrapped reader can be used once bitstream reading
-//! // is finished at exactly the position one would expect.
+//! #[derive(Debug, PartialEq, Eq)]
+//! struct Streaminfo {
+//!     minimum_block_size: u16,
+//!     maximum_block_size: u16,
+//!     minimum_frame_size: u32,
+//!     maximum_frame_size: u32,
+//!     sample_rate: u32,
+//!     channels: u8,
+//!     bits_per_sample: u8,
+//!     total_samples: u64,
+//!     md5: [u8; 16],
+//! }
 //!
-//! let mut md5 = [0; 16];
-//! cursor.read_exact(&mut md5).unwrap();
-//! assert_eq!(&md5,
-//!     b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92");
-//! ```
+//! impl Streaminfo {
+//!     fn read<R: std::io::Read>(r: &mut BitReader<R, BigEndian>) -> std::io::Result<Self> {
+//!         Ok(Self {
+//!             minimum_block_size: r.read(16)?,
+//!             maximum_block_size: r.read(16)?,
+//!             minimum_frame_size: r.read(24)?,
+//!             maximum_frame_size: r.read(24)?,
+//!             sample_rate: r.read(20)?,
+//!             channels: r.read::<u8>(3)? + 1,
+//!             bits_per_sample: r.read::<u8>(5)? + 1,
+//!             total_samples: r.read(36)?,
+//!             md5: r.read_to_bytes()?,
+//!         })
+//!     }
+//! }
+//!
+//! let mut cursor = Cursor::new(&flac);
+//! 
+//! let mut reader = BitReader::endian(&mut cursor, BigEndian);
+//!
+//! // stream marker
+//! assert_eq!(&reader.read_to_bytes().unwrap(), b"fLaC");
+//!
+//! // metadata block header
+//! assert_eq!(
+//!     BlockHeader::read(&mut reader).unwrap(),
+//!     BlockHeader { last_block: false, block_type: 0, block_size: 34 }
+//! );
+//!
+//! // STREAMINFO block
+//! assert_eq!(
+//!     Streaminfo::read(&mut reader).unwrap(),
+//!     Streaminfo {
+//!         minimum_block_size: 4096,
+//!         maximum_block_size: 4096,
+//!         minimum_frame_size: 1542,
+//!         maximum_frame_size: 8546,
+//!         sample_rate: 44100,
+//!         channels: 2,
+//!         bits_per_sample: 16,
+//!         total_samples: 304844,
+//!         md5: *b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92",
+//!     }
+//! );
 
 #![warn(missing_docs)]
 
