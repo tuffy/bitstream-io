@@ -15,9 +15,9 @@
 //! [specification](https://xiph.org/flac/format.html#stream).
 //!
 //! ```
+//! use std::convert::TryInto;
 //! use std::io::Write;
-//! use bitstream_io::{BigEndian, BitWriter, BitWrite};
-//!
+//! use bitstream_io::{BigEndian, BitWriter, BitWrite, ByteWriter, ByteWrite, LittleEndian};
 //!
 //! #[derive(Debug, PartialEq, Eq)]
 //! struct BlockHeader {
@@ -61,6 +61,34 @@
 //!     }
 //! }
 //!
+//! #[derive(Debug, PartialEq, Eq)]
+//! struct VorbisComment {
+//!     vendor: String,
+//!     comment: Vec<String>,
+//! }
+//!
+//! impl VorbisComment {
+//!     fn len(&self) -> usize {
+//!         4 + self.vendor.len() + 4 + self.comment.iter().map(|c| 4 + c.len()).sum::<usize>()
+//!     }
+//!
+//!     fn write<W: std::io::Write>(&self, w: &mut ByteWriter<W, LittleEndian>) -> std::io::Result<()> {
+//!         use std::convert::TryInto;
+//!
+//!         fn write_entry<W: std::io::Write>(
+//!             w: &mut ByteWriter<W, LittleEndian>,
+//!             s: &str,
+//!         ) -> std::io::Result<()> {
+//!             w.write::<u32>(s.len().try_into().unwrap())?;
+//!             w.write_bytes(s.as_bytes())
+//!         }
+//!
+//!         write_entry(w, &self.vendor)?;
+//!         w.write::<u32>(self.comment.len().try_into().unwrap())?;
+//!         self.comment.iter().try_for_each(|s| write_entry(w, s))
+//!     }
+//! }
+//!
 //! let mut flac: Vec<u8> = Vec::new();
 //!
 //! let mut writer = BitWriter::endian(&mut flac, BigEndian);
@@ -84,12 +112,47 @@
 //!     md5: *b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92",
 //! }).write(&mut writer).unwrap();
 //!
-//! assert_eq!(flac, vec![0x66,0x4C,0x61,0x43,0x00,0x00,0x00,0x22,
+//! let comment = VorbisComment {
+//!     vendor: "reference libFLAC 1.1.4 20070213".to_string(),
+//!     comment: vec![
+//!         "title=2ch 44100  16bit".to_string(),
+//!         "album=Test Album".to_string(),
+//!         "artist=Assorted".to_string(),
+//!         "tracknumber=1".to_string(),
+//!     ],
+//! };
+//!
+//! // metadata block header
+//! (BlockHeader {
+//!    last_block: false,
+//!    block_type: 4,
+//!    block_size: comment.len().try_into().unwrap(),
+//! }).write(&mut writer).unwrap();
+//!
+//! // VORBIS_COMMENT block (little endian)
+//! comment.write(&mut ByteWriter::new(writer.writer().unwrap())).unwrap();
+//!
+//! assert_eq!(flac, vec![0x66,0x4c,0x61,0x43,0x00,0x00,0x00,0x22,
 //!                       0x10,0x00,0x10,0x00,0x00,0x06,0x06,0x00,
-//!                       0x21,0x62,0x0A,0xC4,0x42,0xF0,0x00,0x04,
-//!                       0xA6,0xCC,0xFA,0xF2,0x69,0x2F,0xFD,0xEC,
-//!                       0x2D,0x5B,0x30,0x01,0x76,0xB4,0x62,0x88,
-//!                       0x7D,0x92]);
+//!                       0x21,0x62,0x0a,0xc4,0x42,0xf0,0x00,0x04,
+//!                       0xa6,0xcc,0xfa,0xf2,0x69,0x2f,0xfd,0xec,
+//!                       0x2d,0x5b,0x30,0x01,0x76,0xb4,0x62,0x88,
+//!                       0x7d,0x92,0x04,0x00,0x00,0x7a,0x20,0x00,
+//!                       0x00,0x00,0x72,0x65,0x66,0x65,0x72,0x65,
+//!                       0x6e,0x63,0x65,0x20,0x6c,0x69,0x62,0x46,
+//!                       0x4c,0x41,0x43,0x20,0x31,0x2e,0x31,0x2e,
+//!                       0x34,0x20,0x32,0x30,0x30,0x37,0x30,0x32,
+//!                       0x31,0x33,0x04,0x00,0x00,0x00,0x16,0x00,
+//!                       0x00,0x00,0x74,0x69,0x74,0x6c,0x65,0x3d,
+//!                       0x32,0x63,0x68,0x20,0x34,0x34,0x31,0x30,
+//!                       0x30,0x20,0x20,0x31,0x36,0x62,0x69,0x74,
+//!                       0x10,0x00,0x00,0x00,0x61,0x6c,0x62,0x75,
+//!                       0x6d,0x3d,0x54,0x65,0x73,0x74,0x20,0x41,
+//!                       0x6c,0x62,0x75,0x6d,0x0f,0x00,0x00,0x00,
+//!                       0x61,0x72,0x74,0x69,0x73,0x74,0x3d,0x41,
+//!                       0x73,0x73,0x6f,0x72,0x74,0x65,0x64,0x0d,
+//!                       0x00,0x00,0x00,0x74,0x72,0x61,0x63,0x6b,
+//!                       0x6e,0x75,0x6d,0x62,0x65,0x72,0x3d,0x31]);
 //! ```
 
 #![warn(missing_docs)]
