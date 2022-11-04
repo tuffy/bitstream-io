@@ -212,7 +212,7 @@ impl<T: Clone> WipHuffmanTree<T> {
 }
 
 /// An error type during Huffman tree compilation.
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum HuffmanTreeError {
     /// One of the bits in a Huffman code is not 0 or 1
     InvalidBit,

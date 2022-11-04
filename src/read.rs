@@ -115,7 +115,7 @@
 //! }
 //!
 //! let mut cursor = Cursor::new(&flac);
-//! 
+//!
 //! let mut reader = BitReader::endian(&mut cursor, BigEndian);
 //!
 //! // stream marker

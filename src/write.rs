@@ -512,7 +512,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
-        self.bitqueue.push(1, if bit { 1 } else { 0 });
+        self.bitqueue.push(1, u8::from(bit));
         if self.bitqueue.is_full() {
             write_byte(&mut self.writer, self.bitqueue.pop(8))
         } else {
