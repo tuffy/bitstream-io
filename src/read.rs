@@ -967,6 +967,13 @@ pub trait ByteRead {
         self.read_bytes(&mut buf)?;
         Ok(buf)
     }
+
+    /// Skips the given number of bytes in the stream.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn skip(&mut self, bytes: u32) -> io::Result<()>;
 }
 
 /// For reading aligned bytes from a stream of bytes in a given endianness.
@@ -1033,5 +1040,10 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     #[inline]
     fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()> {
         self.reader.read_exact(buf)
+    }
+
+    #[inline]
+    fn skip(&mut self, bytes: u32) -> io::Result<()> {
+        skip_aligned(&mut self.reader, bytes)
     }
 }
