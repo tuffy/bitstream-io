@@ -17,7 +17,7 @@
 //! ```
 //! use std::convert::TryInto;
 //! use std::io::Write;
-//! use bitstream_io::{BigEndian, BitWriter, BitWrite, ByteWriter, ByteWrite, LittleEndian};
+//! use bitstream_io::{BigEndian, BitWriter, BitWrite, ByteWriter, ByteWrite, LittleEndian, ToBitStream};
 //!
 //! #[derive(Debug, PartialEq, Eq)]
 //! struct BlockHeader {
@@ -26,8 +26,10 @@
 //!     block_size: u32,
 //! }
 //!
-//! impl BlockHeader {
-//!     fn write<W: std::io::Write>(&self, w: &mut BitWriter<W, BigEndian>) -> std::io::Result<()> {
+//! impl ToBitStream for BlockHeader {
+//!     type Error = std::io::Error;
+//!
+//!     fn to_writer<W: BitWrite + ?Sized>(&self, w: &mut W) -> std::io::Result<()> {
 //!         w.write_bit(self.last_block)?;
 //!         w.write(7, self.block_type)?;
 //!         w.write(24, self.block_size)
@@ -47,8 +49,10 @@
 //!     md5: [u8; 16],
 //! }
 //!
-//! impl Streaminfo {
-//!     fn write<W: std::io::Write>(&self, w: &mut BitWriter<W, BigEndian>) -> std::io::Result<()> {
+//! impl ToBitStream for Streaminfo {
+//!     type Error = std::io::Error;
+//!
+//!     fn to_writer<W: BitWrite + ?Sized>(&self, w: &mut W) -> std::io::Result<()> {
 //!         w.write(16, self.minimum_block_size)?;
 //!         w.write(16, self.maximum_block_size)?;
 //!         w.write(24, self.minimum_frame_size)?;
@@ -97,10 +101,10 @@
 //! writer.write_bytes(b"fLaC").unwrap();
 //!
 //! // metadata block header
-//! (BlockHeader { last_block: false, block_type: 0, block_size: 34 }).write(&mut writer).unwrap();
+//! writer.build(&BlockHeader { last_block: false, block_type: 0, block_size: 34 }).unwrap();
 //!
 //! // STREAMINFO block
-//! (Streaminfo {
+//! writer.build(&Streaminfo {
 //!     minimum_block_size: 4096,
 //!     maximum_block_size: 4096,
 //!     minimum_frame_size: 1542,
@@ -110,7 +114,7 @@
 //!     bits_per_sample: 16,
 //!     total_samples: 304844,
 //!     md5: *b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92",
-//! }).write(&mut writer).unwrap();
+//! }).unwrap();
 //!
 //! let comment = VorbisComment {
 //!     vendor: "reference libFLAC 1.1.4 20070213".to_string(),
@@ -123,11 +127,13 @@
 //! };
 //!
 //! // metadata block header
-//! (BlockHeader {
-//!    last_block: false,
-//!    block_type: 4,
-//!    block_size: comment.len().try_into().unwrap(),
-//! }).write(&mut writer).unwrap();
+//! writer.build(
+//!     &BlockHeader {
+//!         last_block: false,
+//!         block_type: 4,
+//!         block_size: comment.len().try_into().unwrap(),
+//!     }
+//! ).unwrap();
 //!
 //! // VORBIS_COMMENT block (little endian)
 //! comment.write(&mut ByteWriter::new(writer.writer().unwrap())).unwrap();
@@ -437,6 +443,20 @@ pub trait BitWrite {
                 self.write_unary1(bits)
             }
         }
+    }
+
+    /// Builds and writes complex type
+    fn build<T: ToBitStream>(&mut self, build: &T) -> Result<(), T::Error> {
+        build.to_writer(self)
+    }
+
+    /// Builds and writes complex type with context
+    fn build_with<T: ToBitStreamWith>(
+        &mut self,
+        build: &T,
+        context: &T::Context,
+    ) -> Result<(), T::Error> {
+        build.to_writer(self, context)
     }
 
     /// Returns true if the stream is aligned at a whole byte.
@@ -1161,6 +1181,20 @@ pub trait ByteWrite {
     ///
     /// Passes along any I/O error from the underlying stream.
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()>;
+
+    /// Builds and writes complex type
+    fn build<T: ToByteStream>(&mut self, build: &T) -> Result<(), T::Error> {
+        build.to_writer(self)
+    }
+
+    /// Builds and writes complex type with context
+    fn build_with<T: ToByteStreamWith>(
+        &mut self,
+        build: &T,
+        context: &T::Context,
+    ) -> Result<(), T::Error> {
+        build.to_writer(self, context)
+    }
 }
 
 impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
@@ -1173,4 +1207,94 @@ impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         self.writer.write_all(buf)
     }
+}
+
+/// Implemented by complex types that don't require any additional context
+/// to build themselves to a writer
+///
+/// # Example
+/// ```
+/// use std::io::{Cursor, Read};
+/// use bitstream_io::{BigEndian, BitWrite, BitWriter, ToBitStream};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct BlockHeader {
+///     last_block: bool,
+///     block_type: u8,
+///     block_size: u32,
+/// }
+///
+/// impl ToBitStream for BlockHeader {
+///     type Error = std::io::Error;
+///
+///     fn to_writer<W: BitWrite + ?Sized>(&self, w: &mut W) -> std::io::Result<()> {
+///         w.write_bit(self.last_block)?;
+///         w.write(7, self.block_type)?;
+///         w.write(24, self.block_size)
+///     }
+/// }
+///
+/// let mut data = Vec::new();
+/// let mut writer = BitWriter::endian(&mut data, BigEndian);
+/// writer.build(&BlockHeader { last_block: false, block_type: 4, block_size: 122 }).unwrap();
+/// assert_eq!(data, b"\x04\x00\x00\x7A");
+/// ```
+pub trait ToBitStream {
+    /// Error generated during building, such as `io::Error`
+    type Error;
+
+    /// Generate self to writer
+    fn to_writer<W: BitWrite + ?Sized>(&self, w: &mut W) -> Result<(), Self::Error>
+    where
+        Self: Sized;
+}
+
+/// Implemented by complex types that require additional context
+/// to build themselves to a writer
+pub trait ToBitStreamWith {
+    /// Some context to use when writing
+    type Context;
+
+    /// Error generated during building, such as `io::Error`
+    type Error;
+
+    /// Generate self to writer
+    fn to_writer<W: BitWrite + ?Sized>(
+        &self,
+        w: &mut W,
+        context: &Self::Context,
+    ) -> Result<(), Self::Error>
+    where
+        Self: Sized;
+}
+
+/// Implemented by complex types that don't require any additional context
+/// to build themselves to a writer
+pub trait ToByteStream {
+    /// Error generated during building, such as `io::Error`
+    type Error;
+
+    /// Generate self to writer
+    fn to_writer<W: ByteWrite + ?Sized>(&self, w: &mut W) -> Result<(), Self::Error>
+    where
+        Self: Sized;
+}
+
+/// Implemented by complex types that require additional context
+/// to build themselves to a writer
+pub trait ToByteStreamWith {
+    /// Some context to use when writing
+    type Context;
+
+    /// Error generated during building, such as `io::Error`
+    type Error;
+
+    /// Generate self to writer
+    fn to_writer<W: ByteWrite + ?Sized>(
+        &self,
+        w: &mut W,
+        context: &Self::Context,
+    ) -> Result<(), Self::Error>
+    where
+        Self: Sized;
 }

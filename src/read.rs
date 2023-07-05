@@ -16,7 +16,7 @@
 //!
 //! ```
 //! use std::io::{Cursor, Read};
-//! use bitstream_io::{BigEndian, BitReader, BitRead, ByteReader, ByteRead, LittleEndian};
+//! use bitstream_io::{BigEndian, BitReader, BitRead, ByteReader, ByteRead, FromBitStream, FromByteStream, LittleEndian};
 //!
 //! let flac: Vec<u8> = vec![0x66,0x4c,0x61,0x43,0x00,0x00,0x00,0x22,
 //!                          0x10,0x00,0x10,0x00,0x00,0x06,0x06,0x00,
@@ -47,8 +47,10 @@
 //!     block_size: u32,
 //! }
 //!
-//! impl BlockHeader {
-//!     fn read<R: std::io::Read>(r: &mut BitReader<R, BigEndian>) -> std::io::Result<Self> {
+//! impl FromBitStream for BlockHeader {
+//!     type Error = std::io::Error;
+//!
+//!     fn from_reader<R: BitRead + ?Sized>(r: &mut R) -> std::io::Result<Self> {
 //!         Ok(Self {
 //!             last_block: r.read_bit()?,
 //!             block_type: r.read(7)?,
@@ -70,8 +72,10 @@
 //!     md5: [u8; 16],
 //! }
 //!
-//! impl Streaminfo {
-//!     fn read<R: std::io::Read>(r: &mut BitReader<R, BigEndian>) -> std::io::Result<Self> {
+//! impl FromBitStream for Streaminfo {
+//!     type Error = std::io::Error;
+//!
+//!     fn from_reader<R: BitRead + ?Sized>(r: &mut R) -> std::io::Result<Self> {
 //!         Ok(Self {
 //!             minimum_block_size: r.read(16)?,
 //!             maximum_block_size: r.read(16)?,
@@ -92,13 +96,12 @@
 //!     comment: Vec<String>,
 //! }
 //!
-//! impl VorbisComment {
-//!    fn read<R: std::io::Read>(
-//!        r: &mut ByteReader<R, LittleEndian>,
-//!    ) -> Result<Self, Box<dyn std::error::Error>> {
+//! impl FromByteStream for VorbisComment {
+//!    type Error = Box<dyn std::error::Error>;
 //!
-//!        fn read_entry<R: std::io::Read>(
-//!            r: &mut ByteReader<R, LittleEndian>,
+//!    fn from_reader<R: ByteRead + ?Sized>(r: &mut R) -> Result<Self, Self::Error> {
+//!        fn read_entry<R: ByteRead + ?Sized>(
+//!            r: &mut R,
 //!        ) -> Result<String, Box<dyn std::error::Error>> {
 //!            use std::convert::TryInto;
 //!            let size = r.read::<u32>()?.try_into()?;
@@ -123,13 +126,13 @@
 //!
 //! // metadata block header
 //! assert_eq!(
-//!     BlockHeader::read(&mut reader).unwrap(),
+//!     reader.parse::<BlockHeader>().unwrap(),
 //!     BlockHeader { last_block: false, block_type: 0, block_size: 34 }
 //! );
 //!
 //! // STREAMINFO block
 //! assert_eq!(
-//!     Streaminfo::read(&mut reader).unwrap(),
+//!     reader.parse::<Streaminfo>().unwrap(),
 //!     Streaminfo {
 //!         minimum_block_size: 4096,
 //!         maximum_block_size: 4096,
@@ -145,13 +148,13 @@
 //!
 //! // metadata block header
 //! assert_eq!(
-//!     BlockHeader::read(&mut reader).unwrap(),
+//!     reader.parse::<BlockHeader>().unwrap(),
 //!     BlockHeader { last_block: false, block_type: 4, block_size: 122 }
 //! );
 //!
 //! // VORBIS_COMMENT block (little endian)
 //! assert_eq!(
-//!    VorbisComment::read(&mut ByteReader::new(reader.reader().unwrap())).unwrap(),
+//!    ByteReader::endian(reader.reader().unwrap(), LittleEndian).parse::<VorbisComment>().unwrap(),
 //!    VorbisComment {
 //!        vendor: "reference libFLAC 1.1.4 20070213".to_string(),
 //!        comment: vec![
@@ -291,6 +294,16 @@ pub trait BitRead {
             unary += 1;
         }
         Ok(unary)
+    }
+
+    /// Parses and returns complex type
+    fn parse<F: FromBitStream>(&mut self) -> Result<F, F::Error> {
+        F::from_reader(self)
+    }
+
+    /// Parses and returns complex type with context
+    fn parse_with<F: FromBitStreamWith>(&mut self, context: &F::Context) -> Result<F, F::Error> {
+        F::from_reader(self, context)
     }
 
     /// Returns true if the stream is aligned at a whole byte.
@@ -974,6 +987,16 @@ pub trait ByteRead {
     ///
     /// Passes along any I/O error from the underlying stream.
     fn skip(&mut self, bytes: u32) -> io::Result<()>;
+
+    /// Parses and returns complex type
+    fn parse<F: FromByteStream>(&mut self) -> Result<F, F::Error> {
+        F::from_reader(self)
+    }
+
+    /// Parses and returns complex type with context
+    fn parse_with<F: FromByteStreamWith>(&mut self, context: &F::Context) -> Result<F, F::Error> {
+        F::from_reader(self, context)
+    }
 }
 
 /// For reading aligned bytes from a stream of bytes in a given endianness.
@@ -1046,4 +1069,240 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     fn skip(&mut self, bytes: u32) -> io::Result<()> {
         skip_aligned(&mut self.reader, bytes)
     }
+}
+
+/// Implemented by complex types that don't require any additional context
+/// to parse themselves from a reader.  Analagous to `FromStr`.
+///
+/// # Example
+/// ```
+/// use std::io::{Cursor, Read};
+/// use bitstream_io::{BigEndian, BitRead, BitReader, FromBitStream};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct BlockHeader {
+///     last_block: bool,
+///     block_type: u8,
+///     block_size: u32,
+/// }
+///
+/// impl FromBitStream for BlockHeader {
+///     type Error = std::io::Error;
+///
+///     fn from_reader<R: BitRead + ?Sized>(r: &mut R) -> std::io::Result<Self> {
+///         Ok(Self {
+///             last_block: r.read_bit()?,
+///             block_type: r.read(7)?,
+///             block_size: r.read(24)?,
+///         })
+///     }
+/// }
+///
+/// let mut reader = BitReader::endian(Cursor::new(b"\x04\x00\x00\x7A"), BigEndian);
+/// assert_eq!(
+///     reader.parse::<BlockHeader>().unwrap(),
+///     BlockHeader { last_block: false, block_type: 4, block_size: 122 }
+/// );
+/// ```
+pub trait FromBitStream {
+    /// Error generated during parsing, such as `io::Error`
+    type Error;
+
+    /// Parse Self from reader
+    fn from_reader<R: BitRead + ?Sized>(r: &mut R) -> Result<Self, Self::Error>
+    where
+        Self: Sized;
+}
+
+/// Implemented by complex types that require some immutable context
+/// to parse themselves from a reader.
+///
+/// # Example
+/// ```
+/// use std::io::{Cursor, Read};
+/// use bitstream_io::{BigEndian, BitRead, BitReader, FromBitStreamWith};
+///
+/// #[derive(Default)]
+/// struct Streaminfo {
+///     minimum_block_size: u16,
+///     maximum_block_size: u16,
+///     minimum_frame_size: u32,
+///     maximum_frame_size: u32,
+///     sample_rate: u32,
+///     channels: u8,
+///     bits_per_sample: u8,
+///     total_samples: u64,
+///     md5: [u8; 16],
+/// }
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct FrameHeader {
+///     variable_block_size: bool,
+///     block_size: u32,
+///     sample_rate: u32,
+///     channel_assignment: u8,
+///     sample_size: u8,
+///     frame_number: u64,
+///     crc8: u8,
+/// }
+///
+/// impl FromBitStreamWith for FrameHeader {
+///     type Context = Streaminfo;
+///
+///     type Error = FrameHeaderError;
+///
+///     fn from_reader<R: BitRead + ?Sized>(
+///         r: &mut R,
+///         streaminfo: &Streaminfo,
+///     ) -> Result<Self, Self::Error> {
+///         if r.read::<u16>(14)? != 0b11111111111110 {
+///             return Err(FrameHeaderError::InvalidSync);
+///         }
+///
+///         if r.read_bit()? != false {
+///             return Err(FrameHeaderError::InvalidReservedBit);
+///         }
+///
+///         let variable_block_size = r.read_bit()?;
+///
+///         let block_size_bits = r.read::<u8>(4)?;
+///
+///         let sample_rate_bits = r.read::<u8>(4)?;
+///
+///         let channel_assignment = r.read::<u8>(4)?;
+///
+///         let sample_size = match r.read::<u8>(3)? {
+///             0b000 => streaminfo.bits_per_sample,
+///             0b001 => 8,
+///             0b010 => 12,
+///             0b011 => return Err(FrameHeaderError::InvalidSampleSize),
+///             0b100 => 16,
+///             0b101 => 20,
+///             0b110 => 24,
+///             0b111 => 32,
+///             _ => unreachable!(),
+///         };
+///
+///         if r.read_bit()? != false {
+///             return Err(FrameHeaderError::InvalidReservedBit);
+///         }
+///
+///         let frame_number = read_utf8(r)?;
+///
+///         Ok(FrameHeader {
+///             variable_block_size,
+///             block_size: match block_size_bits {
+///                 0b0000 => return Err(FrameHeaderError::InvalidBlockSize),
+///                 0b0001 => 192,
+///                 n @ 0b010..=0b0101 => 576 * (1 << (n - 2)),
+///                 0b0110 => r.read::<u32>(8)? + 1,
+///                 0b0111 => r.read::<u32>(16)? + 1,
+///                 n @ 0b1000..=0b1111 => 256 * (1 << (n - 8)),
+///                 _ => unreachable!(),
+///             },
+///             sample_rate: match sample_rate_bits {
+///                 0b0000 => streaminfo.sample_rate,
+///                 0b0001 => 88200,
+///                 0b0010 => 176400,
+///                 0b0011 => 192000,
+///                 0b0100 => 8000,
+///                 0b0101 => 16000,
+///                 0b0110 => 22050,
+///                 0b0111 => 24000,
+///                 0b1000 => 32000,
+///                 0b1001 => 44100,
+///                 0b1010 => 48000,
+///                 0b1011 => 96000,
+///                 0b1100 => r.read::<u32>(8)? * 1000,
+///                 0b1101 => r.read::<u32>(16)?,
+///                 0b1110 => r.read::<u32>(16)? * 10,
+///                 0b1111 => return Err(FrameHeaderError::InvalidSampleRate),
+///                 _ => unreachable!(),
+///             },
+///             channel_assignment,
+///             sample_size,
+///             frame_number,
+///             crc8: r.read(8)?
+///         })
+///     }
+/// }
+///
+/// #[derive(Debug)]
+/// enum FrameHeaderError {
+///     Io(std::io::Error),
+///     InvalidSync,
+///     InvalidReservedBit,
+///     InvalidSampleSize,
+///     InvalidBlockSize,
+///     InvalidSampleRate,
+/// }
+///
+/// impl From<std::io::Error> for FrameHeaderError {
+///     fn from(err: std::io::Error) -> Self {
+///         Self::Io(err)
+///     }
+/// }
+///
+/// fn read_utf8<R: BitRead + ?Sized>(r: &mut R) -> Result<u64, std::io::Error> {
+///     r.read(8)  // left unimplimented in this example
+/// }
+///
+/// let mut reader = BitReader::endian(Cursor::new(b"\xFF\xF8\xC9\x18\x00\xC2"), BigEndian);
+/// assert_eq!(
+///     reader.parse_with::<FrameHeader>(&Streaminfo::default()).unwrap(),
+///     FrameHeader {
+///         variable_block_size: false,
+///         block_size: 4096,
+///         sample_rate: 44100,
+///         channel_assignment: 1,
+///         sample_size: 16,
+///         frame_number: 0,
+///         crc8: 0xC2,
+///     }
+/// );
+/// ```
+pub trait FromBitStreamWith {
+    /// Some context to use when parsing
+    type Context;
+
+    /// Error generated during parsing, such as `io::Error`
+    type Error;
+
+    /// Parse Self from reader with the given context
+    fn from_reader<R: BitRead + ?Sized>(
+        r: &mut R,
+        context: &Self::Context,
+    ) -> Result<Self, Self::Error>
+    where
+        Self: Sized;
+}
+
+/// Implemented by complex types that don't require any additional context
+/// to parse themselves from a reader.  Analagous to `FromStr`.
+pub trait FromByteStream {
+    /// Error generated during parsing, such as `io::Error`
+    type Error;
+
+    /// Parse Self from reader
+    fn from_reader<R: ByteRead + ?Sized>(r: &mut R) -> Result<Self, Self::Error>
+    where
+        Self: Sized;
+}
+
+/// Implemented by complex types that don't require any additional context
+/// to parse themselves from a reader.  Analagous to `FromStr`.
+pub trait FromByteStreamWith {
+    /// Some context to use when parsing
+    type Context;
+
+    /// Error generated during parsing, such as `io::Error`
+    type Error;
+
+    /// Parse Self from reader
+    fn from_reader<R: ByteRead + ?Sized>(
+        r: &mut R,
+        context: &Self::Context,
+    ) -> Result<Self, Self::Error>
+    where
+        Self: Sized;
 }
