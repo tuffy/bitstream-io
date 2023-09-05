@@ -1047,8 +1047,7 @@ fn write_byte<W>(mut writer: W, byte: u8) -> io::Result<()>
 where
     W: io::Write,
 {
-    let buf = [byte];
-    writer.write_all(&buf)
+    writer.write_all(std::slice::from_ref(&byte))
 }
 
 fn write_unaligned<W, E, N>(

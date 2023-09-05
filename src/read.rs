@@ -828,8 +828,8 @@ fn read_byte<R>(mut reader: R) -> io::Result<u8>
 where
     R: io::Read,
 {
-    let mut buf = [0; 1];
-    reader.read_exact(&mut buf).map(|()| buf[0])
+    let mut byte = 0;
+    reader.read_exact(std::slice::from_mut(&mut byte)).map(|()| byte)
 }
 
 fn read_aligned<R, E, N>(mut reader: R, bytes: u32, acc: &mut BitQueue<E, N>) -> io::Result<()>
