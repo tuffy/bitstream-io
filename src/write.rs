@@ -53,8 +53,8 @@
 //!     type Error = std::io::Error;
 //!
 //!     fn to_writer<W: BitWrite + ?Sized>(&self, w: &mut W) -> std::io::Result<()> {
-//!         w.write(16, self.minimum_block_size)?;
-//!         w.write(16, self.maximum_block_size)?;
+//!         w.write_from(self.minimum_block_size)?;
+//!         w.write_from(self.maximum_block_size)?;
 //!         w.write(24, self.minimum_frame_size)?;
 //!         w.write(24, self.maximum_frame_size)?;
 //!         w.write(20, self.sample_rate)?;
@@ -167,7 +167,9 @@ use std::convert::From;
 use std::io;
 use std::ops::{AddAssign, Rem};
 
-use super::{huffman::WriteHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, SignedNumeric};
+use super::{
+    huffman::WriteHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, Primitive, SignedNumeric,
+};
 
 /// For writing bit values to an underlying stream in a given endianness.
 ///
@@ -327,6 +329,16 @@ pub trait BitWrite {
     fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
         S: SignedNumeric;
+
+    /// Writes whole value to the stream whose size in bits
+    ///  is equal to its type's size.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn write_from<V>(&mut self, value: V) -> io::Result<()>
+    where
+        V: Primitive;
 
     /// Writes the entirety of a byte buffer to the stream.
     ///
@@ -627,6 +639,14 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     }
 
     #[inline]
+    fn write_from<V>(&mut self, value: V) -> io::Result<()>
+    where
+        V: Primitive,
+    {
+        E::write_primitive(self, value)
+    }
+
+    #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         if self.byte_aligned() {
             self.writer.write_all(buf)
@@ -751,6 +771,14 @@ where
         S: SignedNumeric,
     {
         E::write_signed(self, bits, value)
+    }
+
+    #[inline]
+    fn write_from<V>(&mut self, value: V) -> io::Result<()>
+    where
+        V: Primitive,
+    {
+        E::write_primitive(self, value)
     }
 
     #[inline]
@@ -942,7 +970,7 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
         }
     }
 
-    /// Creates new recorder with the given endiannness
+    /// Creates new recorder with the given endianness
     #[inline]
     pub fn endian(_endian: E) -> Self {
         BitRecorder {
@@ -1001,6 +1029,14 @@ where
             value: value.signed_value(),
         });
         Ok(())
+    }
+
+    #[inline]
+    fn write_from<V>(&mut self, value: V) -> io::Result<()>
+    where
+        V: Primitive,
+    {
+        E::write_primitive(self, value)
     }
 
     #[inline]

@@ -77,15 +77,15 @@
 //!
 //!     fn from_reader<R: BitRead + ?Sized>(r: &mut R) -> std::io::Result<Self> {
 //!         Ok(Self {
-//!             minimum_block_size: r.read(16)?,
-//!             maximum_block_size: r.read(16)?,
+//!             minimum_block_size: r.read_to()?,
+//!             maximum_block_size: r.read_to()?,
 //!             minimum_frame_size: r.read(24)?,
 //!             maximum_frame_size: r.read(24)?,
 //!             sample_rate: r.read(20)?,
 //!             channels: r.read::<u8>(3)? + 1,
 //!             bits_per_sample: r.read::<u8>(5)? + 1,
 //!             total_samples: r.read(36)?,
-//!             md5: r.read_to_bytes()?,
+//!             md5: r.read_to()?,
 //!         })
 //!     }
 //! }
@@ -122,7 +122,7 @@
 //! let mut reader = BitReader::endian(&mut cursor, BigEndian);
 //!
 //! // stream marker
-//! assert_eq!(&reader.read_to_bytes().unwrap(), b"fLaC");
+//! assert_eq!(&reader.read_to::<[u8; 4]>().unwrap(), b"fLaC");
 //!
 //! // metadata block header
 //! assert_eq!(
@@ -170,7 +170,9 @@
 
 use std::io;
 
-use super::{huffman::ReadHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, SignedNumeric};
+use super::{
+    huffman::ReadHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, Primitive, SignedNumeric,
+};
 
 /// A trait for anything that can read a variable number of
 /// potentially un-aligned values from an input stream
@@ -206,6 +208,16 @@ pub trait BitRead {
     fn read_signed<S>(&mut self, bits: u32) -> io::Result<S>
     where
         S: SignedNumeric;
+
+    /// Reads whole value from the stream whose size in bits is equal
+    /// to its type's size.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn read_to<V>(&mut self) -> io::Result<V>
+    where
+        V: Primitive;
 
     /// Skips the given number of bits in the stream.
     /// Since this method does not need an accumulator,
@@ -244,10 +256,10 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    #[inline(always)]
+    #[deprecated(since = "1.8.0", note = "use read_to() method instead")]
     fn read_to_bytes<const SIZE: usize>(&mut self) -> io::Result<[u8; SIZE]> {
-        let mut buf = [0; SIZE];
-        self.read_bytes(&mut buf)?;
-        Ok(buf)
+        self.read_to()
     }
 
     /// Completely fills a vector of bytes and returns it.
@@ -563,6 +575,14 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
         E::read_signed(self, bits)
     }
 
+    #[inline]
+    fn read_to<V>(&mut self) -> io::Result<V>
+    where
+        V: Primitive,
+    {
+        E::read_primitive(self)
+    }
+
     /// # Examples
     /// ```
     /// use std::io::{Read, Cursor};
@@ -829,7 +849,9 @@ where
     R: io::Read,
 {
     let mut byte = 0;
-    reader.read_exact(std::slice::from_mut(&mut byte)).map(|()| byte)
+    reader
+        .read_exact(std::slice::from_mut(&mut byte))
+        .map(|()| byte)
 }
 
 fn read_aligned<R, E, N>(mut reader: R, bytes: u32, acc: &mut BitQueue<E, N>) -> io::Result<()>
@@ -945,7 +967,7 @@ pub trait ByteRead {
     /// let mut reader = ByteReader::endian(Cursor::new(&data), LittleEndian);
     /// assert_eq!(reader.read::<u16>().unwrap(), 0b1111111100000000);
     /// ```
-    fn read<N: Numeric>(&mut self) -> Result<N, io::Error>;
+    fn read<V: Primitive>(&mut self) -> Result<V, io::Error>;
 
     /// Completely fills the given buffer with whole bytes.
     ///
@@ -964,10 +986,10 @@ pub trait ByteRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    #[inline(always)]
+    #[deprecated(since = "1.8.0", note = "use read() method instead")]
     fn read_to_bytes<const SIZE: usize>(&mut self) -> io::Result<[u8; SIZE]> {
-        let mut buf = [0; SIZE];
-        self.read_bytes(&mut buf)?;
-        Ok(buf)
+        self.read()
     }
 
     /// Completely fills a vector of bytes and returns it.
@@ -1056,7 +1078,7 @@ impl<R: io::Read, E: Endianness> ByteReader<R, E> {
 
 impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     #[inline]
-    fn read<N: Numeric>(&mut self) -> Result<N, io::Error> {
+    fn read<V: Primitive>(&mut self) -> Result<V, io::Error> {
         E::read_numeric(&mut self.reader)
     }
 
@@ -1289,7 +1311,7 @@ pub trait FromByteStream {
         Self: Sized;
 }
 
-/// Implemented by complex types that don't require any additional context
+/// Implemented by complex types that require some additional context
 /// to parse themselves from a reader.  Analagous to `FromStr`.
 pub trait FromByteStreamWith {
     /// Some context to use when parsing

@@ -102,3 +102,32 @@ macro_rules! define_unary_roundtrip {
 
 define_unary_roundtrip!(test_unary_roundtrip_be, BigEndian);
 define_unary_roundtrip!(test_unary_roundtrip_le, LittleEndian);
+
+macro_rules! define_float_roundtrip {
+    ($func_name:ident, $endianness:ident, $t:ty) => {
+        #[test]
+        fn $func_name() {
+            let mut output: Vec<u8> = Vec::new();
+            {
+                let mut writer = BitWriter::endian(&mut output, $endianness);
+                // these values should all be exact in floating-point
+                for value in 0..1024 {
+                    writer.write_from(value as $t).unwrap();
+                }
+                writer.byte_align().unwrap();
+            }
+            {
+                let mut c = Cursor::new(&output);
+                let mut reader = BitReader::endian(&mut c, $endianness);
+                for value in 0..1024 {
+                    assert_eq!(reader.read_to::<$t>().unwrap(), value as $t);
+                }
+            }
+        }
+    };
+}
+
+define_float_roundtrip!(test_f32_roundtrip_be, BigEndian, f32);
+define_float_roundtrip!(test_f64_roundtrip_be, BigEndian, f64);
+define_float_roundtrip!(test_f32_roundtrip_le, LittleEndian, f32);
+define_float_roundtrip!(test_f64_roundtrip_le, LittleEndian, f64);

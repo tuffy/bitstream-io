@@ -59,11 +59,93 @@ pub use write::{
     ToBitStreamWith, ToByteStream, ToByteStreamWith,
 };
 
+/// A trait intended for simple fixed-length primitives (such as ints and floats)
+/// which allows them to be read and written to streams of
+/// different endiannesses verbatim.
+pub trait Primitive {
+    /// The raw byte representation of this numeric type
+    type Bytes: AsRef<[u8]> + AsMut<[u8]>;
+
+    /// An empty buffer of this type's size
+    fn buffer() -> Self::Bytes;
+
+    /// Our value in big-endian bytes
+    fn to_be_bytes(self) -> Self::Bytes;
+
+    /// Our value in little-endian bytes
+    fn to_le_bytes(self) -> Self::Bytes;
+
+    /// Convert big-endian bytes to our value
+    fn from_be_bytes(bytes: Self::Bytes) -> Self;
+
+    /// Convert little-endian bytes to out value
+    fn from_le_bytes(bytes: Self::Bytes) -> Self;
+}
+
+macro_rules! define_primitive_numeric {
+    ($t:ty) => {
+        impl Primitive for $t {
+            type Bytes = [u8; mem::size_of::<$t>()];
+
+            #[inline(always)]
+            fn buffer() -> Self::Bytes {
+                [0; mem::size_of::<$t>()]
+            }
+            #[inline(always)]
+            fn to_be_bytes(self) -> Self::Bytes {
+                self.to_be_bytes()
+            }
+            #[inline(always)]
+            fn to_le_bytes(self) -> Self::Bytes {
+                self.to_le_bytes()
+            }
+            #[inline(always)]
+            fn from_be_bytes(bytes: Self::Bytes) -> Self {
+                <$t>::from_be_bytes(bytes)
+            }
+            #[inline(always)]
+            fn from_le_bytes(bytes: Self::Bytes) -> Self {
+                <$t>::from_le_bytes(bytes)
+            }
+        }
+    };
+}
+
+impl<const N: usize> Primitive for [u8; N] {
+    type Bytes = [u8; N];
+
+    #[inline(always)]
+    fn buffer() -> Self::Bytes {
+        [0; N]
+    }
+
+    #[inline(always)]
+    fn to_be_bytes(self) -> Self::Bytes {
+        self
+    }
+
+    #[inline(always)]
+    fn to_le_bytes(self) -> Self::Bytes {
+        self
+    }
+
+    #[inline(always)]
+    fn from_be_bytes(bytes: Self::Bytes) -> Self {
+        bytes
+    }
+
+    #[inline(always)]
+    fn from_le_bytes(bytes: Self::Bytes) -> Self {
+        bytes
+    }
+}
+
 /// This trait extends many common integer types (both unsigned and signed)
 /// with a few trivial methods so that they can be used
 /// with the bitstream handling traits.
 pub trait Numeric:
-    Sized
+    Primitive
+    + Sized
     + Copy
     + Default
     + Debug
@@ -79,9 +161,6 @@ pub trait Numeric:
     + Not<Output = Self>
     + Sub<Self, Output = Self>
 {
-    /// The raw byte representation of this numeric type
-    type Bytes: AsRef<[u8]> + AsMut<[u8]>;
-
     /// Size of type in bits
     const BITS_SIZE: u32;
 
@@ -106,30 +185,15 @@ pub trait Numeric:
     /// Counts the number of trailing zeros
     fn trailing_zeros(self) -> u32;
 
-    /// An empty buffer of this type's size
-    fn buffer() -> Self::Bytes;
-
-    /// Our value in big-endian bytes
-    fn to_be_bytes(self) -> Self::Bytes;
-
-    /// Our value in little-endian bytes
-    fn to_le_bytes(self) -> Self::Bytes;
-
-    /// Convert big-endian bytes to our value
-    fn from_be_bytes(bytes: Self::Bytes) -> Self;
-
-    /// Convert little-endian bytes to out value
-    fn from_le_bytes(bytes: Self::Bytes) -> Self;
-
     /// Convert to a generic unsigned write value for stream recording purposes
     fn unsigned_value(self) -> write::UnsignedValue;
 }
 
 macro_rules! define_numeric {
     ($t:ty) => {
-        impl Numeric for $t {
-            type Bytes = [u8; mem::size_of::<$t>()];
+        define_primitive_numeric!($t);
 
+        impl Numeric for $t {
             const BITS_SIZE: u32 = mem::size_of::<$t>() as u32 * 8;
 
             const ONE: Self = 1;
@@ -157,26 +221,6 @@ macro_rules! define_numeric {
             #[inline(always)]
             fn trailing_zeros(self) -> u32 {
                 self.trailing_zeros()
-            }
-            #[inline(always)]
-            fn buffer() -> Self::Bytes {
-                [0; mem::size_of::<$t>()]
-            }
-            #[inline(always)]
-            fn to_be_bytes(self) -> Self::Bytes {
-                self.to_be_bytes()
-            }
-            #[inline(always)]
-            fn to_le_bytes(self) -> Self::Bytes {
-                self.to_le_bytes()
-            }
-            #[inline(always)]
-            fn from_be_bytes(bytes: Self::Bytes) -> Self {
-                <$t>::from_be_bytes(bytes)
-            }
-            #[inline(always)]
-            fn from_le_bytes(bytes: Self::Bytes) -> Self {
-                <$t>::from_le_bytes(bytes)
             }
             #[inline(always)]
             fn unsigned_value(self) -> write::UnsignedValue {
@@ -244,6 +288,9 @@ define_signed_numeric!(i32);
 define_signed_numeric!(i64);
 define_signed_numeric!(i128);
 
+define_primitive_numeric!(f32);
+define_primitive_numeric!(f64);
+
 /// A stream's endianness, or byte order, for determining
 /// how bits should be read.
 ///
@@ -294,17 +341,29 @@ pub trait Endianness: Sized {
         W: BitWrite,
         S: SignedNumeric;
 
+    /// Reads convertable numeric value from reader in this endianness
+    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
+    where
+        R: BitRead,
+        V: Primitive;
+
+    /// Writes convertable numeric value to writer in this endianness
+    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
+    where
+        W: BitWrite,
+        V: Primitive;
+
     /// Reads entire numeric value from reader in this endianness
-    fn read_numeric<R, N>(r: R) -> io::Result<N>
+    fn read_numeric<R, V>(r: R) -> io::Result<V>
     where
         R: io::Read,
-        N: Numeric;
+        V: Primitive;
 
-    /// Writes entire numeric value from reader in this endianness
-    fn write_numeric<W, N>(w: W, value: N) -> io::Result<()>
+    /// Writes entire numeric value to writer in this endianness
+    fn write_numeric<W, V>(w: W, value: V) -> io::Result<()>
     where
         W: io::Write,
-        N: Numeric;
+        V: Primitive;
 }
 
 /// Big-endian, or most significant bits first
@@ -423,21 +482,41 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
-    fn read_numeric<R, N>(mut r: R) -> io::Result<N>
+    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
     where
-        R: io::Read,
-        N: Numeric,
+        R: BitRead,
+        V: Primitive,
     {
-        let mut buffer = N::buffer();
-        r.read_exact(buffer.as_mut())?;
-        Ok(N::from_be_bytes(buffer))
+        let mut buffer = V::buffer();
+        r.read_bytes(buffer.as_mut())?;
+        Ok(V::from_be_bytes(buffer))
     }
 
     #[inline]
-    fn write_numeric<W, N>(mut w: W, value: N) -> io::Result<()>
+    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
+    where
+        W: BitWrite,
+        V: Primitive,
+    {
+        w.write_bytes(value.to_be_bytes().as_ref())
+    }
+
+    #[inline]
+    fn read_numeric<R, V>(mut r: R) -> io::Result<V>
+    where
+        R: io::Read,
+        V: Primitive,
+    {
+        let mut buffer = V::buffer();
+        r.read_exact(buffer.as_mut())?;
+        Ok(V::from_be_bytes(buffer))
+    }
+
+    #[inline]
+    fn write_numeric<W, V>(mut w: W, value: V) -> io::Result<()>
     where
         W: io::Write,
-        N: Numeric,
+        V: Primitive,
     {
         w.write_all(value.to_be_bytes().as_ref())
     }
@@ -552,21 +631,41 @@ impl Endianness for LittleEndian {
         }
     }
 
-    fn read_numeric<R, N>(mut r: R) -> io::Result<N>
+    #[inline]
+    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
     where
-        R: io::Read,
-        N: Numeric,
+        R: BitRead,
+        V: Primitive,
     {
-        let mut buffer = N::buffer();
-        r.read_exact(buffer.as_mut())?;
-        Ok(N::from_le_bytes(buffer))
+        let mut buffer = V::buffer();
+        r.read_bytes(buffer.as_mut())?;
+        Ok(V::from_le_bytes(buffer))
     }
 
     #[inline]
-    fn write_numeric<W, N>(mut w: W, value: N) -> io::Result<()>
+    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
+    where
+        W: BitWrite,
+        V: Primitive,
+    {
+        w.write_bytes(value.to_le_bytes().as_ref())
+    }
+
+    fn read_numeric<R, V>(mut r: R) -> io::Result<V>
+    where
+        R: io::Read,
+        V: Primitive,
+    {
+        let mut buffer = V::buffer();
+        r.read_exact(buffer.as_mut())?;
+        Ok(V::from_le_bytes(buffer))
+    }
+
+    #[inline]
+    fn write_numeric<W, V>(mut w: W, value: V) -> io::Result<()>
     where
         W: io::Write,
-        N: Numeric,
+        V: Primitive,
     {
         w.write_all(value.to_le_bytes().as_ref())
     }
