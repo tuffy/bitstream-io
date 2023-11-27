@@ -1019,6 +1019,9 @@ pub trait ByteRead {
     fn parse_with<F: FromByteStreamWith>(&mut self, context: &F::Context) -> Result<F, F::Error> {
         F::from_reader(self, context)
     }
+
+    /// Returns mutable reference to underlying reader
+    fn reader_ref(&mut self) -> Box<&mut dyn io::Read>;
 }
 
 /// For reading aligned bytes from a stream of bytes in a given endianness.
@@ -1090,6 +1093,11 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     #[inline]
     fn skip(&mut self, bytes: u32) -> io::Result<()> {
         skip_aligned(&mut self.reader, bytes)
+    }
+
+    #[inline]
+    fn reader_ref(&mut self) -> Box<&mut dyn io::Read> {
+        Box::new(&mut self.reader)
     }
 }
 

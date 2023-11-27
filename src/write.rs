@@ -1230,6 +1230,9 @@ pub trait ByteWrite {
     ) -> Result<(), T::Error> {
         build.to_writer(self, context)
     }
+
+    /// Returns mutable reference to underlying writer
+    fn writer_ref(&mut self) -> Box<&mut dyn io::Write>;
 }
 
 impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
@@ -1241,6 +1244,11 @@ impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
     #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         self.writer.write_all(buf)
+    }
+
+    #[inline]
+    fn writer_ref(&mut self) -> Box<&mut dyn io::Write> {
+        Box::new(&mut self.writer)
     }
 }
 
