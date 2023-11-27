@@ -1021,7 +1021,7 @@ pub trait ByteRead {
     }
 
     /// Returns mutable reference to underlying reader
-    fn reader_ref(&mut self) -> Box<&mut dyn io::Read>;
+    fn reader_ref(&mut self) -> &mut dyn io::Read;
 }
 
 /// For reading aligned bytes from a stream of bytes in a given endianness.
@@ -1096,8 +1096,8 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     }
 
     #[inline]
-    fn reader_ref(&mut self) -> Box<&mut dyn io::Read> {
-        Box::new(&mut self.reader)
+    fn reader_ref(&mut self) -> &mut dyn io::Read {
+        &mut self.reader
     }
 }
 
