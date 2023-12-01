@@ -463,7 +463,7 @@ pub trait BitWrite {
     }
 
     /// Builds and writes complex type with context
-    fn build_with<T: ToBitStreamWith>(
+    fn build_with<'a, T: ToBitStreamWith<'a>>(
         &mut self,
         build: &T,
         context: &T::Context,
@@ -1223,7 +1223,7 @@ pub trait ByteWrite {
     }
 
     /// Builds and writes complex type with context
-    fn build_with<T: ToByteStreamWith>(
+    fn build_with<'a, T: ToByteStreamWith<'a>>(
         &mut self,
         build: &T,
         context: &T::Context,
@@ -1294,9 +1294,9 @@ pub trait ToBitStream {
 
 /// Implemented by complex types that require additional context
 /// to build themselves to a writer
-pub trait ToBitStreamWith {
+pub trait ToBitStreamWith<'a> {
     /// Some context to use when writing
-    type Context;
+    type Context: 'a;
 
     /// Error generated during building, such as `io::Error`
     type Error;
@@ -1325,9 +1325,9 @@ pub trait ToByteStream {
 
 /// Implemented by complex types that require additional context
 /// to build themselves to a writer
-pub trait ToByteStreamWith {
+pub trait ToByteStreamWith<'a> {
     /// Some context to use when writing
-    type Context;
+    type Context: 'a;
 
     /// Error generated during building, such as `io::Error`
     type Error;
