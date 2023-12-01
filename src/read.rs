@@ -314,7 +314,10 @@ pub trait BitRead {
     }
 
     /// Parses and returns complex type with context
-    fn parse_with<F: FromBitStreamWith>(&mut self, context: &F::Context) -> Result<F, F::Error> {
+    fn parse_with<'a, F: FromBitStreamWith<'a>>(
+        &mut self,
+        context: &F::Context,
+    ) -> Result<F, F::Error> {
         F::from_reader(self, context)
     }
 
@@ -1016,7 +1019,10 @@ pub trait ByteRead {
     }
 
     /// Parses and returns complex type with context
-    fn parse_with<F: FromByteStreamWith>(&mut self, context: &F::Context) -> Result<F, F::Error> {
+    fn parse_with<'a, F: FromByteStreamWith<'a>>(
+        &mut self,
+        context: &F::Context,
+    ) -> Result<F, F::Error> {
         F::from_reader(self, context)
     }
 
@@ -1176,7 +1182,7 @@ pub trait FromBitStream {
 ///     crc8: u8,
 /// }
 ///
-/// impl FromBitStreamWith for FrameHeader {
+/// impl FromBitStreamWith<'_> for FrameHeader {
 ///     type Context = Streaminfo;
 ///
 ///     type Error = FrameHeaderError;
@@ -1291,9 +1297,109 @@ pub trait FromBitStream {
 ///     }
 /// );
 /// ```
-pub trait FromBitStreamWith {
+///
+/// # Example with lifetime-contrained `Context`
+///
+/// In some cases, the `Context` can depend on a reference to another `struct`.
+///
+/// ```
+/// use std::io::{Cursor, Read};
+/// use bitstream_io::{BigEndian, BitRead, BitReader, FromBitStreamWith};
+///
+/// #[derive(Default)]
+/// struct ModeParameters {
+///     size_len: u8,
+///     index_len: u8,
+///     index_delta_len: u8,
+///     // ...
+/// }
+///
+/// struct AuHeaderParseContext<'a> {
+///     params: &'a ModeParameters,
+///     base_index: Option<u32>,
+/// }
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct AuHeader {
+///     size: u32,
+///     index: u32,
+///     // ...
+/// }
+///
+/// impl<'a> FromBitStreamWith<'a> for AuHeader {
+///     type Context = AuHeaderParseContext<'a>;
+///
+///     type Error = AuHeaderError;
+///
+///     fn from_reader<R: BitRead + ?Sized>(
+///         r: &mut R,
+///         ctx: &AuHeaderParseContext<'a>,
+///     ) -> Result<Self, Self::Error> {
+///         let size = r.read::<u32>(ctx.params.size_len as u32)?;
+///         let index = match ctx.base_index {
+///             None => r.read::<u32>(ctx.params.index_len as u32)?,
+///             Some(base_index) => {
+///                 base_index
+///                 + 1
+///                 + r.read::<u32>(ctx.params.index_delta_len as u32)?
+///             }
+///         };
+///
+///         Ok(AuHeader {
+///             size,
+///             index,
+///             // ...
+///         })
+///     }
+/// }
+///
+/// #[derive(Debug)]
+/// enum AuHeaderError {
+///     Io(std::io::Error),
+/// }
+///
+/// impl From<std::io::Error> for AuHeaderError {
+///     fn from(err: std::io::Error) -> Self {
+///         Self::Io(err)
+///     }
+/// }
+///
+/// let mut reader = BitReader::endian(Cursor::new(b"\xFF\xEA\xFF\x10"), BigEndian);
+///
+/// let mode_params = ModeParameters {
+///     size_len: 10,
+///     index_len: 6,
+///     index_delta_len: 2,
+///     // ...
+/// };
+///
+/// let mut ctx = AuHeaderParseContext {
+///     params: &mode_params,
+///     base_index: None,
+/// };
+///
+/// let header1 = reader.parse_with::<AuHeader>(&ctx).unwrap();
+/// assert_eq!(
+///     header1,
+///     AuHeader {
+///         size: 1023,
+///         index: 42,
+///     }
+/// );
+///
+/// ctx.base_index = Some(header1.index);
+///
+/// assert_eq!(
+///     reader.parse_with::<AuHeader>(&ctx).unwrap(),
+///     AuHeader {
+///         size: 1020,
+///         index: 44,
+///     }
+/// );
+/// ```
+pub trait FromBitStreamWith<'a> {
     /// Some context to use when parsing
-    type Context;
+    type Context: 'a;
 
     /// Error generated during parsing, such as `io::Error`
     type Error;
@@ -1321,9 +1427,9 @@ pub trait FromByteStream {
 
 /// Implemented by complex types that require some additional context
 /// to parse themselves from a reader.  Analagous to `FromStr`.
-pub trait FromByteStreamWith {
+pub trait FromByteStreamWith<'a> {
     /// Some context to use when parsing
-    type Context;
+    type Context: 'a;
 
     /// Error generated during parsing, such as `io::Error`
     type Error;
