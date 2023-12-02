@@ -367,7 +367,7 @@ pub trait Endianness: Sized {
 }
 
 /// Big-endian, or most significant bits first
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct BigEndian;
 
 /// Big-endian, or most significant bits first
@@ -523,7 +523,7 @@ impl Endianness for BigEndian {
 }
 
 /// Little-endian, or least significant bits first
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct LittleEndian;
 
 /// Little-endian, or least significant bits first
@@ -673,7 +673,7 @@ impl Endianness for LittleEndian {
 
 /// A queue for efficiently pushing bits onto a value
 /// and popping them off a value.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct BitQueue<E: Endianness, N: Numeric> {
     phantom: PhantomData<E>,
     value: N,
