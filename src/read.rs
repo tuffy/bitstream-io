@@ -348,7 +348,7 @@ pub trait HuffmanRead<E: Endianness> {
 /// This will read exactly as many whole bytes needed to return
 /// the requested number of bits.  It may cache up to a single partial byte
 /// but no more.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BitReader<R: io::Read, E: Endianness> {
     reader: R,
     bitqueue: BitQueue<E, u8>,
@@ -1033,6 +1033,7 @@ pub trait ByteRead {
 /// For reading aligned bytes from a stream of bytes in a given endianness.
 ///
 /// This only reads aligned values and maintains no internal state.
+#[derive(Debug)]
 pub struct ByteReader<R: io::Read, E: Endianness> {
     phantom: PhantomData<E>,
     reader: R,
