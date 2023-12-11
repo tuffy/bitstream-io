@@ -972,6 +972,30 @@ pub trait ByteRead {
     /// ```
     fn read<V: Primitive>(&mut self) -> Result<V, io::Error>;
 
+    /// Reads whole numeric value from stream in a potentially different endianness
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, ByteReader, ByteRead, LittleEndian};
+    /// let data = [0b00000000, 0b11111111];
+    /// let mut reader = ByteReader::endian(Cursor::new(&data), BigEndian);
+    /// assert_eq!(reader.read_as::<LittleEndian, u16>().unwrap(), 0b1111111100000000);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, ByteReader, ByteRead, LittleEndian};
+    /// let data = [0b00000000, 0b11111111];
+    /// let mut reader = ByteReader::endian(Cursor::new(&data), LittleEndian);
+    /// assert_eq!(reader.read_as::<BigEndian, u16>().unwrap(), 0b0000000011111111);
+    /// ```
+    fn read_as<F: Endianness, V: Primitive>(&mut self) -> Result<V, io::Error>;
+
     /// Completely fills the given buffer with whole bytes.
     ///
     /// # Errors
@@ -1090,6 +1114,11 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     #[inline]
     fn read<V: Primitive>(&mut self) -> Result<V, io::Error> {
         E::read_numeric(&mut self.reader)
+    }
+
+    #[inline]
+    fn read_as<F: Endianness, V: Primitive>(&mut self) -> Result<V, io::Error> {
+        F::read_numeric(&mut self.reader)
     }
 
     #[inline]
