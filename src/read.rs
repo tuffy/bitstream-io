@@ -219,6 +219,18 @@ pub trait BitRead {
     where
         V: Primitive;
 
+    /// Reads whole value from the stream whose size in bits is equal
+    /// to its type's size in an endianness that may be different
+    /// from the stream's endianness.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn read_as_to<F, V>(&mut self) -> io::Result<V>
+    where
+        F: Endianness,
+        V: Primitive;
+
     /// Skips the given number of bits in the stream.
     /// Since this method does not need an accumulator,
     /// it may be slightly faster than reading to an empty variable.
@@ -584,6 +596,15 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
         V: Primitive,
     {
         E::read_primitive(self)
+    }
+
+    #[inline]
+    fn read_as_to<F, V>(&mut self) -> io::Result<V>
+    where
+        F: Endianness,
+        V: Primitive,
+    {
+        F::read_primitive(self)
     }
 
     /// # Examples
@@ -970,7 +991,9 @@ pub trait ByteRead {
     /// let mut reader = ByteReader::endian(Cursor::new(&data), LittleEndian);
     /// assert_eq!(reader.read::<u16>().unwrap(), 0b1111111100000000);
     /// ```
-    fn read<V: Primitive>(&mut self) -> Result<V, io::Error>;
+    fn read<V>(&mut self) -> Result<V, io::Error>
+    where
+        V: Primitive;
 
     /// Reads whole numeric value from stream in a potentially different endianness
     ///
@@ -994,7 +1017,10 @@ pub trait ByteRead {
     /// let mut reader = ByteReader::endian(Cursor::new(&data), LittleEndian);
     /// assert_eq!(reader.read_as::<BigEndian, u16>().unwrap(), 0b0000000011111111);
     /// ```
-    fn read_as<F: Endianness, V: Primitive>(&mut self) -> Result<V, io::Error>;
+    fn read_as<F, V>(&mut self) -> Result<V, io::Error>
+    where
+        F: Endianness,
+        V: Primitive;
 
     /// Completely fills the given buffer with whole bytes.
     ///
@@ -1112,12 +1138,19 @@ impl<R: io::Read, E: Endianness> ByteReader<R, E> {
 
 impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     #[inline]
-    fn read<V: Primitive>(&mut self) -> Result<V, io::Error> {
+    fn read<V>(&mut self) -> Result<V, io::Error>
+    where
+        V: Primitive,
+    {
         E::read_numeric(&mut self.reader)
     }
 
     #[inline]
-    fn read_as<F: Endianness, V: Primitive>(&mut self) -> Result<V, io::Error> {
+    fn read_as<F, V>(&mut self) -> Result<V, io::Error>
+    where
+        F: Endianness,
+        V: Primitive,
+    {
         F::read_numeric(&mut self.reader)
     }
 
