@@ -1208,7 +1208,31 @@ pub trait ByteWrite {
     /// writer.write(0b0000000011111111u16).unwrap();
     /// assert_eq!(writer.into_writer(), [0b11111111, 0b00000000]);
     /// ```
-    fn write<N: Numeric>(&mut self, value: N) -> io::Result<()>;
+    fn write<V: Primitive>(&mut self, value: V) -> io::Result<()>;
+
+    /// Writes whole numeric value to stream in a potentially different endianness
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, ByteWriter, ByteWrite, LittleEndian};
+    /// let mut writer = ByteWriter::endian(Vec::new(), BigEndian);
+    /// writer.write_as::<LittleEndian, u16>(0b0000000011111111).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b11111111, 0b00000000]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, ByteWriter, ByteWrite, LittleEndian};
+    /// let mut writer = ByteWriter::endian(Vec::new(), LittleEndian);
+    /// writer.write_as::<BigEndian, u16>(0b0000000011111111).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b00000000, 0b11111111]);
+    /// ```
+    fn write_as<F: Endianness, V: Primitive>(&mut self, value: V) -> io::Result<()>;
 
     /// Writes the entirety of a byte buffer to the stream.
     ///
@@ -1237,8 +1261,13 @@ pub trait ByteWrite {
 
 impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
     #[inline]
-    fn write<N: Numeric>(&mut self, value: N) -> io::Result<()> {
+    fn write<V: Primitive>(&mut self, value: V) -> io::Result<()> {
         E::write_numeric(&mut self.writer, value)
+    }
+
+    #[inline]
+    fn write_as<F: Endianness, V: Primitive>(&mut self, value: V) -> io::Result<()> {
+        F::write_numeric(&mut self.writer, value)
     }
 
     #[inline]
