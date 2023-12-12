@@ -96,21 +96,23 @@
 //!     comment: Vec<String>,
 //! }
 //!
-//! impl FromByteStream for VorbisComment {
+//! impl FromBitStream for VorbisComment {
 //!    type Error = Box<dyn std::error::Error>;
 //!
-//!    fn from_reader<R: ByteRead + ?Sized>(r: &mut R) -> Result<Self, Self::Error> {
-//!        fn read_entry<R: ByteRead + ?Sized>(
+//!    fn from_reader<R: BitRead + ?Sized>(r: &mut R) -> Result<Self, Self::Error> {
+//!        use bitstream_io::LE;
+//!
+//!        fn read_entry<R: BitRead + ?Sized>(
 //!            r: &mut R,
 //!        ) -> Result<String, Box<dyn std::error::Error>> {
 //!            use std::convert::TryInto;
-//!            let size = r.read::<u32>()?.try_into()?;
+//!            let size = r.read_as_to::<LE, u32>()?.try_into()?;
 //!            Ok(String::from_utf8(r.read_to_vec(size)?)?)
 //!        }
 //!
 //!        Ok(Self {
 //!            vendor: read_entry(r)?,
-//!            comment: (0..r.read::<u32>()?)
+//!            comment: (0..r.read_as_to::<LE, u32>()?)
 //!                .map(|_| read_entry(r))
 //!                .collect::<Result<Vec<_>, _>>()?,
 //!        })
@@ -152,9 +154,9 @@
 //!     BlockHeader { last_block: false, block_type: 4, block_size: 122 }
 //! );
 //!
-//! // VORBIS_COMMENT block (little endian)
+//! // VORBIS_COMMENT block
 //! assert_eq!(
-//!    ByteReader::endian(reader.reader().unwrap(), LittleEndian).parse::<VorbisComment>().unwrap(),
+//!    reader.parse::<VorbisComment>().unwrap(),
 //!    VorbisComment {
 //!        vendor: "reference libFLAC 1.1.4 20070213".to_string(),
 //!        comment: vec![
