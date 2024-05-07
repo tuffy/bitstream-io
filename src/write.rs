@@ -163,9 +163,18 @@
 
 #![warn(missing_docs)]
 
-use std::convert::From;
+#[cfg(feature="alloc")]
+use alloc::boxed::Box;
+#[cfg(feature="alloc")]
+use alloc::vec::Vec;
+#[cfg(feature="alloc")]
+use core2::io;
+
+#[cfg(not(feature = "alloc"))]
 use std::io;
-use std::ops::{AddAssign, Rem};
+
+use core::convert::From;
+use core::ops::{AddAssign, Rem};
 
 use super::{
     huffman::WriteHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, Primitive, SignedNumeric,
@@ -1122,7 +1131,7 @@ fn write_byte<W>(mut writer: W, byte: u8) -> io::Result<()>
 where
     W: io::Write,
 {
-    writer.write_all(std::slice::from_ref(&byte))
+    writer.write_all(core::slice::from_ref(&byte))
 }
 
 fn write_unaligned<W, E, N>(
@@ -1138,7 +1147,7 @@ where
     if rem.is_empty() {
         Ok(())
     } else {
-        use std::cmp::min;
+        use core::cmp::min;
         let bits_to_transfer = min(8 - rem.len(), acc.len());
         rem.push(bits_to_transfer, acc.pop(bits_to_transfer).to_u8());
         if rem.len() == 8 {

@@ -170,7 +170,14 @@
 
 #![warn(missing_docs)]
 
-use std::io;
+#[cfg(feature = "alloc")]
+use alloc::vec;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+use core2::io::{self, SeekFrom};
+#[cfg(not(feature = "alloc"))]
+use std::io::{self, SeekFrom};
 
 use super::{
     huffman::ReadHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, Primitive, SignedNumeric,
@@ -628,7 +635,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10110);
     /// ```
     fn skip(&mut self, mut bits: u32) -> io::Result<()> {
-        use std::cmp::min;
+        use core::cmp::min;
 
         let to_drop = min(self.bitqueue.len(), bits);
         if to_drop != 0 {
@@ -825,7 +832,7 @@ where
     /// ```
     #[inline]
     pub fn position_in_bits(&mut self) -> io::Result<u64> {
-        let bytes = self.reader.stream_position()?;
+        let bytes = self.reader.seek(SeekFrom::Current(0))?;
         Ok(bytes * 8 - (self.bitqueue.len() as u64))
     }
 }
@@ -876,7 +883,7 @@ where
 {
     let mut byte = 0;
     reader
-        .read_exact(std::slice::from_mut(&mut byte))
+        .read_exact(core::slice::from_mut(&mut byte))
         .map(|()| byte)
 }
 
@@ -900,7 +907,7 @@ fn skip_aligned<R>(mut reader: R, mut bytes: u32) -> io::Result<()>
 where
     R: io::Read,
 {
-    use std::cmp::min;
+    use core::cmp::min;
 
     /*skip up to 8 bytes at a time
     (unlike with read_aligned, "bytes" may be larger than any native type)*/

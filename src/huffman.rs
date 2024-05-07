@@ -13,9 +13,27 @@
 
 use super::BitQueue;
 use super::Endianness;
-use std::collections::BTreeMap;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
+#[cfg(feature = "alloc")]
+use alloc::collections::BTreeMap;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+use core2::error::Error;
+#[cfg(feature = "alloc")]
+use core::fmt;
+#[cfg(feature = "alloc")]
+use core::marker::PhantomData;
+
+#[cfg(not(feature = "alloc"))]
 use std::fmt;
+#[cfg(not(feature = "alloc"))]
 use std::marker::PhantomData;
+#[cfg(not(feature = "alloc"))]
+use std::collections::BTreeMap;
+#[cfg(not(feature = "alloc"))]
+use std::error::Error;
 
 /// A compiled Huffman tree element for use with the `read_huffman` method.
 /// Returned by `compile_read_tree`.
@@ -235,7 +253,7 @@ impl fmt::Display for HuffmanTreeError {
     }
 }
 
-impl std::error::Error for HuffmanTreeError {}
+impl Error for HuffmanTreeError {}
 
 /// Given a vector of symbol/code pairs, compiles a Huffman tree
 /// for writing.
