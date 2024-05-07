@@ -11,7 +11,7 @@ repository = "https://github.com/tuffy/bitstream-io"
 edition = "2018"
 
 [dependencies]
-core2 = {version = "0.4", optional = true, default-features = false}
+core2 = {version = "0.4", optional = true, default-features = false, features = ["alloc"]}
 
 [features]
 std = []
