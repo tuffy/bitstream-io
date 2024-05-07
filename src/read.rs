@@ -170,6 +170,13 @@
 
 #![warn(missing_docs)]
 
+#[cfg(feature = "alloc")]
+use alloc::vec;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+use core2::io;
+#[cfg(not(feature = "alloc"))]
 use std::io;
 
 use super::{
@@ -628,7 +635,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10110);
     /// ```
     fn skip(&mut self, mut bits: u32) -> io::Result<()> {
-        use std::cmp::min;
+        use core::cmp::min;
 
         let to_drop = min(self.bitqueue.len(), bits);
         if to_drop != 0 {
@@ -876,7 +883,7 @@ where
 {
     let mut byte = 0;
     reader
-        .read_exact(std::slice::from_mut(&mut byte))
+        .read_exact(core::slice::from_mut(&mut byte))
         .map(|()| byte)
 }
 
@@ -900,7 +907,7 @@ fn skip_aligned<R>(mut reader: R, mut bytes: u32) -> io::Result<()>
 where
     R: io::Read,
 {
-    use std::cmp::min;
+    use core::cmp::min;
 
     /*skip up to 8 bytes at a time
     (unlike with read_aligned, "bytes" may be larger than any native type)*/

@@ -41,11 +41,18 @@
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 
-use std::fmt::Debug;
+#![cfg_attr(feature = "alloc", no_std)]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "alloc")]
+use core2::io;
+#[cfg(not(feature="alloc"))]
 use std::io;
-use std::marker::PhantomData;
-use std::mem;
-use std::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
+use core::fmt::Debug;
+use core::marker::PhantomData;
+use core::mem;
+use core::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
 
 pub mod huffman;
 pub mod read;
