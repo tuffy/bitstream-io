@@ -40,19 +40,18 @@
 
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
-
 #![cfg_attr(feature = "alloc", no_std)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
-#[cfg(feature = "alloc")]
-use core2::io;
-#[cfg(not(feature="alloc"))]
-use std::io;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::mem;
 use core::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
+#[cfg(feature = "alloc")]
+use core2::io;
+#[cfg(not(feature = "alloc"))]
+use std::io;
 
 pub mod huffman;
 pub mod read;
@@ -452,20 +451,13 @@ impl Endianness for BigEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        if bits <= S::BITS_SIZE {
-            let is_negative = r.read_bit()?;
-            let unsigned = r.read::<S>(bits - 1)?;
-            Ok(if is_negative {
-                unsigned.as_negative(bits)
-            } else {
-                unsigned
-            })
+        let is_negative = r.read_bit()?;
+        let unsigned = r.read::<S>(bits - 1)?;
+        Ok(if is_negative {
+            unsigned.as_negative(bits)
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
+            unsigned
+        })
     }
 
     fn write_signed<W, S>(w: &mut W, bits: u32, value: S) -> io::Result<()>
@@ -473,12 +465,7 @@ impl Endianness for BigEndian {
         W: BitWrite,
         S: SignedNumeric,
     {
-        if bits > S::BITS_SIZE {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            ))
-        } else if bits == S::BITS_SIZE {
+        if bits == S::BITS_SIZE {
             w.write_bytes(value.to_be_bytes().as_ref())
         } else if value.is_negative() {
             w.write_bit(true)
@@ -602,20 +589,13 @@ impl Endianness for LittleEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        if bits <= S::BITS_SIZE {
-            let unsigned = r.read::<S>(bits - 1)?;
-            let is_negative = r.read_bit()?;
-            Ok(if is_negative {
-                unsigned.as_negative(bits)
-            } else {
-                unsigned
-            })
+        let unsigned = r.read::<S>(bits - 1)?;
+        let is_negative = r.read_bit()?;
+        Ok(if is_negative {
+            unsigned.as_negative(bits)
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
+            unsigned
+        })
     }
 
     fn write_signed<W, S>(w: &mut W, bits: u32, value: S) -> io::Result<()>
@@ -623,12 +603,7 @@ impl Endianness for LittleEndian {
         W: BitWrite,
         S: SignedNumeric,
     {
-        if bits > S::BITS_SIZE {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            ))
-        } else if bits == S::BITS_SIZE {
+        if bits == S::BITS_SIZE {
             w.write_bytes(value.to_le_bytes().as_ref())
         } else if value.is_negative() {
             w.write(bits - 1, value.as_unsigned(bits))

@@ -20,20 +20,20 @@ use alloc::collections::BTreeMap;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 #[cfg(feature = "alloc")]
-use core2::error::Error;
-#[cfg(feature = "alloc")]
 use core::fmt;
 #[cfg(feature = "alloc")]
 use core::marker::PhantomData;
+#[cfg(feature = "alloc")]
+use core2::error::Error;
 
-#[cfg(not(feature = "alloc"))]
-use std::fmt;
-#[cfg(not(feature = "alloc"))]
-use std::marker::PhantomData;
 #[cfg(not(feature = "alloc"))]
 use std::collections::BTreeMap;
 #[cfg(not(feature = "alloc"))]
 use std::error::Error;
+#[cfg(not(feature = "alloc"))]
+use std::fmt;
+#[cfg(not(feature = "alloc"))]
+use std::marker::PhantomData;
 
 /// A compiled Huffman tree element for use with the `read_huffman` method.
 /// Returned by `compile_read_tree`.

@@ -53,8 +53,8 @@
 //!     fn from_reader<R: BitRead + ?Sized>(r: &mut R) -> std::io::Result<Self> {
 //!         Ok(Self {
 //!             last_block: r.read_bit()?,
-//!             block_type: r.read(7)?,
-//!             block_size: r.read(24)?,
+//!             block_type: r.read_fixed::<7, _>()?,
+//!             block_size: r.read_fixed::<24, _>()?,
 //!         })
 //!     }
 //! }
@@ -79,12 +79,12 @@
 //!         Ok(Self {
 //!             minimum_block_size: r.read_to()?,
 //!             maximum_block_size: r.read_to()?,
-//!             minimum_frame_size: r.read(24)?,
-//!             maximum_frame_size: r.read(24)?,
-//!             sample_rate: r.read(20)?,
-//!             channels: r.read::<u8>(3)? + 1,
-//!             bits_per_sample: r.read::<u8>(5)? + 1,
-//!             total_samples: r.read(36)?,
+//!             minimum_frame_size: r.read_fixed::<24, _>()?,
+//!             maximum_frame_size: r.read_fixed::<24, _>()?,
+//!             sample_rate: r.read_fixed::<20, _>()?,
+//!             channels: r.read_fixed::<3, u8>()? + 1,
+//!             bits_per_sample: r.read_fixed::<5, u8>()? + 1,
+//!             total_samples: r.read_fixed::<36, _>()?,
 //!             md5: r.read_to()?,
 //!         })
 //!     }
@@ -206,6 +206,18 @@ pub trait BitRead {
     where
         U: Numeric;
 
+    /// Reads an unsigned value from the stream with
+    /// the given constant number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// A compile-time error occurs if the given number of bits
+    /// is larger than the output type.
+    fn read_fixed<const B: u32, U>(&mut self) -> io::Result<U>
+    where
+        U: Numeric;
+
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.
     ///
@@ -215,6 +227,18 @@ pub trait BitRead {
     /// Also returns an error if the output type is too small
     /// to hold the requested number of bits.
     fn read_signed<S>(&mut self, bits: u32) -> io::Result<S>
+    where
+        S: SignedNumeric;
+
+    /// Reads a twos-complement signed value from the stream with
+    /// the given const number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// A compile-time error occurs if the given number of bits
+    /// is larger than the output type.
+    fn read_signed_fixed<const B: u32, S>(&mut self) -> io::Result<S>
     where
         S: SignedNumeric;
 
@@ -537,29 +561,49 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert!(reader.read::<u32>(33).is_err());  // can't read 33 bits to u32
     /// assert!(reader.read::<u64>(65).is_err());  // can't read 65 bits to u64
     /// ```
-    fn read<U>(&mut self, mut bits: u32) -> io::Result<U>
+    fn read<U>(&mut self, bits: u32) -> io::Result<U>
     where
         U: Numeric,
     {
         if bits <= U::BITS_SIZE {
-            let bitqueue_len = self.bitqueue.len();
-            if bits <= bitqueue_len {
-                Ok(U::from_u8(self.bitqueue.pop(bits)))
-            } else {
-                let mut acc =
-                    BitQueue::from_value(U::from_u8(self.bitqueue.pop_all()), bitqueue_len);
-                bits -= bitqueue_len;
-
-                read_aligned(&mut self.reader, bits / 8, &mut acc)?;
-                read_unaligned(&mut self.reader, bits % 8, &mut acc, &mut self.bitqueue)?;
-                Ok(acc.value())
-            }
+            self.read_bits(bits)
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type read",
             ))
         }
+    }
+
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, BitReader, BitRead};
+    /// let data = [0b10110111];
+    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// assert_eq!(reader.read_fixed::<1, u8>().unwrap(), 0b1);
+    /// assert_eq!(reader.read_fixed::<2, u8>().unwrap(), 0b01);
+    /// assert_eq!(reader.read_fixed::<5, u8>().unwrap(), 0b10111);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{LittleEndian, BitReader, BitRead};
+    /// let data = [0b10110111];
+    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
+    /// assert_eq!(reader.read_fixed::<1, u8>().unwrap(), 0b1);
+    /// assert_eq!(reader.read_fixed::<2, u8>().unwrap(), 0b11);
+    /// assert_eq!(reader.read_fixed::<5, u8>().unwrap(), 0b10110);
+    /// ```
+    #[inline]
+    fn read_fixed<const B: u32, U>(&mut self) -> io::Result<U>
+    where
+        U: Numeric,
+    {
+        const {
+            assert!(B <= U::BITS_SIZE, "excessive bits for type read");
+        }
+        self.read_bits(B)
     }
 
     /// # Examples
@@ -596,7 +640,43 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     where
         S: SignedNumeric,
     {
-        E::read_signed(self, bits)
+        if bits <= S::BITS_SIZE {
+            E::read_signed(self, bits)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
+        }
+    }
+
+    /// # Examples
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{BigEndian, BitReader, BitRead};
+    /// let data = [0b10110111];
+    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// assert_eq!(reader.read_signed_fixed::<4, i8>().unwrap(), -5);
+    /// assert_eq!(reader.read_signed_fixed::<4, i8>().unwrap(), 7);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Read, Cursor};
+    /// use bitstream_io::{LittleEndian, BitReader, BitRead};
+    /// let data = [0b10110111];
+    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
+    /// assert_eq!(reader.read_signed_fixed::<4, i8>().unwrap(), 7);
+    /// assert_eq!(reader.read_signed_fixed::<4, i8>().unwrap(), -5);
+    /// ```
+    #[inline]
+    fn read_signed_fixed<const B: u32, S>(&mut self) -> io::Result<S>
+    where
+        S: SignedNumeric,
+    {
+        const {
+            assert!(B <= S::BITS_SIZE, "excessive bits for type read");
+        }
+        E::read_signed::<_, S>(self, B)
     }
 
     #[inline]
@@ -767,6 +847,31 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     #[inline]
     fn byte_align(&mut self) {
         self.bitqueue.clear()
+    }
+}
+
+impl<R, E> BitReader<R, E>
+where
+    E: Endianness,
+    R: io::Read,
+{
+    // an internal method which does no bounds checking on "bits"
+    // and is not meant to be exposed publicly
+    fn read_bits<U>(&mut self, mut bits: u32) -> io::Result<U>
+    where
+        U: Numeric,
+    {
+        let bitqueue_len = self.bitqueue.len();
+        if bits <= bitqueue_len {
+            Ok(U::from_u8(self.bitqueue.pop(bits)))
+        } else {
+            let mut acc = BitQueue::from_value(U::from_u8(self.bitqueue.pop_all()), bitqueue_len);
+            bits -= bitqueue_len;
+
+            read_aligned(&mut self.reader, bits / 8, &mut acc)?;
+            read_unaligned(&mut self.reader, bits % 8, &mut acc, &mut self.bitqueue)?;
+            Ok(acc.value())
+        }
     }
 }
 
