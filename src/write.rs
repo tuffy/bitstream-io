@@ -705,7 +705,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
                 "excessive value for bits written",
             ))
         } else if B < self.bitqueue.remaining_len() {
-            self.bitqueue.push(B, value.to_u8());
+            self.bitqueue.push_fixed::<B>(value.to_u8());
             Ok(())
         } else {
             let mut acc = BitQueue::from_value(value, B);

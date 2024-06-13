@@ -311,9 +311,21 @@ pub trait Endianness: Sized {
     where
         N: Numeric;
 
+    /// Pushes the given constant number of bits and value onto an accumulator
+    /// with the given bits and value.
+    fn push_fixed<const B: u32, N>(queue: &mut BitQueue<Self, N>, value: N)
+    where
+        N: Numeric;
+
     /// Pops a value with the given number of bits from an accumulator
     /// with the given bits and value.
     fn pop<N>(queue: &mut BitQueue<Self, N>, bits: u32) -> N
+    where
+        N: Numeric;
+
+    /// Pops a value with the given number of constant bits
+    /// from an accumulator with the given bits and value.
+    fn pop_fixed<const B: u32, N>(queue: &mut BitQueue<Self, N>) -> N
     where
         N: Numeric;
 
@@ -393,6 +405,18 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
+    fn push_fixed<const B: u32, N>(queue: &mut BitQueue<Self, N>, value: N)
+    where
+        N: Numeric,
+    {
+        if !queue.value.is_zero() {
+            queue.value <<= B;
+        }
+        queue.value |= value;
+        queue.bits += B;
+    }
+
+    #[inline]
     fn pop<N>(queue: &mut BitQueue<Self, N>, bits: u32) -> N
     where
         N: Numeric,
@@ -402,6 +426,25 @@ impl Endianness for BigEndian {
             let to_return = queue.value >> offset;
             queue.value %= N::ONE << offset;
             queue.bits -= bits;
+            to_return
+        } else {
+            let to_return = queue.value;
+            queue.value = N::default();
+            queue.bits = 0;
+            to_return
+        }
+    }
+
+    #[inline]
+    fn pop_fixed<const B: u32, N>(queue: &mut BitQueue<Self, N>) -> N
+    where
+        N: Numeric,
+    {
+        if B < queue.bits {
+            let offset = queue.bits - B;
+            let to_return = queue.value >> offset;
+            queue.value %= N::ONE << offset;
+            queue.bits -= B;
             to_return
         } else {
             let to_return = queue.value;
@@ -537,6 +580,18 @@ impl Endianness for LittleEndian {
     }
 
     #[inline]
+    fn push_fixed<const B: u32, N>(queue: &mut BitQueue<Self, N>, mut value: N)
+    where
+        N: Numeric,
+    {
+        if !value.is_zero() {
+            value <<= queue.bits;
+            queue.value |= value;
+        }
+        queue.bits += B;
+    }
+
+    #[inline]
     fn pop<N>(queue: &mut BitQueue<Self, N>, bits: u32) -> N
     where
         N: Numeric,
@@ -545,6 +600,23 @@ impl Endianness for LittleEndian {
             let to_return = queue.value % (N::ONE << bits);
             queue.value >>= bits;
             queue.bits -= bits;
+            to_return
+        } else {
+            let to_return = queue.value;
+            queue.value = N::default();
+            queue.bits = 0;
+            to_return
+        }
+    }
+
+    fn pop_fixed<const B: u32, N>(queue: &mut BitQueue<Self, N>) -> N
+    where
+        N: Numeric,
+    {
+        if B < queue.bits {
+            let to_return = queue.value % (N::ONE << B);
+            queue.value >>= B;
+            queue.bits -= B;
             to_return
         } else {
             let to_return = queue.value;
@@ -764,6 +836,14 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
         E::push(self, bits, value)
     }
 
+    /// Pushes a value with the given number of bits onto the tail of the queue
+    /// Panics if the number of bits pushed is larger than the queue can hold.
+    #[inline(always)]
+    pub fn push_fixed<const B: u32>(&mut self, value: N) {
+        assert!(B <= self.remaining_len()); // check for overflow
+        E::push_fixed::<B, N>(self, value)
+    }
+
     /// Pops a value with the given number of bits from the head of the queue
     /// Panics if the number of bits popped is larger than the number
     /// of bits in the queue.
@@ -771,6 +851,12 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     pub fn pop(&mut self, bits: u32) -> N {
         assert!(bits <= self.len()); // check for underflow
         E::pop(self, bits)
+    }
+
+    /// Pops a value with the given number of bits from the head of the queue
+    pub fn pop_fixed<const B: u32>(&mut self) -> N {
+        assert!(B <= self.len()); // check for underflow
+        E::pop_fixed::<B, N>(self)
     }
 
     /// Pops all the current bits from the queue

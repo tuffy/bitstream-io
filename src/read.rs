@@ -561,12 +561,23 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert!(reader.read::<u32>(33).is_err());  // can't read 33 bits to u32
     /// assert!(reader.read::<u64>(65).is_err());  // can't read 65 bits to u64
     /// ```
-    fn read<U>(&mut self, bits: u32) -> io::Result<U>
+    fn read<U>(&mut self, mut bits: u32) -> io::Result<U>
     where
         U: Numeric,
     {
         if bits <= U::BITS_SIZE {
-            self.read_bits(bits)
+            let bitqueue_len = self.bitqueue.len();
+            if bits <= bitqueue_len {
+                Ok(U::from_u8(self.bitqueue.pop(bits)))
+            } else {
+                let mut acc =
+                    BitQueue::from_value(U::from_u8(self.bitqueue.pop_all()), bitqueue_len);
+                bits -= bitqueue_len;
+
+                read_aligned(&mut self.reader, bits / 8, &mut acc)?;
+                read_unaligned(&mut self.reader, bits % 8, &mut acc, &mut self.bitqueue)?;
+                Ok(acc.value())
+            }
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -603,7 +614,19 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
         const {
             assert!(B <= U::BITS_SIZE, "excessive bits for type read");
         }
-        self.read_bits(B)
+
+        let bitqueue_len = self.bitqueue.len();
+        if B <= bitqueue_len {
+            Ok(U::from_u8(self.bitqueue.pop_fixed::<B>()))
+        } else {
+            let mut bits = B;
+            let mut acc = BitQueue::from_value(U::from_u8(self.bitqueue.pop_all()), bitqueue_len);
+            bits -= bitqueue_len;
+
+            read_aligned(&mut self.reader, bits / 8, &mut acc)?;
+            read_unaligned(&mut self.reader, bits % 8, &mut acc, &mut self.bitqueue)?;
+            Ok(acc.value())
+        }
     }
 
     /// # Examples
@@ -847,31 +870,6 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     #[inline]
     fn byte_align(&mut self) {
         self.bitqueue.clear()
-    }
-}
-
-impl<R, E> BitReader<R, E>
-where
-    E: Endianness,
-    R: io::Read,
-{
-    // an internal method which does no bounds checking on "bits"
-    // and is not meant to be exposed publicly
-    fn read_bits<U>(&mut self, mut bits: u32) -> io::Result<U>
-    where
-        U: Numeric,
-    {
-        let bitqueue_len = self.bitqueue.len();
-        if bits <= bitqueue_len {
-            Ok(U::from_u8(self.bitqueue.pop(bits)))
-        } else {
-            let mut acc = BitQueue::from_value(U::from_u8(self.bitqueue.pop_all()), bitqueue_len);
-            bits -= bitqueue_len;
-
-            read_aligned(&mut self.reader, bits / 8, &mut acc)?;
-            read_unaligned(&mut self.reader, bits % 8, &mut acc, &mut self.bitqueue)?;
-            Ok(acc.value())
-        }
     }
 }
 
