@@ -699,7 +699,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
         const {
             assert!(BITS <= S::BITS_SIZE, "excessive bits for type read");
         }
-        E::read_signed::<_, S>(self, BITS)
+        E::read_signed_fixed::<_, BITS, S>(self)
     }
 
     #[inline]
