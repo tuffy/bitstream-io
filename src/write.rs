@@ -335,7 +335,7 @@ pub trait BitWrite {
     /// to fit the given number of bits.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
-    fn write_out<const B: u32, U>(&mut self, value: U) -> io::Result<()>
+    fn write_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: Numeric;
 
@@ -363,7 +363,7 @@ pub trait BitWrite {
     /// to fit the given number of bits.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
-    fn write_signed_out<const B: u32, S>(&mut self, value: S) -> io::Result<()>
+    fn write_signed_out<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
         S: SignedNumeric;
 
@@ -691,24 +691,24 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// assert!(w.write_out::<3, _>(8).is_err());      // can't write   8 in 3 bits
     /// assert!(w.write_out::<4, _>(16).is_err());     // can't write  16 in 4 bits
     /// ```
-    fn write_out<const B: u32, U>(&mut self, value: U) -> io::Result<()>
+    fn write_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: Numeric,
     {
         const {
-            assert!(B <= U::BITS_SIZE, "excessive bits for type written");
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
         }
 
-        if (B < U::BITS_SIZE) && (value >= (U::ONE << B)) {
+        if (BITS < U::BITS_SIZE) && (value >= (U::ONE << BITS)) {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive value for bits written",
             ))
-        } else if B < self.bitqueue.remaining_len() {
-            self.bitqueue.push_fixed::<B>(value.to_u8());
+        } else if BITS < self.bitqueue.remaining_len() {
+            self.bitqueue.push_fixed::<BITS>(value.to_u8());
             Ok(())
         } else {
-            let mut acc = BitQueue::from_value(value, B);
+            let mut acc = BitQueue::from_value(value, BITS);
             write_unaligned(&mut self.writer, &mut acc, &mut self.bitqueue)?;
             write_aligned(&mut self.writer, &mut acc)?;
             self.bitqueue.push(acc.len(), acc.value().to_u8());
@@ -768,14 +768,14 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     #[inline]
-    fn write_signed_out<const B: u32, S>(&mut self, value: S) -> io::Result<()>
+    fn write_signed_out<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
     {
         const {
-            assert!(B <= S::BITS_SIZE, "excessive bits for type written");
+            assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
         }
-        E::write_signed(self, B, value)
+        E::write_signed(self, BITS, value)
     }
 
     #[inline]
@@ -914,21 +914,21 @@ where
         }
     }
 
-    fn write_out<const B: u32, U>(&mut self, value: U) -> io::Result<()>
+    fn write_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: Numeric,
     {
         const {
-            assert!(B <= U::BITS_SIZE, "excessive bits for type written");
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
         }
 
-        if (B < U::BITS_SIZE) && (value >= (U::ONE << B)) {
+        if (BITS < U::BITS_SIZE) && (value >= (U::ONE << BITS)) {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive value for bits written",
             ))
         } else {
-            self.bits += B.into();
+            self.bits += BITS.into();
             Ok(())
         }
     }
@@ -949,14 +949,14 @@ where
     }
 
     #[inline]
-    fn write_signed_out<const B: u32, S>(&mut self, value: S) -> io::Result<()>
+    fn write_signed_out<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
     {
         const {
-            assert!(B <= S::BITS_SIZE, "excessive bits for type written");
+            assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
         }
-        E::write_signed(self, B, value)
+        E::write_signed(self, BITS, value)
     }
 
     #[inline]
@@ -1214,13 +1214,13 @@ where
     }
 
     #[inline]
-    fn write_out<const B: u32, U>(&mut self, value: U) -> io::Result<()>
+    fn write_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: Numeric,
     {
-        self.counter.write_out::<B, U>(value)?;
+        self.counter.write_out::<BITS, U>(value)?;
         self.records.push(WriteRecord::Unsigned {
-            bits: B,
+            bits: BITS,
             value: value.unsigned_value(),
         });
         Ok(())
@@ -1240,13 +1240,13 @@ where
     }
 
     #[inline]
-    fn write_signed_out<const B: u32, S>(&mut self, value: S) -> io::Result<()>
+    fn write_signed_out<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
     {
-        self.counter.write_signed_out::<B, S>(value)?;
+        self.counter.write_signed_out::<BITS, S>(value)?;
         self.records.push(WriteRecord::Signed {
-            bits: B,
+            bits: BITS,
             value: value.signed_value(),
         });
         Ok(())

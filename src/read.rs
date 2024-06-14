@@ -214,7 +214,7 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
-    fn read_in<const B: u32, U>(&mut self) -> io::Result<U>
+    fn read_in<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
         U: Numeric;
 
@@ -238,7 +238,7 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
-    fn read_signed_in<const B: u32, S>(&mut self) -> io::Result<S>
+    fn read_signed_in<const BITS: u32, S>(&mut self) -> io::Result<S>
     where
         S: SignedNumeric;
 
@@ -607,19 +607,19 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert_eq!(reader.read_in::<5, u8>().unwrap(), 0b10110);
     /// ```
     #[inline]
-    fn read_in<const B: u32, U>(&mut self) -> io::Result<U>
+    fn read_in<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
         U: Numeric,
     {
         const {
-            assert!(B <= U::BITS_SIZE, "excessive bits for type read");
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
         }
 
         let bitqueue_len = self.bitqueue.len();
-        if B <= bitqueue_len {
-            Ok(U::from_u8(self.bitqueue.pop_fixed::<B>()))
+        if BITS <= bitqueue_len {
+            Ok(U::from_u8(self.bitqueue.pop_fixed::<BITS>()))
         } else {
-            let mut bits = B;
+            let mut bits = BITS;
             let mut acc = BitQueue::from_value(U::from_u8(self.bitqueue.pop_all()), bitqueue_len);
             bits -= bitqueue_len;
 
@@ -692,14 +692,14 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert_eq!(reader.read_signed_in::<4, i8>().unwrap(), -5);
     /// ```
     #[inline]
-    fn read_signed_in<const B: u32, S>(&mut self) -> io::Result<S>
+    fn read_signed_in<const BITS: u32, S>(&mut self) -> io::Result<S>
     where
         S: SignedNumeric,
     {
         const {
-            assert!(B <= S::BITS_SIZE, "excessive bits for type read");
+            assert!(BITS <= S::BITS_SIZE, "excessive bits for type read");
         }
-        E::read_signed::<_, S>(self, B)
+        E::read_signed::<_, S>(self, BITS)
     }
 
     #[inline]
