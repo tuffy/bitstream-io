@@ -189,6 +189,20 @@ fn test_writer_be() {
     assert!(w.byte_aligned());
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
+    let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
+    assert!(w.byte_aligned());
+    w.write_out::<2, u32>(2).unwrap();
+    assert!(!w.byte_aligned());
+    w.write_out::<3, u32>(6).unwrap();
+    assert!(!w.byte_aligned());
+    w.write_out::<5, u32>(7).unwrap();
+    assert!(!w.byte_aligned());
+    w.write_out::<3, u32>(5).unwrap();
+    assert!(!w.byte_aligned());
+    w.write_out::<19, u32>(0x53BC1).unwrap();
+    assert!(w.byte_aligned());
+    assert_eq!(w.into_writer().as_slice(), &final_data);
+
     /*writing signed values*/
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     w.write_signed(2, -2).unwrap();
@@ -196,6 +210,14 @@ fn test_writer_be() {
     w.write_signed(5, 7).unwrap();
     w.write_signed(3, -3).unwrap();
     w.write_signed(19, -181311).unwrap();
+    assert_eq!(w.into_writer().as_slice(), &final_data);
+
+    let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
+    w.write_signed_out::<2, i32>(-2).unwrap();
+    w.write_signed_out::<3, i32>(-2).unwrap();
+    w.write_signed_out::<5, i32>(7).unwrap();
+    w.write_signed_out::<3, i32>(-3).unwrap();
+    w.write_signed_out::<19, i32>(-181311).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing unary 0 values*/
@@ -290,16 +312,38 @@ fn test_writer_edge_cases_be() {
     w.write(64, 9223372036854775807u64).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
+    let mut w = BitWriter::endian(Vec::with_capacity(48), BigEndian);
+    w.write_out::<32, u32>(0).unwrap();
+    w.write_out::<32, u32>(4294967295).unwrap();
+    w.write_out::<32, u32>(2147483648).unwrap();
+    w.write_out::<32, u32>(2147483647).unwrap();
+    w.write_out::<64, u64>(0).unwrap();
+    w.write_out::<64, u64>(0xFFFFFFFFFFFFFFFF).unwrap();
+    w.write_out::<64, u64>(9223372036854775808).unwrap();
+    w.write_out::<64, u64>(9223372036854775807).unwrap();
+    assert_eq!(w.into_writer(), final_data);
+
     /*signed 32 and 64-bit values*/
     let mut w = BitWriter::endian(Vec::with_capacity(48), BigEndian);
-    w.write(32, 0i64).unwrap();
-    w.write(32, -1i64).unwrap();
-    w.write(32, -2147483648i64).unwrap();
-    w.write(32, 2147483647i64).unwrap();
+    w.write(32, 0i32).unwrap();
+    w.write(32, -1i32).unwrap();
+    w.write(32, -2147483648i32).unwrap();
+    w.write(32, 2147483647i32).unwrap();
     w.write(64, 0i64).unwrap();
     w.write(64, -1i64).unwrap();
     w.write(64, -9223372036854775808i64).unwrap();
     w.write(64, 9223372036854775807i64).unwrap();
+    assert_eq!(w.into_writer(), final_data);
+
+    let mut w = BitWriter::endian(Vec::with_capacity(48), BigEndian);
+    w.write_out::<32, i32>(0).unwrap();
+    w.write_out::<32, i32>(-1).unwrap();
+    w.write_out::<32, i32>(-2147483648).unwrap();
+    w.write_out::<32, i32>(2147483647).unwrap();
+    w.write_out::<64, i64>(0).unwrap();
+    w.write_out::<64, i64>(-1).unwrap();
+    w.write_out::<64, i64>(-9223372036854775808).unwrap();
+    w.write_out::<64, i64>(9223372036854775807).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
     let mut bytes = Vec::new();
@@ -458,6 +502,20 @@ fn test_writer_le() {
     assert!(w.byte_aligned());
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
+    let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
+    assert!(w.byte_aligned());
+    w.write_out::<2, u32>(1).unwrap();
+    assert!(!w.byte_aligned());
+    w.write_out::<3, u32>(4).unwrap();
+    assert!(!w.byte_aligned());
+    w.write_out::<5, u32>(13).unwrap();
+    assert!(!w.byte_aligned());
+    w.write_out::<3, u32>(3).unwrap();
+    assert!(!w.byte_aligned());
+    w.write_out::<19, u32>(0x609DF).unwrap();
+    assert!(w.byte_aligned());
+    assert_eq!(w.into_writer().as_slice(), &final_data);
+
     /*writing signed values*/
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.write_signed(2, 1).unwrap();
@@ -465,6 +523,14 @@ fn test_writer_le() {
     w.write_signed(5, 13).unwrap();
     w.write_signed(3, 3).unwrap();
     w.write_signed(19, -128545).unwrap();
+    assert_eq!(w.into_writer().as_slice(), &final_data);
+
+    let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
+    w.write_signed_out::<2, i32>(1).unwrap();
+    w.write_signed_out::<3, i32>(-4).unwrap();
+    w.write_signed_out::<5, i32>(13).unwrap();
+    w.write_signed_out::<3, i32>(3).unwrap();
+    w.write_signed_out::<19, i32>(-128545).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing unary 0 values*/
@@ -559,16 +625,38 @@ fn test_writer_edge_cases_le() {
     w.write(64, 9223372036854775807u64).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
+    let mut w = BitWriter::endian(Vec::with_capacity(48), LittleEndian);
+    w.write_out::<32, u32>(0).unwrap();
+    w.write_out::<32, u32>(4294967295).unwrap();
+    w.write_out::<32, u32>(2147483648).unwrap();
+    w.write_out::<32, u32>(2147483647).unwrap();
+    w.write_out::<64, u64>(0).unwrap();
+    w.write_out::<64, u64>(0xFFFFFFFFFFFFFFFF).unwrap();
+    w.write_out::<64, u64>(9223372036854775808).unwrap();
+    w.write_out::<64, u64>(9223372036854775807).unwrap();
+    assert_eq!(w.into_writer(), final_data);
+
     /*signed 32 and 64-bit values*/
     let mut w = BitWriter::endian(Vec::with_capacity(48), LittleEndian);
-    w.write(32, 0i64).unwrap();
-    w.write(32, -1i64).unwrap();
-    w.write(32, -2147483648i64).unwrap();
-    w.write(32, 2147483647i64).unwrap();
+    w.write(32, 0i32).unwrap();
+    w.write(32, -1i32).unwrap();
+    w.write(32, -2147483648i32).unwrap();
+    w.write(32, 2147483647i32).unwrap();
     w.write(64, 0i64).unwrap();
     w.write(64, -1i64).unwrap();
     w.write(64, -9223372036854775808i64).unwrap();
     w.write(64, 9223372036854775807i64).unwrap();
+    assert_eq!(w.into_writer(), final_data);
+
+    let mut w = BitWriter::endian(Vec::with_capacity(48), LittleEndian);
+    w.write_out::<32, i32>(0).unwrap();
+    w.write_out::<32, i32>(-1).unwrap();
+    w.write_out::<32, i32>(-2147483648).unwrap();
+    w.write_out::<32, i32>(2147483647).unwrap();
+    w.write_out::<64, i64>(0).unwrap();
+    w.write_out::<64, i64>(-1).unwrap();
+    w.write_out::<64, i64>(-9223372036854775808).unwrap();
+    w.write_out::<64, i64>(9223372036854775807).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
     let mut bytes = Vec::new();
