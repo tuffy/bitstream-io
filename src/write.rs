@@ -31,8 +31,8 @@
 //!
 //!     fn to_writer<W: BitWrite + ?Sized>(&self, w: &mut W) -> std::io::Result<()> {
 //!         w.write_bit(self.last_block)?;
-//!         w.write_fixed::<7, _>(self.block_type)?;
-//!         w.write_fixed::<24, _>(self.block_size)
+//!         w.write_out::<7, _>(self.block_type)?;
+//!         w.write_out::<24, _>(self.block_size)
 //!     }
 //! }
 //!
@@ -55,12 +55,12 @@
 //!     fn to_writer<W: BitWrite + ?Sized>(&self, w: &mut W) -> std::io::Result<()> {
 //!         w.write_from(self.minimum_block_size)?;
 //!         w.write_from(self.maximum_block_size)?;
-//!         w.write_fixed::<24, _>(self.minimum_frame_size)?;
-//!         w.write_fixed::<24, _>(self.maximum_frame_size)?;
-//!         w.write_fixed::<20, _>(self.sample_rate)?;
-//!         w.write_fixed::<3, _>(self.channels - 1)?;
-//!         w.write_fixed::<5, _>(self.bits_per_sample - 1)?;
-//!         w.write_fixed::<36, _>(self.total_samples)?;
+//!         w.write_out::<24, _>(self.minimum_frame_size)?;
+//!         w.write_out::<24, _>(self.maximum_frame_size)?;
+//!         w.write_out::<20, _>(self.sample_rate)?;
+//!         w.write_out::<3, _>(self.channels - 1)?;
+//!         w.write_out::<5, _>(self.bits_per_sample - 1)?;
+//!         w.write_out::<36, _>(self.total_samples)?;
 //!         w.write_bytes(&self.md5)
 //!     }
 //! }
@@ -335,7 +335,7 @@ pub trait BitWrite {
     /// to fit the given number of bits.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
-    fn write_fixed<const B: u32, U>(&mut self, value: U) -> io::Result<()>
+    fn write_out<const B: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: Numeric;
 
@@ -363,7 +363,7 @@ pub trait BitWrite {
     /// to fit the given number of bits.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
-    fn write_signed_fixed<const B: u32, S>(&mut self, value: S) -> io::Result<()>
+    fn write_signed_out<const B: u32, S>(&mut self, value: S) -> io::Result<()>
     where
         S: SignedNumeric;
 
@@ -666,9 +666,9 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_fixed::<1, _>(0b1).unwrap();
-    /// writer.write_fixed::<2, _>(0b01).unwrap();
-    /// writer.write_fixed::<5, _>(0b10111).unwrap();
+    /// writer.write_out::<1, _>(0b1).unwrap();
+    /// writer.write_out::<2, _>(0b01).unwrap();
+    /// writer.write_out::<5, _>(0b10111).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
@@ -676,9 +676,9 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::Write;
     /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_fixed::<1, _>(0b1).unwrap();
-    /// writer.write_fixed::<2, _>(0b11).unwrap();
-    /// writer.write_fixed::<5, _>(0b10110).unwrap();
+    /// writer.write_out::<1, _>(0b1).unwrap();
+    /// writer.write_out::<2, _>(0b11).unwrap();
+    /// writer.write_out::<5, _>(0b10110).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
@@ -686,12 +686,12 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::{Write, sink};
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut w = BitWriter::endian(sink(), BigEndian);
-    /// assert!(w.write_fixed::<1, _>(2).is_err());      // can't write   2 in 1 bit
-    /// assert!(w.write_fixed::<2, _>(4).is_err());      // can't write   4 in 2 bits
-    /// assert!(w.write_fixed::<3, _>(8).is_err());      // can't write   8 in 3 bits
-    /// assert!(w.write_fixed::<4, _>(16).is_err());     // can't write  16 in 4 bits
+    /// assert!(w.write_out::<1, _>(2).is_err());      // can't write   2 in 1 bit
+    /// assert!(w.write_out::<2, _>(4).is_err());      // can't write   4 in 2 bits
+    /// assert!(w.write_out::<3, _>(8).is_err());      // can't write   8 in 3 bits
+    /// assert!(w.write_out::<4, _>(16).is_err());     // can't write  16 in 4 bits
     /// ```
-    fn write_fixed<const B: u32, U>(&mut self, value: U) -> io::Result<()>
+    fn write_out<const B: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: Numeric,
     {
@@ -754,8 +754,8 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_signed_fixed::<4, _>(-5).unwrap();
-    /// writer.write_signed_fixed::<4, _>(7).unwrap();
+    /// writer.write_signed_out::<4, _>(-5).unwrap();
+    /// writer.write_signed_out::<4, _>(7).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
@@ -763,12 +763,12 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::Write;
     /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_signed_fixed::<4, _>(7).unwrap();
-    /// writer.write_signed_fixed::<4, _>(-5).unwrap();
+    /// writer.write_signed_out::<4, _>(7).unwrap();
+    /// writer.write_signed_out::<4, _>(-5).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     #[inline]
-    fn write_signed_fixed<const B: u32, S>(&mut self, value: S) -> io::Result<()>
+    fn write_signed_out<const B: u32, S>(&mut self, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
     {
@@ -914,7 +914,7 @@ where
         }
     }
 
-    fn write_fixed<const B: u32, U>(&mut self, value: U) -> io::Result<()>
+    fn write_out<const B: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: Numeric,
     {
@@ -949,7 +949,7 @@ where
     }
 
     #[inline]
-    fn write_signed_fixed<const B: u32, S>(&mut self, value: S) -> io::Result<()>
+    fn write_signed_out<const B: u32, S>(&mut self, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
     {
@@ -1214,11 +1214,11 @@ where
     }
 
     #[inline]
-    fn write_fixed<const B: u32, U>(&mut self, value: U) -> io::Result<()>
+    fn write_out<const B: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: Numeric,
     {
-        self.counter.write_fixed::<B, U>(value)?;
+        self.counter.write_out::<B, U>(value)?;
         self.records.push(WriteRecord::Unsigned {
             bits: B,
             value: value.unsigned_value(),
@@ -1240,11 +1240,11 @@ where
     }
 
     #[inline]
-    fn write_signed_fixed<const B: u32, S>(&mut self, value: S) -> io::Result<()>
+    fn write_signed_out<const B: u32, S>(&mut self, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
     {
-        self.counter.write_signed_fixed::<B, S>(value)?;
+        self.counter.write_signed_out::<B, S>(value)?;
         self.records.push(WriteRecord::Signed {
             bits: B,
             value: value.signed_value(),

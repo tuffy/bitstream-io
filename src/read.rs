@@ -53,8 +53,8 @@
 //!     fn from_reader<R: BitRead + ?Sized>(r: &mut R) -> std::io::Result<Self> {
 //!         Ok(Self {
 //!             last_block: r.read_bit()?,
-//!             block_type: r.read_fixed::<7, _>()?,
-//!             block_size: r.read_fixed::<24, _>()?,
+//!             block_type: r.read_in::<7, _>()?,
+//!             block_size: r.read_in::<24, _>()?,
 //!         })
 //!     }
 //! }
@@ -79,12 +79,12 @@
 //!         Ok(Self {
 //!             minimum_block_size: r.read_to()?,
 //!             maximum_block_size: r.read_to()?,
-//!             minimum_frame_size: r.read_fixed::<24, _>()?,
-//!             maximum_frame_size: r.read_fixed::<24, _>()?,
-//!             sample_rate: r.read_fixed::<20, _>()?,
-//!             channels: r.read_fixed::<3, u8>()? + 1,
-//!             bits_per_sample: r.read_fixed::<5, u8>()? + 1,
-//!             total_samples: r.read_fixed::<36, _>()?,
+//!             minimum_frame_size: r.read_in::<24, _>()?,
+//!             maximum_frame_size: r.read_in::<24, _>()?,
+//!             sample_rate: r.read_in::<20, _>()?,
+//!             channels: r.read_in::<3, u8>()? + 1,
+//!             bits_per_sample: r.read_in::<5, u8>()? + 1,
+//!             total_samples: r.read_in::<36, _>()?,
 //!             md5: r.read_to()?,
 //!         })
 //!     }
@@ -214,7 +214,7 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
-    fn read_fixed<const B: u32, U>(&mut self) -> io::Result<U>
+    fn read_in<const B: u32, U>(&mut self) -> io::Result<U>
     where
         U: Numeric;
 
@@ -238,7 +238,7 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
-    fn read_signed_fixed<const B: u32, S>(&mut self) -> io::Result<S>
+    fn read_signed_in<const B: u32, S>(&mut self) -> io::Result<S>
     where
         S: SignedNumeric;
 
@@ -592,9 +592,9 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
     /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
-    /// assert_eq!(reader.read_fixed::<1, u8>().unwrap(), 0b1);
-    /// assert_eq!(reader.read_fixed::<2, u8>().unwrap(), 0b01);
-    /// assert_eq!(reader.read_fixed::<5, u8>().unwrap(), 0b10111);
+    /// assert_eq!(reader.read_in::<1, u8>().unwrap(), 0b1);
+    /// assert_eq!(reader.read_in::<2, u8>().unwrap(), 0b01);
+    /// assert_eq!(reader.read_in::<5, u8>().unwrap(), 0b10111);
     /// ```
     ///
     /// ```
@@ -602,12 +602,12 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
     /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
-    /// assert_eq!(reader.read_fixed::<1, u8>().unwrap(), 0b1);
-    /// assert_eq!(reader.read_fixed::<2, u8>().unwrap(), 0b11);
-    /// assert_eq!(reader.read_fixed::<5, u8>().unwrap(), 0b10110);
+    /// assert_eq!(reader.read_in::<1, u8>().unwrap(), 0b1);
+    /// assert_eq!(reader.read_in::<2, u8>().unwrap(), 0b11);
+    /// assert_eq!(reader.read_in::<5, u8>().unwrap(), 0b10110);
     /// ```
     #[inline]
-    fn read_fixed<const B: u32, U>(&mut self) -> io::Result<U>
+    fn read_in<const B: u32, U>(&mut self) -> io::Result<U>
     where
         U: Numeric,
     {
@@ -679,8 +679,8 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
     /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
-    /// assert_eq!(reader.read_signed_fixed::<4, i8>().unwrap(), -5);
-    /// assert_eq!(reader.read_signed_fixed::<4, i8>().unwrap(), 7);
+    /// assert_eq!(reader.read_signed_in::<4, i8>().unwrap(), -5);
+    /// assert_eq!(reader.read_signed_in::<4, i8>().unwrap(), 7);
     /// ```
     ///
     /// ```
@@ -688,11 +688,11 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
     /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
-    /// assert_eq!(reader.read_signed_fixed::<4, i8>().unwrap(), 7);
-    /// assert_eq!(reader.read_signed_fixed::<4, i8>().unwrap(), -5);
+    /// assert_eq!(reader.read_signed_in::<4, i8>().unwrap(), 7);
+    /// assert_eq!(reader.read_signed_in::<4, i8>().unwrap(), -5);
     /// ```
     #[inline]
-    fn read_signed_fixed<const B: u32, S>(&mut self) -> io::Result<S>
+    fn read_signed_in<const B: u32, S>(&mut self) -> io::Result<S>
     where
         S: SignedNumeric,
     {
