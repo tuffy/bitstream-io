@@ -84,7 +84,7 @@ pub trait Primitive {
     /// Convert big-endian bytes to our value
     fn from_be_bytes(bytes: Self::Bytes) -> Self;
 
-    /// Convert little-endian bytes to out value
+    /// Convert little-endian bytes to our value
     fn from_le_bytes(bytes: Self::Bytes) -> Self;
 }
 
