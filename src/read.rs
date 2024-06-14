@@ -42,9 +42,9 @@
 //!
 //! #[derive(Debug, PartialEq, Eq)]
 //! struct BlockHeader {
-//!     last_block: bool,
-//!     block_type: u8,
-//!     block_size: u32,
+//!     last_block: bool,  // 1 bit
+//!     block_type: u8,    // 7 bits
+//!     block_size: u32,   // 24 bits
 //! }
 //!
 //! impl FromBitStream for BlockHeader {
@@ -61,15 +61,15 @@
 //!
 //! #[derive(Debug, PartialEq, Eq)]
 //! struct Streaminfo {
-//!     minimum_block_size: u16,
-//!     maximum_block_size: u16,
-//!     minimum_frame_size: u32,
-//!     maximum_frame_size: u32,
-//!     sample_rate: u32,
-//!     channels: u8,
-//!     bits_per_sample: u8,
-//!     total_samples: u64,
-//!     md5: [u8; 16],
+//!     minimum_block_size: u16,  // 16 bits
+//!     maximum_block_size: u16,  // 16 bits
+//!     minimum_frame_size: u32,  // 24 bits
+//!     maximum_frame_size: u32,  // 24 bits
+//!     sample_rate: u32,         // 20 bits
+//!     channels: u8,             // 3 bits
+//!     bits_per_sample: u8,      // 5 bits
+//!     total_samples: u64,       // 36 bits
+//!     md5: [u8; 16],            // 16 bytes
 //! }
 //!
 //! impl FromBitStream for Streaminfo {
@@ -81,11 +81,11 @@
 //!             maximum_block_size: r.read_to()?,
 //!             minimum_frame_size: r.read_in::<24, _>()?,
 //!             maximum_frame_size: r.read_in::<24, _>()?,
-//!             sample_rate: r.read_in::<20, _>()?,
-//!             channels: r.read_in::<3, u8>()? + 1,
-//!             bits_per_sample: r.read_in::<5, u8>()? + 1,
-//!             total_samples: r.read_in::<36, _>()?,
-//!             md5: r.read_to()?,
+//!             sample_rate:        r.read_in::<20, _>()?,
+//!             channels:           r.read_in::<3, u8>()? + 1,
+//!             bits_per_sample:    r.read_in::<5, u8>()? + 1,
+//!             total_samples:      r.read_in::<36, _>()?,
+//!             md5:                r.read_to()?,
 //!         })
 //!     }
 //! }

@@ -21,9 +21,9 @@
 //!
 //! #[derive(Debug, PartialEq, Eq)]
 //! struct BlockHeader {
-//!     last_block: bool,
-//!     block_type: u8,
-//!     block_size: u32,
+//!     last_block: bool,  // 1 bit
+//!     block_type: u8,    // 7 bits
+//!     block_size: u32,   // 24 bits
 //! }
 //!
 //! impl ToBitStream for BlockHeader {
@@ -38,15 +38,15 @@
 //!
 //! #[derive(Debug, PartialEq, Eq)]
 //! struct Streaminfo {
-//!     minimum_block_size: u16,
-//!     maximum_block_size: u16,
-//!     minimum_frame_size: u32,
-//!     maximum_frame_size: u32,
-//!     sample_rate: u32,
-//!     channels: u8,
-//!     bits_per_sample: u8,
-//!     total_samples: u64,
-//!     md5: [u8; 16],
+//!     minimum_block_size: u16,  // 16 bits
+//!     maximum_block_size: u16,  // 16 bits
+//!     minimum_frame_size: u32,  // 24 bits
+//!     maximum_frame_size: u32,  // 24 bits
+//!     sample_rate: u32,         // 20 bits
+//!     channels: u8,             // 3 bits
+//!     bits_per_sample: u8,      // 5 bits
+//!     total_samples: u64,       // 36 bits
+//!     md5: [u8; 16],            // 16 bytes
 //! }
 //!
 //! impl ToBitStream for Streaminfo {
@@ -58,8 +58,8 @@
 //!         w.write_out::<24, _>(self.minimum_frame_size)?;
 //!         w.write_out::<24, _>(self.maximum_frame_size)?;
 //!         w.write_out::<20, _>(self.sample_rate)?;
-//!         w.write_out::<3, _>(self.channels - 1)?;
-//!         w.write_out::<5, _>(self.bits_per_sample - 1)?;
+//!         w.write_out::<3,  _>(self.channels - 1)?;
+//!         w.write_out::<5,  _>(self.bits_per_sample - 1)?;
 //!         w.write_out::<36, _>(self.total_samples)?;
 //!         w.write_bytes(&self.md5)
 //!     }
