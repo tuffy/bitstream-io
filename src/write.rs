@@ -775,7 +775,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         const {
             assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
         }
-        E::write_signed(self, BITS, value)
+        E::write_signed_fixed::<_, BITS, S>(self, value)
     }
 
     #[inline]
@@ -956,7 +956,7 @@ where
         const {
             assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
         }
-        E::write_signed(self, BITS, value)
+        E::write_signed_fixed::<_, BITS, S>(self, value)
     }
 
     #[inline]

@@ -359,6 +359,12 @@ pub trait Endianness: Sized {
         W: BitWrite,
         S: SignedNumeric;
 
+    /// Writes signed value to writer in this endianness
+    fn write_signed_fixed<W, const B: u32, S>(w: &mut W, value: S) -> io::Result<()>
+    where
+        W: BitWrite,
+        S: SignedNumeric;
+
     /// Reads convertable numeric value from reader in this endianness
     fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
     where
@@ -515,6 +521,21 @@ impl Endianness for BigEndian {
                 .and_then(|()| w.write(bits - 1, value.as_unsigned(bits)))
         } else {
             w.write_bit(false).and_then(|()| w.write(bits - 1, value))
+        }
+    }
+
+    fn write_signed_fixed<W, const B: u32, S>(w: &mut W, value: S) -> io::Result<()>
+    where
+        W: BitWrite,
+        S: SignedNumeric,
+    {
+        if B == S::BITS_SIZE {
+            w.write_bytes(value.to_be_bytes().as_ref())
+        } else if value.is_negative() {
+            w.write_bit(true)
+                .and_then(|()| w.write(B - 1, value.as_unsigned(B)))
+        } else {
+            w.write_bit(false).and_then(|()| w.write(B - 1, value))
         }
     }
 
@@ -682,6 +703,21 @@ impl Endianness for LittleEndian {
                 .and_then(|()| w.write_bit(true))
         } else {
             w.write(bits - 1, value).and_then(|()| w.write_bit(false))
+        }
+    }
+
+    fn write_signed_fixed<W, const B: u32, S>(w: &mut W, value: S) -> io::Result<()>
+    where
+        W: BitWrite,
+        S: SignedNumeric,
+    {
+        if B == S::BITS_SIZE {
+            w.write_bytes(value.to_le_bytes().as_ref())
+        } else if value.is_negative() {
+            w.write(B - 1, value.as_unsigned(B))
+                .and_then(|()| w.write_bit(true))
+        } else {
+            w.write(B - 1, value).and_then(|()| w.write_bit(false))
         }
     }
 
