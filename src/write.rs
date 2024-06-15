@@ -1351,7 +1351,7 @@ where
         let mut buf = N::buffer();
         let buf_ref: &mut [u8] = buf.as_mut();
         for b in buf_ref[0..to_write].iter_mut() {
-            *b = acc.pop(8).to_u8();
+            *b = acc.pop_fixed::<8>().to_u8();
         }
         writer.write_all(&buf_ref[0..to_write])
     } else {

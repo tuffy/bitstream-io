@@ -1001,7 +1001,7 @@ where
         let mut buf = N::buffer();
         reader.read_exact(&mut buf.as_mut()[0..bytes as usize])?;
         for b in &buf.as_ref()[0..bytes as usize] {
-            acc.push(8, N::from_u8(*b));
+            acc.push_fixed::<8>(N::from_u8(*b));
         }
     }
     Ok(())
