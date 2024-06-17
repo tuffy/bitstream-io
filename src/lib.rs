@@ -28,6 +28,41 @@
 //! types of any possible size.
 //! Many of Rust's built-in integer types are supported by default.
 
+//! # Minimum Compiler Version
+//!
+//! Beginning with version 2.4, the minimum compiler version has been
+//! updated to Rust 1.79.
+//!
+//! The issue is that reading an excessive number of
+//! bits to a type which is too small to hold them,
+//! or writing an excessive number of bits from too small of a type,
+//! are always errors:
+//! ```
+//! use std::io::{Read, Cursor};
+//! use bitstream_io::{BigEndian, BitReader, BitRead};
+//! let data = [0; 10];
+//! let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
+//! let x: Result<u32, _> = r.read(64);  // reading 64 bits to u32 always fails at runtime
+//! assert!(x.is_err());
+//! ```
+//! but those errors will not be caught until the program runs,
+//! which is less than ideal for the common case in which
+//! the number of bits is already known at compile-time.
+//!
+//! But starting with Rust 1.79, we can now have read and write methods
+//! which take a constant number of bits and can validate the number of bits
+//! are small enough for the type being read/written at compile-time:
+//! ```rust,ignore
+//! use std::io::{Read, Cursor};
+//! use bitstream_io::{BigEndian, BitReader, BitRead};
+//! let data = [0; 10];
+//! let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
+//! let x: Result<u32, _> = r.read_in::<64, _>();  // doesn't compile at all
+//! ```
+//! Since catching potential bugs at compile-time is preferable
+//! to encountering errors at runtime, this will hopefully be
+//! an improvement in the long run.
+
 //! # Migrating From Pre 1.0.0
 //!
 //! There are now `BitRead` and `BitWrite` traits for bitstream
