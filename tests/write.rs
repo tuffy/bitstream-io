@@ -294,6 +294,21 @@ fn test_writer_be() {
 fn test_writer_edge_cases_be() {
     use bitstream_io::{BigEndian, BitWrite, BitWriter};
 
+    // 0 bit writes
+    let mut w = BitWriter::endian(Vec::new(), BigEndian);
+    w.write(0, 0u8).unwrap();
+    w.write(0, 0u16).unwrap();
+    w.write(0, 0u32).unwrap();
+    w.write(0, 0u64).unwrap();
+    assert!(w.into_writer().is_empty());
+
+    let mut w = BitWriter::endian(Vec::new(), BigEndian);
+    assert!(w.write_signed(0, 0i8).is_err());
+    assert!(w.write_signed(0, 0i16).is_err());
+    assert!(w.write_signed(0, 0i32).is_err());
+    assert!(w.write_signed(0, 0i64).is_err());
+    assert!(w.into_writer().is_empty());
+
     let final_data: Vec<u8> = vec![
         0, 0, 0, 0, 255, 255, 255, 255, 128, 0, 0, 0, 127, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0,
         255, 255, 255, 255, 255, 255, 255, 255, 128, 0, 0, 0, 0, 0, 0, 0, 127, 255, 255, 255, 255,
@@ -606,6 +621,21 @@ fn test_writer_le() {
 #[test]
 fn test_writer_edge_cases_le() {
     use bitstream_io::{BitWrite, BitWriter, LittleEndian};
+
+    // 0 bit writes
+    let mut w = BitWriter::endian(Vec::new(), LittleEndian);
+    w.write(0, 0u8).unwrap();
+    w.write(0, 0u16).unwrap();
+    w.write(0, 0u32).unwrap();
+    w.write(0, 0u64).unwrap();
+    assert!(w.into_writer().is_empty());
+
+    let mut w = BitWriter::endian(Vec::new(), LittleEndian);
+    assert!(w.write_signed(0, 0i8).is_err());
+    assert!(w.write_signed(0, 0i16).is_err());
+    assert!(w.write_signed(0, 0i32).is_err());
+    assert!(w.write_signed(0, 0i64).is_err());
+    assert!(w.into_writer().is_empty());
 
     let final_data: Vec<u8> = vec![
         0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 128, 255, 255, 255, 127, 0, 0, 0, 0, 0, 0, 0, 0,

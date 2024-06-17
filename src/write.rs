@@ -739,13 +739,16 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     where
         S: SignedNumeric,
     {
-        if bits > S::BITS_SIZE {
-            Err(io::Error::new(
+        match bits {
+            0 => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "signed writes need at least 1 bit for sign",
+            )),
+            bits if bits <= S::BITS_SIZE => E::write_signed(self, bits, value),
+            _ => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
-            ))
-        } else {
-            E::write_signed(self, bits, value)
+            )),
         }
     }
 
@@ -773,6 +776,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         S: SignedNumeric,
     {
         const {
+            assert!(BITS > 0, "signed writes need at least 1 bit for sign");
             assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
         }
         E::write_signed_fixed::<_, BITS, S>(self, value)
@@ -938,13 +942,16 @@ where
     where
         S: SignedNumeric,
     {
-        if bits > S::BITS_SIZE {
-            Err(io::Error::new(
+        match bits {
+            0 => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "signed writes need at least 1 bit for sign",
+            )),
+            bits if bits <= S::BITS_SIZE => E::write_signed(self, bits, value),
+            _ => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
-            ))
-        } else {
-            E::write_signed(self, bits, value)
+            )),
         }
     }
 
@@ -954,6 +961,7 @@ where
         S: SignedNumeric,
     {
         const {
+            assert!(BITS > 0, "signed writes need at least 1 bit for sign");
             assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
         }
         E::write_signed_fixed::<_, BITS, S>(self, value)

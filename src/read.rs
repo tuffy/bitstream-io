@@ -664,13 +664,16 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     where
         S: SignedNumeric,
     {
-        if bits <= S::BITS_SIZE {
-            E::read_signed(self, bits)
-        } else {
-            Err(io::Error::new(
+        match bits {
+            0 => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "signed reads need at least 1 bit for sign",
+            )),
+            bits if bits <= S::BITS_SIZE => E::read_signed(self, bits),
+            _ => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type read",
-            ))
+            )),
         }
     }
 
@@ -698,6 +701,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
         S: SignedNumeric,
     {
         const {
+            assert!(BITS > 0, "signed reads need at least 1 bit for sign");
             assert!(BITS <= S::BITS_SIZE, "excessive bits for type read");
         }
         E::read_signed_fixed::<_, BITS, S>(self)

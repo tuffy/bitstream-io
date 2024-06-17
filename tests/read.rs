@@ -202,6 +202,12 @@ fn test_edge_cases_be() {
     assert_eq!(r.read_in::<0, u64>().unwrap(), 0);
     assert_eq!(r.read_in::<8, u8>().unwrap(), 255);
 
+    let mut r = BitReader::endian(Cursor::new(vec![255]), BigEndian);
+    assert!(r.read_signed::<i8>(0).is_err());
+    assert!(r.read_signed::<i16>(0).is_err());
+    assert!(r.read_signed::<i32>(0).is_err());
+    assert!(r.read_signed::<i64>(0).is_err());
+
     /*unsigned 32 and 64-bit values*/
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
     assert_eq!(r.read::<u32>(32).unwrap(), 0);
@@ -423,6 +429,12 @@ fn test_edge_cases_le() {
     assert_eq!(r.read_in::<0, u32>().unwrap(), 0);
     assert_eq!(r.read_in::<0, u64>().unwrap(), 0);
     assert_eq!(r.read_in::<8, u8>().unwrap(), 255);
+
+    let mut r = BitReader::endian(Cursor::new(vec![255]), LittleEndian);
+    assert!(r.read_signed::<i8>(0).is_err());
+    assert!(r.read_signed::<i16>(0).is_err());
+    assert!(r.read_signed::<i32>(0).is_err());
+    assert!(r.read_signed::<i64>(0).is_err());
 
     /*unsigned 32 and 64-bit values*/
     let mut r = BitReader::endian(Cursor::new(&data), LittleEndian);
