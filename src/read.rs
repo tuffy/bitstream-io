@@ -225,6 +225,8 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if the number of bits is 0,
+    /// since one bit is always needed for the sign.
     /// Also returns an error if the output type is too small
     /// to hold the requested number of bits.
     fn read_signed<S>(&mut self, bits: u32) -> io::Result<S>
@@ -237,6 +239,8 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    /// A compile-time error occurs if the number of bits is 0,
+    /// since one bit is always needed for the sign.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
     fn read_signed_in<const BITS: u32, S>(&mut self) -> io::Result<S>

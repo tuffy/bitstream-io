@@ -347,6 +347,8 @@ pub trait BitWrite {
     /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the input type is too small
     /// to hold the given number of bits.
+    /// Returns an error if the number of bits is 0,
+    /// since one bit is always needed for the sign.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
     fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
@@ -361,6 +363,8 @@ pub trait BitWrite {
     /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
+    /// A compile-time error occurs if the number of bits is 0,
+    /// since one bit is always needed for the sign.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
     fn write_signed_out<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
