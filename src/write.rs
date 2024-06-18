@@ -409,7 +409,7 @@ pub trait BitWrite {
     /// ```
     #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
-        buf.iter().try_for_each(|b| self.write(8, *b))
+        buf.iter().try_for_each(|b| self.write_out::<8, _>(*b))
     }
 
     /// Writes `value` number of 1 bits to the stream
@@ -804,7 +804,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         if self.byte_aligned() {
             self.writer.write_all(buf)
         } else {
-            buf.iter().try_for_each(|b| self.write(8, *b))
+            buf.iter().try_for_each(|b| self.write_out::<8, _>(*b))
         }
     }
 
