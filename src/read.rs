@@ -217,7 +217,10 @@ pub trait BitRead {
     /// is larger than the output type.
     fn read_in<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
-        U: Numeric;
+        U: Numeric,
+    {
+        self.read(BITS)
+    }
 
     /// Reads a twos-complement signed value from the stream with
     /// the given number of bits.

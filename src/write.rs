@@ -337,7 +337,10 @@ pub trait BitWrite {
     /// is larger than the output type.
     fn write_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: Numeric;
+        U: Numeric,
+    {
+        self.write(BITS, value)
+    }
 
     /// Writes a twos-complement signed value to the stream
     /// with the given number of bits.
