@@ -324,9 +324,27 @@ pub trait BitRead {
     ///
     /// Passes along any I/O error from the underlying stream.
     fn read_to_vec(&mut self, bytes: usize) -> io::Result<Vec<u8>> {
-        let mut buf = vec![0; bytes];
-        self.read_bytes(&mut buf)?;
-        Ok(buf)
+        const MAX_CHUNK: usize = 4096;
+
+        match bytes {
+            0 => Ok(Vec::new()),
+            1..MAX_CHUNK => {
+                let mut buf = vec![0; bytes];
+                self.read_bytes(&mut buf)?;
+                Ok(buf)
+            }
+            mut bytes => {
+                let mut whole = Vec::with_capacity(MAX_CHUNK);
+                while bytes > 0 {
+                    let chunk_size = bytes.min(MAX_CHUNK);
+                    let mut chunk = vec![0; chunk_size];
+                    self.read_bytes(&mut chunk)?;
+                    whole.extend(chunk);
+                    bytes -= chunk_size;
+                }
+                Ok(whole)
+            }
+        }
     }
 
     /// Counts the number of 1 bits in the stream until the next

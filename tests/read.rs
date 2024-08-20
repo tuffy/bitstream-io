@@ -788,3 +788,32 @@ fn test_read_bytes() {
     let read_data: [u8; 4] = r.read_to().unwrap();
     assert_eq!(actual_data, read_data);
 }
+
+#[test]
+fn test_large_reads() {
+    use bitstream_io::{BigEndian, BitRead, BitReader, LittleEndian};
+
+    for size in [0, 1, 4096, 4097, 10000] {
+        let input = (0..255).cycle().take(size).collect::<Vec<u8>>();
+        assert_eq!(input.len(), size);
+        let mut r = BitReader::endian(Cursor::new(&input), BigEndian);
+        let output = r.read_to_vec(size).unwrap();
+        assert_eq!(input, output);
+    }
+
+    for size in [0, 1, 4096, 4097, 10000] {
+        let input = (0..255).cycle().take(size).collect::<Vec<u8>>();
+        assert_eq!(input.len(), size);
+        let mut r = BitReader::endian(Cursor::new(&input), LittleEndian);
+        let output = r.read_to_vec(size).unwrap();
+        assert_eq!(input, output);
+    }
+
+    let input: [u8; 5] = [0, 0, 0, 0, 0];
+
+    let mut r = BitReader::endian(Cursor::new(&input), BigEndian);
+    assert!(r.read_to_vec(usize::MAX).is_err());
+
+    let mut r = BitReader::endian(Cursor::new(&input), LittleEndian);
+    assert!(r.read_to_vec(usize::MAX).is_err());
+}
