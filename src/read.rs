@@ -328,7 +328,7 @@ pub trait BitRead {
 
         match bytes {
             0 => Ok(Vec::new()),
-            1..MAX_CHUNK => {
+            bytes if bytes <= MAX_CHUNK => {
                 let mut buf = vec![0; bytes];
                 self.read_bytes(&mut buf)?;
                 Ok(buf)
