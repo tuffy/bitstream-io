@@ -1641,11 +1641,12 @@ fn read_to_vec(
         }
         mut bytes => {
             let mut whole = Vec::with_capacity(MAX_CHUNK);
+            let mut chunk: [u8; MAX_CHUNK] = [0; MAX_CHUNK];
             while bytes > 0 {
                 let chunk_size = bytes.min(MAX_CHUNK);
-                let mut chunk = vec![0; chunk_size];
-                read(&mut chunk)?;
-                whole.extend(chunk);
+                let chunk = &mut chunk[0..chunk_size];
+                read(chunk)?;
+                whole.extend_from_slice(chunk);
                 bytes -= chunk_size;
             }
             Ok(whole)
