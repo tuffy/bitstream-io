@@ -791,20 +791,25 @@ fn test_read_bytes() {
 
 #[test]
 fn test_large_reads() {
-    use bitstream_io::{BigEndian, BitRead, BitReader, LittleEndian};
+    use bitstream_io::{BigEndian, BitRead, BitReader, ByteRead, ByteReader, LittleEndian};
 
     for size in [0, 1, 4096, 4097, 10000] {
         let input = (0..255).cycle().take(size).collect::<Vec<u8>>();
         assert_eq!(input.len(), size);
+
         let mut r = BitReader::endian(Cursor::new(&input), BigEndian);
         let output = r.read_to_vec(size).unwrap();
         assert_eq!(input, output);
-    }
 
-    for size in [0, 1, 4096, 4097, 10000] {
-        let input = (0..255).cycle().take(size).collect::<Vec<u8>>();
-        assert_eq!(input.len(), size);
         let mut r = BitReader::endian(Cursor::new(&input), LittleEndian);
+        let output = r.read_to_vec(size).unwrap();
+        assert_eq!(input, output);
+
+        let mut r = ByteReader::endian(Cursor::new(&input), BigEndian);
+        let output = r.read_to_vec(size).unwrap();
+        assert_eq!(input, output);
+
+        let mut r = ByteReader::endian(Cursor::new(&input), LittleEndian);
         let output = r.read_to_vec(size).unwrap();
         assert_eq!(input, output);
     }
@@ -815,5 +820,11 @@ fn test_large_reads() {
     assert!(r.read_to_vec(usize::MAX).is_err());
 
     let mut r = BitReader::endian(Cursor::new(&input), LittleEndian);
+    assert!(r.read_to_vec(usize::MAX).is_err());
+
+    let mut r = ByteReader::endian(Cursor::new(&input), BigEndian);
+    assert!(r.read_to_vec(usize::MAX).is_err());
+
+    let mut r = ByteReader::endian(Cursor::new(&input), LittleEndian);
     assert!(r.read_to_vec(usize::MAX).is_err());
 }

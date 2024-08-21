@@ -324,27 +324,7 @@ pub trait BitRead {
     ///
     /// Passes along any I/O error from the underlying stream.
     fn read_to_vec(&mut self, bytes: usize) -> io::Result<Vec<u8>> {
-        const MAX_CHUNK: usize = 4096;
-
-        match bytes {
-            0 => Ok(Vec::new()),
-            bytes if bytes <= MAX_CHUNK => {
-                let mut buf = vec![0; bytes];
-                self.read_bytes(&mut buf)?;
-                Ok(buf)
-            }
-            mut bytes => {
-                let mut whole = Vec::with_capacity(MAX_CHUNK);
-                while bytes > 0 {
-                    let chunk_size = bytes.min(MAX_CHUNK);
-                    let mut chunk = vec![0; chunk_size];
-                    self.read_bytes(&mut chunk)?;
-                    whole.extend(chunk);
-                    bytes -= chunk_size;
-                }
-                Ok(whole)
-            }
-        }
+        read_to_vec(|buf| self.read_bytes(buf), bytes)
     }
 
     /// Counts the number of 1 bits in the stream until the next
@@ -1193,9 +1173,7 @@ pub trait ByteRead {
     ///
     /// Passes along any I/O error from the underlying stream.
     fn read_to_vec(&mut self, bytes: usize) -> io::Result<Vec<u8>> {
-        let mut buf = vec![0; bytes];
-        self.read_bytes(&mut buf)?;
-        Ok(buf)
+        read_to_vec(|buf| self.read_bytes(buf), bytes)
     }
 
     /// Skips the given number of bytes in the stream.
@@ -1646,4 +1624,31 @@ pub trait FromByteStreamWith<'a> {
     ) -> Result<Self, Self::Error>
     where
         Self: Sized;
+}
+
+fn read_to_vec(
+    mut read: impl FnMut(&mut [u8]) -> io::Result<()>,
+    bytes: usize,
+) -> io::Result<Vec<u8>> {
+    const MAX_CHUNK: usize = 4096;
+
+    match bytes {
+        0 => Ok(Vec::new()),
+        bytes if bytes <= MAX_CHUNK => {
+            let mut buf = vec![0; bytes];
+            read(&mut buf)?;
+            Ok(buf)
+        }
+        mut bytes => {
+            let mut whole = Vec::with_capacity(MAX_CHUNK);
+            while bytes > 0 {
+                let chunk_size = bytes.min(MAX_CHUNK);
+                let mut chunk = vec![0; chunk_size];
+                read(&mut chunk)?;
+                whole.extend(chunk);
+                bytes -= chunk_size;
+            }
+            Ok(whole)
+        }
+    }
 }
