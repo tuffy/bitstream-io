@@ -248,7 +248,10 @@ pub trait BitRead {
     /// is larger than the output type.
     fn read_signed_in<const BITS: u32, S>(&mut self) -> io::Result<S>
     where
-        S: SignedNumeric;
+        S: SignedNumeric,
+    {
+        self.read_signed(BITS)
+    }
 
     /// Reads whole value from the stream whose size in bits is equal
     /// to its type's size.
