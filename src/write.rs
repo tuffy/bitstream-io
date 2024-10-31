@@ -372,7 +372,10 @@ pub trait BitWrite {
     /// is larger than the output type.
     fn write_signed_out<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
-        S: SignedNumeric;
+        S: SignedNumeric,
+    {
+        self.write_signed(BITS, value)
+    }
 
     /// Writes whole value to the stream whose size in bits
     /// is equal to its type's size.
