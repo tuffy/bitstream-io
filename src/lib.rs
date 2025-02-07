@@ -308,7 +308,7 @@ macro_rules! define_unsigned_numeric {
 
 /// This trait extends many common signed integer types
 /// so that they can be used with the bitstream handling traits.
-pub trait SignedNumeric: Numeric {
+pub trait SignedNumeric: Numeric + Into<crate::write::SignedValue> {
     /// The unsigned variant of ourself
     type Unsigned: UnsignedNumeric<Signed = Self>;
 
@@ -325,9 +325,6 @@ pub trait SignedNumeric: Numeric {
     /// Given a negative value and a certain number of bits,
     /// returns this value as a twos-complement positive number.
     fn as_negative_fixed<const BITS: u32>(self) -> Self::Unsigned;
-
-    /// Converts to a generic signed value for stream recording purposes.
-    fn signed_value(self) -> write::SignedValue;
 }
 
 macro_rules! define_signed_numeric {
@@ -339,7 +336,7 @@ macro_rules! define_signed_numeric {
 
             #[inline(always)]
             fn is_negative(self) -> bool {
-                self < 0
+                self.is_negative()
             }
             fn as_non_negative(self) -> Self::Unsigned {
                 self as $u
@@ -349,10 +346,6 @@ macro_rules! define_signed_numeric {
             }
             fn as_negative_fixed<const BITS: u32>(self) -> Self::Unsigned {
                 (self - (-1 << (BITS - 1))) as $u
-            }
-            #[inline(always)]
-            fn signed_value(self) -> write::SignedValue {
-                self.into()
             }
         }
     };

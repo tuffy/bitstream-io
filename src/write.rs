@@ -1238,7 +1238,7 @@ where
         self.counter.write_signed(bits, value)?;
         self.records.push(WriteRecord::Signed {
             bits,
-            value: value.signed_value(),
+            value: value.into(),
         });
         Ok(())
     }
@@ -1251,7 +1251,7 @@ where
         self.counter.write_signed_out::<BITS, S>(value)?;
         self.records.push(WriteRecord::Signed {
             bits: BITS,
-            value: value.signed_value(),
+            value: value.into(),
         });
         Ok(())
     }
