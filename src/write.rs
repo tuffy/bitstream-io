@@ -177,7 +177,8 @@ use core::convert::From;
 use core::ops::{AddAssign, Rem};
 
 use super::{
-    huffman::WriteHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, Primitive, SignedNumeric,
+    huffman::WriteHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, Primitive,
+    SignedNumeric, UnsignedNumeric,
 };
 
 /// For writing bit values to an underlying stream in a given endianness.
@@ -262,7 +263,7 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     /// let mut data = Vec::new();
     /// let (bits, value) = {
     ///     let mut writer = BitWriter::endian(&mut data, BigEndian);
-    ///     writer.write(15, 0b1010_0101_0101_101).unwrap();
+    ///     writer.write(15, 0b1010_0101_0101_101u16).unwrap();
     ///     writer.into_unwritten()
     /// };
     /// assert_eq!(data, [0b1010_0101]);
@@ -276,7 +277,7 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     /// let mut data = Vec::new();
     /// let (bits, value) = {
     ///     let mut writer = BitWriter::endian(&mut data, BigEndian);
-    ///     writer.write(8, 0b1010_0101).unwrap();
+    ///     writer.write(8, 0b1010_0101u8).unwrap();
     ///     writer.into_unwritten()
     /// };
     /// assert_eq!(data, [0b1010_0101]);
@@ -323,7 +324,7 @@ pub trait BitWrite {
     /// to fit the given number of bits.
     fn write<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
-        U: Numeric;
+        U: UnsignedNumeric;
 
     /// Writes an unsigned value to the stream using the given
     /// const number of bits.
@@ -337,7 +338,7 @@ pub trait BitWrite {
     /// is larger than the output type.
     fn write_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: Numeric,
+        U: UnsignedNumeric,
     {
         self.write(BITS, value)
     }
@@ -411,9 +412,9 @@ pub trait BitWrite {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write(8, 0x66).unwrap();
-    /// writer.write(8, 0x6F).unwrap();
-    /// writer.write(8, 0x6F).unwrap();
+    /// writer.write(8, 0x66u8).unwrap();
+    /// writer.write(8, 0x6Fu8).unwrap();
+    /// writer.write(8, 0x6Fu8).unwrap();
     /// writer.write_bytes(b"bar").unwrap();
     /// assert_eq!(writer.into_writer(), b"foobar");
     /// ```
@@ -545,9 +546,9 @@ pub trait BitWrite {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write(1, 0).unwrap();
+    /// writer.write(1, 0u8).unwrap();
     /// writer.byte_align().unwrap();
-    /// writer.write(8, 0xFF).unwrap();
+    /// writer.write(8, 0xFFu8).unwrap();
     /// assert_eq!(writer.into_writer(), [0x00, 0xFF]);
     /// ```
     fn byte_align(&mut self) -> io::Result<()> {
@@ -616,9 +617,9 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write(1, 0b1).unwrap();
-    /// writer.write(2, 0b01).unwrap();
-    /// writer.write(5, 0b10111).unwrap();
+    /// writer.write(1, 0b1u8).unwrap();
+    /// writer.write(2, 0b01u8).unwrap();
+    /// writer.write(5, 0b10111u8).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
@@ -626,9 +627,9 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::Write;
     /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write(1, 0b1).unwrap();
-    /// writer.write(2, 0b11).unwrap();
-    /// writer.write(5, 0b10110).unwrap();
+    /// writer.write(1, 0b1u8).unwrap();
+    /// writer.write(2, 0b11u8).unwrap();
+    /// writer.write(5, 0b10110u8).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
@@ -640,14 +641,14 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// assert!(w.write(17, 0u16).is_err());  // can't write u16 in 17 bits
     /// assert!(w.write(33, 0u32).is_err());  // can't write u32 in 33 bits
     /// assert!(w.write(65, 0u64).is_err());  // can't write u64 in 65 bits
-    /// assert!(w.write(1, 2).is_err());      // can't write   2 in 1 bit
-    /// assert!(w.write(2, 4).is_err());      // can't write   4 in 2 bits
-    /// assert!(w.write(3, 8).is_err());      // can't write   8 in 3 bits
-    /// assert!(w.write(4, 16).is_err());     // can't write  16 in 4 bits
+    /// assert!(w.write(1, 2u8).is_err());      // can't write   2 in 1 bit
+    /// assert!(w.write(2, 4u8).is_err());      // can't write   4 in 2 bits
+    /// assert!(w.write(3, 8u8).is_err());      // can't write   8 in 3 bits
+    /// assert!(w.write(4, 16u8).is_err());     // can't write  16 in 4 bits
     /// ```
     fn write<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
-        U: Numeric,
+        U: UnsignedNumeric,
     {
         if bits > U::BITS_SIZE {
             Err(io::Error::new(
@@ -676,9 +677,9 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_out::<1, _>(0b1).unwrap();
-    /// writer.write_out::<2, _>(0b01).unwrap();
-    /// writer.write_out::<5, _>(0b10111).unwrap();
+    /// writer.write_out::<1, _>(0b1u8).unwrap();
+    /// writer.write_out::<2, _>(0b01u8).unwrap();
+    /// writer.write_out::<5, _>(0b10111u8).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
@@ -686,9 +687,9 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::Write;
     /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_out::<1, _>(0b1).unwrap();
-    /// writer.write_out::<2, _>(0b11).unwrap();
-    /// writer.write_out::<5, _>(0b10110).unwrap();
+    /// writer.write_out::<1, _>(0b1u8).unwrap();
+    /// writer.write_out::<2, _>(0b11u8).unwrap();
+    /// writer.write_out::<5, _>(0b10110u8).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
@@ -696,14 +697,14 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::{Write, sink};
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut w = BitWriter::endian(sink(), BigEndian);
-    /// assert!(w.write_out::<1, _>(2).is_err());      // can't write   2 in 1 bit
-    /// assert!(w.write_out::<2, _>(4).is_err());      // can't write   4 in 2 bits
-    /// assert!(w.write_out::<3, _>(8).is_err());      // can't write   8 in 3 bits
-    /// assert!(w.write_out::<4, _>(16).is_err());     // can't write  16 in 4 bits
+    /// assert!(w.write_out::<1, _>(2u8).is_err());      // can't write   2 in 1 bit
+    /// assert!(w.write_out::<2, _>(4u8).is_err());      // can't write   4 in 2 bits
+    /// assert!(w.write_out::<3, _>(8u8).is_err());      // can't write   8 in 3 bits
+    /// assert!(w.write_out::<4, _>(16u8).is_err());     // can't write  16 in 4 bits
     /// ```
     fn write_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: Numeric,
+        U: UnsignedNumeric,
     {
         const {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
@@ -824,9 +825,9 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(sink(), BigEndian);
     /// assert_eq!(writer.byte_aligned(), true);
-    /// writer.write(1, 0).unwrap();
+    /// writer.write(1, 0u8).unwrap();
     /// assert_eq!(writer.byte_aligned(), false);
-    /// writer.write(7, 0).unwrap();
+    /// writer.write(7, 0u8).unwrap();
     /// assert_eq!(writer.byte_aligned(), true);
     /// ```
     #[inline(always)]
@@ -868,9 +869,9 @@ impl<W: io::Write, E: Endianness> HuffmanWrite<E> for BitWriter<W, E> {
 /// ```
 /// use bitstream_io::{BigEndian, BitWrite, BitCounter};
 /// let mut writer: BitCounter<u32, BigEndian> = BitCounter::new();
-/// writer.write(1, 0b1).unwrap();
-/// writer.write(2, 0b01).unwrap();
-/// writer.write(5, 0b10111).unwrap();
+/// writer.write(1, 0b1u8).unwrap();
+/// writer.write(2, 0b01u8).unwrap();
+/// writer.write(5, 0b10111u8).unwrap();
 /// assert_eq!(writer.written(), 8);
 /// ```
 #[derive(Default)]
@@ -1044,11 +1045,6 @@ enum InnerUnsignedValue {
     U32(u32),
     U64(u64),
     U128(u128),
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
-    I128(i128),
 }
 
 macro_rules! define_unsigned_value {
@@ -1066,11 +1062,6 @@ define_unsigned_value!(u16, U16);
 define_unsigned_value!(u32, U32);
 define_unsigned_value!(u64, U64);
 define_unsigned_value!(u128, U128);
-define_unsigned_value!(i8, I8);
-define_unsigned_value!(i16, I16);
-define_unsigned_value!(i32, I32);
-define_unsigned_value!(i64, I64);
-define_unsigned_value!(i128, I128);
 
 /// A generic signed value for stream recording purposes
 pub struct SignedValue(InnerSignedValue);
@@ -1121,11 +1112,6 @@ impl WriteRecord {
                 InnerUnsignedValue::U32(v) => writer.write(*bits, *v),
                 InnerUnsignedValue::U64(v) => writer.write(*bits, *v),
                 InnerUnsignedValue::U128(v) => writer.write(*bits, *v),
-                InnerUnsignedValue::I8(v) => writer.write(*bits, *v),
-                InnerUnsignedValue::I16(v) => writer.write(*bits, *v),
-                InnerUnsignedValue::I32(v) => writer.write(*bits, *v),
-                InnerUnsignedValue::I64(v) => writer.write(*bits, *v),
-                InnerUnsignedValue::I128(v) => writer.write(*bits, *v),
             },
             WriteRecord::Signed {
                 bits,
@@ -1150,9 +1136,9 @@ impl WriteRecord {
 /// use std::io::Write;
 /// use bitstream_io::{BigEndian, BitWriter, BitWrite, BitRecorder};
 /// let mut recorder: BitRecorder<u32, BigEndian> = BitRecorder::new();
-/// recorder.write(1, 0b1).unwrap();
-/// recorder.write(2, 0b01).unwrap();
-/// recorder.write(5, 0b10111).unwrap();
+/// recorder.write(1, 0b1u8).unwrap();
+/// recorder.write(2, 0b01u8).unwrap();
+/// recorder.write(5, 0b10111u8).unwrap();
 /// assert_eq!(recorder.written(), 8);
 /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
 /// recorder.playback(&mut writer);
@@ -1221,12 +1207,12 @@ where
     #[inline]
     fn write<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
-        U: Numeric,
+        U: UnsignedNumeric,
     {
         self.counter.write(bits, value)?;
         self.records.push(WriteRecord::Unsigned {
             bits,
-            value: value.unsigned_value(),
+            value: value.into(),
         });
         Ok(())
     }
@@ -1234,12 +1220,12 @@ where
     #[inline]
     fn write_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: Numeric,
+        U: UnsignedNumeric,
     {
         self.counter.write_out::<BITS, U>(value)?;
         self.records.push(WriteRecord::Unsigned {
             bits: BITS,
-            value: value.unsigned_value(),
+            value: value.into(),
         });
         Ok(())
     }

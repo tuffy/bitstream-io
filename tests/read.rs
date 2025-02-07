@@ -231,24 +231,24 @@ fn test_edge_cases_be() {
 
     /*signed 32 and 64-bit values*/
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read::<i32>(32).unwrap(), 0);
-    assert_eq!(r.read::<i32>(32).unwrap(), -1);
-    assert_eq!(r.read::<i32>(32).unwrap(), -2147483648);
-    assert_eq!(r.read::<i32>(32).unwrap(), 2147483647);
-    assert_eq!(r.read::<i64>(64).unwrap(), 0);
-    assert_eq!(r.read::<i64>(64).unwrap(), -1);
-    assert_eq!(r.read::<i64>(64).unwrap(), -9223372036854775808);
-    assert_eq!(r.read::<i64>(64).unwrap(), 9223372036854775807);
+    assert_eq!(r.read_signed::<i32>(32).unwrap(), 0);
+    assert_eq!(r.read_signed::<i32>(32).unwrap(), -1);
+    assert_eq!(r.read_signed::<i32>(32).unwrap(), -2147483648);
+    assert_eq!(r.read_signed::<i32>(32).unwrap(), 2147483647);
+    assert_eq!(r.read_signed::<i64>(64).unwrap(), 0);
+    assert_eq!(r.read_signed::<i64>(64).unwrap(), -1);
+    assert_eq!(r.read_signed::<i64>(64).unwrap(), -9223372036854775808);
+    assert_eq!(r.read_signed::<i64>(64).unwrap(), 9223372036854775807);
 
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read_in::<32, i32>().unwrap(), 0);
-    assert_eq!(r.read_in::<32, i32>().unwrap(), -1);
-    assert_eq!(r.read_in::<32, i32>().unwrap(), -2147483648);
-    assert_eq!(r.read_in::<32, i32>().unwrap(), 2147483647);
-    assert_eq!(r.read_in::<64, i64>().unwrap(), 0);
-    assert_eq!(r.read_in::<64, i64>().unwrap(), -1);
-    assert_eq!(r.read_in::<64, i64>().unwrap(), -9223372036854775808);
-    assert_eq!(r.read_in::<64, i64>().unwrap(), 9223372036854775807);
+    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), 0);
+    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), -1);
+    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), -2147483648);
+    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), 2147483647);
+    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), 0);
+    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), -1);
+    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), -9223372036854775808);
+    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), 9223372036854775807);
 }
 
 #[test]

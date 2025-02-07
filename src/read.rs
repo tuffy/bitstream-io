@@ -182,6 +182,7 @@ use std::io::{self, SeekFrom};
 
 use super::{
     huffman::ReadHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, Primitive, SignedNumeric,
+    UnsignedNumeric,
 };
 
 /// A trait for anything that can read a variable number of
@@ -205,7 +206,7 @@ pub trait BitRead {
     /// to hold the requested number of bits.
     fn read<U>(&mut self, bits: u32) -> io::Result<U>
     where
-        U: Numeric;
+        U: UnsignedNumeric;
 
     /// Reads an unsigned value from the stream with
     /// the given constant number of bits.
@@ -217,7 +218,7 @@ pub trait BitRead {
     /// is larger than the output type.
     fn read_in<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
-        U: Numeric,
+        U: UnsignedNumeric,
     {
         self.read(BITS)
     }
@@ -572,7 +573,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// ```
     fn read<U>(&mut self, mut bits: u32) -> io::Result<U>
     where
-        U: Numeric,
+        U: UnsignedNumeric,
     {
         if bits <= U::BITS_SIZE {
             let bitqueue_len = self.bitqueue.len();
@@ -618,7 +619,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     #[inline]
     fn read_in<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
-        U: Numeric,
+        U: UnsignedNumeric,
     {
         const {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");

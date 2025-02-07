@@ -225,9 +225,6 @@ pub trait Numeric:
 
     /// Counts the number of trailing zeros
     fn trailing_zeros(self) -> u32;
-
-    /// Convert to a generic unsigned write value for stream recording purposes
-    fn unsigned_value(self) -> write::UnsignedValue;
 }
 
 macro_rules! define_numeric {
@@ -263,9 +260,47 @@ macro_rules! define_numeric {
             fn trailing_zeros(self) -> u32 {
                 self.trailing_zeros()
             }
+        }
+    };
+}
+
+/// This trait extends many common signed integer types
+/// so that they can be used with the bitstream handling traits.
+pub trait UnsignedNumeric: Numeric + Into<crate::write::UnsignedValue> {
+    /// The signed variant of ourself
+    type Signed: SignedNumeric<Unsigned = Self>;
+
+    /// Given a twos-complement value,
+    /// return this value is a non-negative signed number
+    fn as_non_negative(self) -> Self::Signed;
+
+    /// Given a two-complement positive value and certain number of bits,
+    /// returns this value as a negative signed number.
+    fn as_negative(self, bits: u32) -> Self::Signed;
+
+    /// Given a two-complement positive value and certain number of bits,
+    /// returns this value as a negative number.
+    fn as_negative_fixed<const BITS: u32>(self) -> Self::Signed;
+}
+
+macro_rules! define_unsigned_numeric {
+    ($t:ty, $s:ty) => {
+        define_numeric!($t);
+
+        impl UnsignedNumeric for $t {
+            type Signed = $s;
+
             #[inline(always)]
-            fn unsigned_value(self) -> write::UnsignedValue {
-                self.into()
+            fn as_non_negative(self) -> Self::Signed {
+                self as $s
+            }
+            #[inline(always)]
+            fn as_negative(self, bits: u32) -> Self::Signed {
+                (self as $s) + (-1 << (bits - 1))
+            }
+            #[inline(always)]
+            fn as_negative_fixed<const BITS: u32>(self) -> Self::Signed {
+                (self as $s) + (-1 << (BITS - 1))
             }
         }
     };
@@ -274,51 +309,46 @@ macro_rules! define_numeric {
 /// This trait extends many common signed integer types
 /// so that they can be used with the bitstream handling traits.
 pub trait SignedNumeric: Numeric {
+    /// The unsigned variant of ourself
+    type Unsigned: UnsignedNumeric<Signed = Self>;
+
     /// Returns true if this value is negative
     fn is_negative(self) -> bool;
 
-    /// Given a two-complement positive value and certain number of bits,
-    /// returns this value as a negative number.
-    fn as_negative(self, bits: u32) -> Self;
-
-    /// Given a two-complement positive value and certain number of bits,
-    /// returns this value as a negative number.
-    fn as_negative_fixed<const BITS: u32>(self) -> Self;
+    /// Returns ourself as a non-negative value
+    fn as_non_negative(self) -> Self::Unsigned;
 
     /// Given a negative value and a certain number of bits,
     /// returns this value as a twos-complement positive number.
-    fn as_unsigned(self, bits: u32) -> Self;
+    fn as_negative(self, bits: u32) -> Self::Unsigned;
 
     /// Given a negative value and a certain number of bits,
     /// returns this value as a twos-complement positive number.
-    fn as_unsigned_fixed<const BITS: u32>(self) -> Self;
+    fn as_negative_fixed<const BITS: u32>(self) -> Self::Unsigned;
 
     /// Converts to a generic signed value for stream recording purposes.
     fn signed_value(self) -> write::SignedValue;
 }
 
 macro_rules! define_signed_numeric {
-    ($t:ty) => {
+    ($t:ty, $u:ty) => {
+        define_numeric!($t);
+
         impl SignedNumeric for $t {
+            type Unsigned = $u;
+
             #[inline(always)]
             fn is_negative(self) -> bool {
                 self < 0
             }
-            #[inline(always)]
-            fn as_negative(self, bits: u32) -> Self {
-                self + (-1 << (bits - 1))
+            fn as_non_negative(self) -> Self::Unsigned {
+                self as $u
             }
-            #[inline(always)]
-            fn as_negative_fixed<const BITS: u32>(self) -> Self {
-                self + (-1 << (BITS - 1))
+            fn as_negative(self, bits: u32) -> Self::Unsigned {
+                (self - (-1 << (bits - 1))) as $u
             }
-            #[inline(always)]
-            fn as_unsigned(self, bits: u32) -> Self {
-                self - (-1 << (bits - 1))
-            }
-            #[inline(always)]
-            fn as_unsigned_fixed<const BITS: u32>(self) -> Self {
-                self - (-1 << (BITS - 1))
+            fn as_negative_fixed<const BITS: u32>(self) -> Self::Unsigned {
+                (self - (-1 << (BITS - 1))) as $u
             }
             #[inline(always)]
             fn signed_value(self) -> write::SignedValue {
@@ -328,22 +358,17 @@ macro_rules! define_signed_numeric {
     };
 }
 
-define_numeric!(u8);
-define_numeric!(i8);
-define_numeric!(u16);
-define_numeric!(i16);
-define_numeric!(u32);
-define_numeric!(i32);
-define_numeric!(u64);
-define_numeric!(i64);
-define_numeric!(u128);
-define_numeric!(i128);
+define_unsigned_numeric!(u8, i8);
+define_unsigned_numeric!(u16, i16);
+define_unsigned_numeric!(u32, i32);
+define_unsigned_numeric!(u64, i64);
+define_unsigned_numeric!(u128, i128);
 
-define_signed_numeric!(i8);
-define_signed_numeric!(i16);
-define_signed_numeric!(i32);
-define_signed_numeric!(i64);
-define_signed_numeric!(i128);
+define_signed_numeric!(i8, u8);
+define_signed_numeric!(i16, u16);
+define_signed_numeric!(i32, u32);
+define_signed_numeric!(i64, u64);
+define_signed_numeric!(i128, u128);
 
 define_primitive_numeric!(f32);
 define_primitive_numeric!(f64);
@@ -558,11 +583,11 @@ impl Endianness for BigEndian {
         S: SignedNumeric,
     {
         let is_negative = r.read_bit()?;
-        let unsigned = r.read::<S>(bits - 1)?;
+        let unsigned = r.read::<S::Unsigned>(bits - 1)?;
         Ok(if is_negative {
             unsigned.as_negative(bits)
         } else {
-            unsigned
+            unsigned.as_non_negative()
         })
     }
 
@@ -572,11 +597,11 @@ impl Endianness for BigEndian {
         S: SignedNumeric,
     {
         let is_negative = r.read_bit()?;
-        let unsigned = r.read::<S>(B - 1)?;
+        let unsigned = r.read::<S::Unsigned>(B - 1)?;
         Ok(if is_negative {
             unsigned.as_negative_fixed::<B>()
         } else {
-            unsigned
+            unsigned.as_non_negative()
         })
     }
 
@@ -589,9 +614,10 @@ impl Endianness for BigEndian {
             w.write_bytes(value.to_be_bytes().as_ref())
         } else if value.is_negative() {
             w.write_bit(true)
-                .and_then(|()| w.write(bits - 1, value.as_unsigned(bits)))
+                .and_then(|()| w.write(bits - 1, value.as_negative(bits)))
         } else {
-            w.write_bit(false).and_then(|()| w.write(bits - 1, value))
+            w.write_bit(false)
+                .and_then(|()| w.write(bits - 1, value.as_non_negative()))
         }
     }
 
@@ -604,9 +630,10 @@ impl Endianness for BigEndian {
             w.write_bytes(value.to_be_bytes().as_ref())
         } else if value.is_negative() {
             w.write_bit(true)
-                .and_then(|()| w.write(B - 1, value.as_unsigned(B)))
+                .and_then(|()| w.write(B - 1, value.as_negative_fixed::<B>()))
         } else {
-            w.write_bit(false).and_then(|()| w.write(B - 1, value))
+            w.write_bit(false)
+                .and_then(|()| w.write(B - 1, value.as_non_negative()))
         }
     }
 
@@ -753,12 +780,12 @@ impl Endianness for LittleEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        let unsigned = r.read::<S>(bits - 1)?;
+        let unsigned = r.read::<S::Unsigned>(bits - 1)?;
         let is_negative = r.read_bit()?;
         Ok(if is_negative {
             unsigned.as_negative(bits)
         } else {
-            unsigned
+            unsigned.as_non_negative()
         })
     }
 
@@ -767,12 +794,12 @@ impl Endianness for LittleEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        let unsigned = r.read::<S>(B - 1)?;
+        let unsigned = r.read::<S::Unsigned>(B - 1)?;
         let is_negative = r.read_bit()?;
         Ok(if is_negative {
             unsigned.as_negative_fixed::<B>()
         } else {
-            unsigned
+            unsigned.as_non_negative()
         })
     }
 
@@ -784,10 +811,11 @@ impl Endianness for LittleEndian {
         if bits == S::BITS_SIZE {
             w.write_bytes(value.to_le_bytes().as_ref())
         } else if value.is_negative() {
-            w.write(bits - 1, value.as_unsigned(bits))
+            w.write(bits - 1, value.as_negative(bits))
                 .and_then(|()| w.write_bit(true))
         } else {
-            w.write(bits - 1, value).and_then(|()| w.write_bit(false))
+            w.write(bits - 1, value.as_non_negative())
+                .and_then(|()| w.write_bit(false))
         }
     }
 
@@ -799,10 +827,11 @@ impl Endianness for LittleEndian {
         if B == S::BITS_SIZE {
             w.write_bytes(value.to_le_bytes().as_ref())
         } else if value.is_negative() {
-            w.write(B - 1, value.as_unsigned_fixed::<B>())
+            w.write(B - 1, value.as_negative_fixed::<B>())
                 .and_then(|()| w.write_bit(true))
         } else {
-            w.write(B - 1, value).and_then(|()| w.write_bit(false))
+            w.write(B - 1, value.as_non_negative())
+                .and_then(|()| w.write_bit(false))
         }
     }
 

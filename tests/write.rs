@@ -8,7 +8,7 @@
 
 extern crate bitstream_io;
 
-use bitstream_io::{BigEndian, BitWrite, BitWriter, LittleEndian};
+use bitstream_io::{BigEndian, BitWrite, BitWriter};
 
 #[test]
 fn test_write_queue_be() {
@@ -342,25 +342,25 @@ fn test_writer_edge_cases_be() {
 
     /*signed 32 and 64-bit values*/
     let mut w = BitWriter::endian(Vec::with_capacity(48), BigEndian);
-    w.write(32, 0i32).unwrap();
-    w.write(32, -1i32).unwrap();
-    w.write(32, -2147483648i32).unwrap();
-    w.write(32, 2147483647i32).unwrap();
-    w.write(64, 0i64).unwrap();
-    w.write(64, -1i64).unwrap();
-    w.write(64, -9223372036854775808i64).unwrap();
-    w.write(64, 9223372036854775807i64).unwrap();
+    w.write_signed(32, 0i32).unwrap();
+    w.write_signed(32, -1i32).unwrap();
+    w.write_signed(32, -2147483648i32).unwrap();
+    w.write_signed(32, 2147483647i32).unwrap();
+    w.write_signed(64, 0i64).unwrap();
+    w.write_signed(64, -1i64).unwrap();
+    w.write_signed(64, -9223372036854775808i64).unwrap();
+    w.write_signed(64, 9223372036854775807i64).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
     let mut w = BitWriter::endian(Vec::with_capacity(48), BigEndian);
-    w.write_out::<32, i32>(0).unwrap();
-    w.write_out::<32, i32>(-1).unwrap();
-    w.write_out::<32, i32>(-2147483648).unwrap();
-    w.write_out::<32, i32>(2147483647).unwrap();
-    w.write_out::<64, i64>(0).unwrap();
-    w.write_out::<64, i64>(-1).unwrap();
-    w.write_out::<64, i64>(-9223372036854775808).unwrap();
-    w.write_out::<64, i64>(9223372036854775807).unwrap();
+    w.write_signed_out::<32, i32>(0).unwrap();
+    w.write_signed_out::<32, i32>(-1).unwrap();
+    w.write_signed_out::<32, i32>(-2147483648).unwrap();
+    w.write_signed_out::<32, i32>(2147483647).unwrap();
+    w.write_signed_out::<64, i64>(0).unwrap();
+    w.write_signed_out::<64, i64>(-1).unwrap();
+    w.write_signed_out::<64, i64>(-9223372036854775808).unwrap();
+    w.write_signed_out::<64, i64>(9223372036854775807).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
     let mut bytes = Vec::new();
@@ -670,25 +670,25 @@ fn test_writer_edge_cases_le() {
 
     /*signed 32 and 64-bit values*/
     let mut w = BitWriter::endian(Vec::with_capacity(48), LittleEndian);
-    w.write(32, 0i32).unwrap();
-    w.write(32, -1i32).unwrap();
-    w.write(32, -2147483648i32).unwrap();
-    w.write(32, 2147483647i32).unwrap();
-    w.write(64, 0i64).unwrap();
-    w.write(64, -1i64).unwrap();
-    w.write(64, -9223372036854775808i64).unwrap();
-    w.write(64, 9223372036854775807i64).unwrap();
+    w.write_signed(32, 0i32).unwrap();
+    w.write_signed(32, -1i32).unwrap();
+    w.write_signed(32, -2147483648i32).unwrap();
+    w.write_signed(32, 2147483647i32).unwrap();
+    w.write_signed(64, 0i64).unwrap();
+    w.write_signed(64, -1i64).unwrap();
+    w.write_signed(64, -9223372036854775808i64).unwrap();
+    w.write_signed(64, 9223372036854775807i64).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
     let mut w = BitWriter::endian(Vec::with_capacity(48), LittleEndian);
-    w.write_out::<32, i32>(0).unwrap();
-    w.write_out::<32, i32>(-1).unwrap();
-    w.write_out::<32, i32>(-2147483648).unwrap();
-    w.write_out::<32, i32>(2147483647).unwrap();
-    w.write_out::<64, i64>(0).unwrap();
-    w.write_out::<64, i64>(-1).unwrap();
-    w.write_out::<64, i64>(-9223372036854775808).unwrap();
-    w.write_out::<64, i64>(9223372036854775807).unwrap();
+    w.write_signed_out::<32, i32>(0).unwrap();
+    w.write_signed_out::<32, i32>(-1).unwrap();
+    w.write_signed_out::<32, i32>(-2147483648).unwrap();
+    w.write_signed_out::<32, i32>(2147483647).unwrap();
+    w.write_signed_out::<64, i64>(0).unwrap();
+    w.write_signed_out::<64, i64>(-1).unwrap();
+    w.write_signed_out::<64, i64>(-9223372036854775808).unwrap();
+    w.write_signed_out::<64, i64>(9223372036854775807).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
     let mut bytes = Vec::new();
@@ -801,7 +801,7 @@ fn test_writer_huffman_le() {
     w.write_huffman(&tree, 2).unwrap();
     w.write_huffman(&tree, 4).unwrap();
     w.write_huffman(&tree, 3).unwrap();
-    w.write(1, 1).unwrap();
+    w.write(1, 1u8).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 }
 
@@ -914,7 +914,7 @@ fn test_writer_io_errors_be() {
 
     /*un-aligned bytes*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
-    assert!(w.write(4, 11).is_ok());
+    assert!(w.write(4, 11u8).is_ok());
     assert_eq!(
         w.write_bytes(b"\xB1\xED").unwrap_err().kind(),
         ErrorKind::WriteZero
@@ -1004,7 +1004,7 @@ fn test_writer_io_errors_le() {
 
     /*un-aligned bytes*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
-    assert!(w.write(4, 11).is_ok());
+    assert!(w.write(4, 11u8).is_ok());
     assert_eq!(
         w.write_bytes(b"\xB1\xED").unwrap_err().kind(),
         ErrorKind::WriteZero
@@ -1032,15 +1032,15 @@ fn test_writer_bits_errors() {
     );
 
     assert_eq!(
-        w.write(1, 0b10).unwrap_err().kind(),
+        w.write(1, 0b10u8).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        w.write(2, 0b100).unwrap_err().kind(),
+        w.write(2, 0b100u8).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        w.write(3, 0b1000).unwrap_err().kind(),
+        w.write(3, 0b1000u8).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
 
@@ -1106,15 +1106,15 @@ fn test_writer_bits_errors() {
     );
 
     assert_eq!(
-        w.write(1, 0b10).unwrap_err().kind(),
+        w.write(1, 0b10u8).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        w.write(2, 0b100).unwrap_err().kind(),
+        w.write(2, 0b100u8).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        w.write(3, 0b1000).unwrap_err().kind(),
+        w.write(3, 0b1000u8).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
 
@@ -1456,7 +1456,7 @@ fn test_counter_huffman_le() {
     w.write_huffman(&tree, 2).unwrap();
     w.write_huffman(&tree, 4).unwrap();
     w.write_huffman(&tree, 3).unwrap();
-    w.write(1, 1).unwrap();
+    w.write(1, 1u8).unwrap();
     assert_eq!(w.written(), 32);
 }
 
@@ -1812,7 +1812,7 @@ fn test_recorder_huffman_le() {
     w.write_huffman(&tree, 2).unwrap();
     w.write_huffman(&tree, 4).unwrap();
     w.write_huffman(&tree, 3).unwrap();
-    w.write(1, 1).unwrap();
+    w.write(1, 1u8).unwrap();
     let mut w2 = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
@@ -1823,7 +1823,7 @@ fn test_negative_write() {
     let mut bit_writer = BitWriter::endian(Vec::new(), BigEndian);
     assert!(bit_writer.write_bit(false).is_ok());
     assert!(bit_writer.write_signed(8, -1i8).is_ok());
-    assert!(bit_writer.write(7, 0).is_ok());
+    assert!(bit_writer.write(7, 0u8).is_ok());
     if let Some(writer) = bit_writer.writer() {
         assert_eq!(writer[0] >> 7, 0);
     } else {
