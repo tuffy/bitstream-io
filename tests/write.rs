@@ -8,6 +8,8 @@
 
 extern crate bitstream_io;
 
+use bitstream_io::{BigEndian, BitWrite, BitWriter, LittleEndian};
+
 #[test]
 fn test_write_queue_be() {
     use bitstream_io::{BitQueue, Numeric, BE};
@@ -1814,4 +1816,17 @@ fn test_recorder_huffman_le() {
     let mut w2 = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
+}
+
+#[test]
+fn test_negative_write() {
+    let mut bit_writer = BitWriter::endian(Vec::new(), BigEndian);
+    assert!(bit_writer.write_bit(false).is_ok());
+    assert!(bit_writer.write(8, -1i8).is_ok());
+    assert!(bit_writer.write(7, 0).is_ok());
+    if let Some(writer) = bit_writer.writer() {
+        assert_eq!(writer[0] >> 7, 0);
+    } else {
+        panic!("writer() returned None");
+    }
 }
