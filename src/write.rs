@@ -495,13 +495,13 @@ pub trait BitWrite {
                 .write_unsigned(value, (1u32 << bits) - 1)
                 .and_then(|()| self.write_bit(false)),
             32 => self
-                .write_unsigned(value, 0xFFFF_FFFFu32)
+                .write_unsigned_out::<32, _>(0xFFFF_FFFFu32)
                 .and_then(|()| self.write_bit(false)),
             bits @ 33..=63 => self
                 .write_unsigned(value, (1u64 << bits) - 1)
                 .and_then(|()| self.write_bit(false)),
             64 => self
-                .write_unsigned(value, 0xFFFF_FFFF_FFFF_FFFFu64)
+                .write_unsigned_out::<64, _>(0xFFFF_FFFF_FFFF_FFFFu64)
                 .and_then(|()| self.write_bit(false)),
             mut bits => {
                 while bits > 64 {
