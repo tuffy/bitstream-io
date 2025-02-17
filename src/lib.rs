@@ -181,6 +181,59 @@ impl<const N: usize> Primitive for [u8; N] {
     }
 }
 
+/// This trait is for integer types which can be read or written
+/// to a bit stream as a partial amount of bits.
+/// It unifies signed and unsigned integer types by delegating
+/// reads and writes to the signed and unsigned reading
+/// and writing methods as appropriate.
+pub trait Integer {
+    /// Reads a value of ourself from the stream
+    /// with the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Also returns an error if our type is too small
+    /// to hold the requested number of bits.
+    fn read<R: BitRead + ?Sized>(reader: &mut R, bits: u32) -> io::Result<Self>
+    where
+        Self: Sized;
+
+    /// Reads a value of ourself from the stream
+    /// with the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// A compile-time error occurs if the given number of bits
+    /// is larger than our type.
+    fn read_in<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+    where
+        Self: Sized;
+
+    /// Writes ourself to the stream using the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if our value is too small
+    /// to hold the given number of bits.
+    /// Returns an error if our value is too large
+    /// to fit the given number of bits.
+    fn write<W: BitWrite + ?Sized>(self, writer: &mut W, bits: u32) -> io::Result<()>;
+
+    /// Writes ourself to the stream using the given const number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if our value is too large
+    /// to fit the given number of bits.
+    /// A compile-time error occurs if the given number of bits
+    /// is larger than our type.
+    fn write_out<const BITS: u32, W: BitWrite + ?Sized>(self, writer: &mut W) -> io::Result<()>;
+}
+
 /// This trait extends many common integer types (both unsigned and signed)
 /// with a few trivial methods so that they can be used
 /// with the bitstream handling traits.
@@ -303,6 +356,37 @@ macro_rules! define_unsigned_numeric {
                 (self as $s) + (-1 << (BITS - 1))
             }
         }
+
+        impl Integer for $t {
+            #[inline]
+            fn read<R: BitRead + ?Sized>(reader: &mut R, bits: u32) -> io::Result<Self>
+            where
+                Self: Sized,
+            {
+                reader.read_unsigned(bits)
+            }
+
+            #[inline]
+            fn read_in<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+            where
+                Self: Sized,
+            {
+                reader.read_unsigned_in::<BITS, _>()
+            }
+
+            #[inline]
+            fn write<W: BitWrite + ?Sized>(self, writer: &mut W, bits: u32) -> io::Result<()> {
+                writer.write_unsigned(bits, self)
+            }
+
+            #[inline]
+            fn write_out<const BITS: u32, W: BitWrite + ?Sized>(
+                self,
+                writer: &mut W,
+            ) -> io::Result<()> {
+                writer.write_unsigned_out::<BITS, _>(self)
+            }
+        }
     };
 }
 
@@ -346,6 +430,37 @@ macro_rules! define_signed_numeric {
             }
             fn as_negative_fixed<const BITS: u32>(self) -> Self::Unsigned {
                 (self - (-1 << (BITS - 1))) as $u
+            }
+        }
+
+        impl Integer for $t {
+            #[inline]
+            fn read<R: BitRead + ?Sized>(reader: &mut R, bits: u32) -> io::Result<Self>
+            where
+                Self: Sized,
+            {
+                reader.read_signed(bits)
+            }
+
+            #[inline]
+            fn read_in<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+            where
+                Self: Sized,
+            {
+                reader.read_signed_in::<BITS, _>()
+            }
+
+            #[inline]
+            fn write<W: BitWrite + ?Sized>(self, writer: &mut W, bits: u32) -> io::Result<()> {
+                writer.write_signed(bits, self)
+            }
+
+            #[inline]
+            fn write_out<const BITS: u32, W: BitWrite + ?Sized>(
+                self,
+                writer: &mut W,
+            ) -> io::Result<()> {
+                writer.write_signed_out::<BITS, _>(self)
             }
         }
     };
@@ -576,7 +691,7 @@ impl Endianness for BigEndian {
         S: SignedNumeric,
     {
         let is_negative = r.read_bit()?;
-        let unsigned = r.read::<S::Unsigned>(bits - 1)?;
+        let unsigned = r.read_unsigned::<S::Unsigned>(bits - 1)?;
         Ok(if is_negative {
             unsigned.as_negative(bits)
         } else {
@@ -590,7 +705,7 @@ impl Endianness for BigEndian {
         S: SignedNumeric,
     {
         let is_negative = r.read_bit()?;
-        let unsigned = r.read::<S::Unsigned>(B - 1)?;
+        let unsigned = r.read_unsigned::<S::Unsigned>(B - 1)?;
         Ok(if is_negative {
             unsigned.as_negative_fixed::<B>()
         } else {
@@ -607,10 +722,10 @@ impl Endianness for BigEndian {
             w.write_bytes(value.to_be_bytes().as_ref())
         } else if value.is_negative() {
             w.write_bit(true)
-                .and_then(|()| w.write(bits - 1, value.as_negative(bits)))
+                .and_then(|()| w.write_unsigned(bits - 1, value.as_negative(bits)))
         } else {
             w.write_bit(false)
-                .and_then(|()| w.write(bits - 1, value.as_non_negative()))
+                .and_then(|()| w.write_unsigned(bits - 1, value.as_non_negative()))
         }
     }
 
@@ -623,10 +738,10 @@ impl Endianness for BigEndian {
             w.write_bytes(value.to_be_bytes().as_ref())
         } else if value.is_negative() {
             w.write_bit(true)
-                .and_then(|()| w.write(B - 1, value.as_negative_fixed::<B>()))
+                .and_then(|()| w.write_unsigned(B - 1, value.as_negative_fixed::<B>()))
         } else {
             w.write_bit(false)
-                .and_then(|()| w.write(B - 1, value.as_non_negative()))
+                .and_then(|()| w.write_unsigned(B - 1, value.as_non_negative()))
         }
     }
 
@@ -773,7 +888,7 @@ impl Endianness for LittleEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        let unsigned = r.read::<S::Unsigned>(bits - 1)?;
+        let unsigned = r.read_unsigned::<S::Unsigned>(bits - 1)?;
         let is_negative = r.read_bit()?;
         Ok(if is_negative {
             unsigned.as_negative(bits)
@@ -787,7 +902,7 @@ impl Endianness for LittleEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        let unsigned = r.read::<S::Unsigned>(B - 1)?;
+        let unsigned = r.read_unsigned::<S::Unsigned>(B - 1)?;
         let is_negative = r.read_bit()?;
         Ok(if is_negative {
             unsigned.as_negative_fixed::<B>()
@@ -804,10 +919,10 @@ impl Endianness for LittleEndian {
         if bits == S::BITS_SIZE {
             w.write_bytes(value.to_le_bytes().as_ref())
         } else if value.is_negative() {
-            w.write(bits - 1, value.as_negative(bits))
+            w.write_unsigned(bits - 1, value.as_negative(bits))
                 .and_then(|()| w.write_bit(true))
         } else {
-            w.write(bits - 1, value.as_non_negative())
+            w.write_unsigned(bits - 1, value.as_non_negative())
                 .and_then(|()| w.write_bit(false))
         }
     }
@@ -820,10 +935,10 @@ impl Endianness for LittleEndian {
         if B == S::BITS_SIZE {
             w.write_bytes(value.to_le_bytes().as_ref())
         } else if value.is_negative() {
-            w.write(B - 1, value.as_negative_fixed::<B>())
+            w.write_unsigned(B - 1, value.as_negative_fixed::<B>())
                 .and_then(|()| w.write_bit(true))
         } else {
-            w.write(B - 1, value.as_non_negative())
+            w.write_unsigned(B - 1, value.as_non_negative())
                 .and_then(|()| w.write_bit(false))
         }
     }

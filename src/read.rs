@@ -181,8 +181,8 @@ use core2::io::{self, SeekFrom};
 use std::io::{self, SeekFrom};
 
 use super::{
-    huffman::ReadHuffmanTree, BitQueue, Endianness, Numeric, PhantomData, Primitive, SignedNumeric,
-    UnsignedNumeric,
+    huffman::ReadHuffmanTree, BitQueue, Endianness, Integer, Numeric, PhantomData, Primitive,
+    SignedNumeric, UnsignedNumeric,
 };
 
 /// A trait for anything that can read a variable number of
@@ -196,6 +196,38 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     fn read_bit(&mut self) -> io::Result<bool>;
 
+    /// Reads a signed or unsigned value from the stream with
+    /// the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Also returns an error if the output type is too small
+    /// to hold the requested number of bits.
+    #[inline]
+    fn read<I>(&mut self, bits: u32) -> io::Result<I>
+    where
+        I: Integer + Sized,
+    {
+        I::read(self, bits)
+    }
+
+    /// Reads a signed or unsigned value from the stream with
+    /// the given constant number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// A compile-time error occurs if the given number of bits
+    /// is larger than the output type.
+    #[inline]
+    fn read_in<const BITS: u32, I>(&mut self) -> io::Result<I>
+    where
+        I: Integer,
+    {
+        I::read_in::<BITS, _>(self)
+    }
+
     /// Reads an unsigned value from the stream with
     /// the given number of bits.
     ///
@@ -204,7 +236,7 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     /// Also returns an error if the output type is too small
     /// to hold the requested number of bits.
-    fn read<U>(&mut self, bits: u32) -> io::Result<U>
+    fn read_unsigned<U>(&mut self, bits: u32) -> io::Result<U>
     where
         U: UnsignedNumeric;
 
@@ -216,11 +248,11 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
-    fn read_in<const BITS: u32, U>(&mut self) -> io::Result<U>
+    fn read_unsigned_in<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
         U: UnsignedNumeric,
     {
-        self.read(BITS)
+        self.read_unsigned(BITS)
     }
 
     /// Reads a twos-complement signed value from the stream with
@@ -300,7 +332,7 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()> {
         for b in buf.iter_mut() {
-            *b = self.read_in::<8, _>()?;
+            *b = self.read_unsigned_in::<8, _>()?;
         }
         Ok(())
     }
@@ -546,9 +578,9 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
     /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
-    /// assert_eq!(reader.read::<u8>(1).unwrap(), 0b1);
-    /// assert_eq!(reader.read::<u8>(2).unwrap(), 0b01);
-    /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10111);
+    /// assert_eq!(reader.read_unsigned::<u8>(1).unwrap(), 0b1);
+    /// assert_eq!(reader.read_unsigned::<u8>(2).unwrap(), 0b01);
+    /// assert_eq!(reader.read_unsigned::<u8>(5).unwrap(), 0b10111);
     /// ```
     ///
     /// ```
@@ -556,9 +588,9 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
     /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
-    /// assert_eq!(reader.read::<u8>(1).unwrap(), 0b1);
-    /// assert_eq!(reader.read::<u8>(2).unwrap(), 0b11);
-    /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10110);
+    /// assert_eq!(reader.read_unsigned::<u8>(1).unwrap(), 0b1);
+    /// assert_eq!(reader.read_unsigned::<u8>(2).unwrap(), 0b11);
+    /// assert_eq!(reader.read_unsigned::<u8>(5).unwrap(), 0b10110);
     /// ```
     ///
     /// ```
@@ -566,12 +598,12 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0;10];
     /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
-    /// assert!(reader.read::<u8>(9).is_err());    // can't read  9 bits to u8
-    /// assert!(reader.read::<u16>(17).is_err());  // can't read 17 bits to u16
-    /// assert!(reader.read::<u32>(33).is_err());  // can't read 33 bits to u32
-    /// assert!(reader.read::<u64>(65).is_err());  // can't read 65 bits to u64
+    /// assert!(reader.read_unsigned::<u8>(9).is_err());    // can't read  9 bits to u8
+    /// assert!(reader.read_unsigned::<u16>(17).is_err());  // can't read 17 bits to u16
+    /// assert!(reader.read_unsigned::<u32>(33).is_err());  // can't read 33 bits to u32
+    /// assert!(reader.read_unsigned::<u64>(65).is_err());  // can't read 65 bits to u64
     /// ```
-    fn read<U>(&mut self, mut bits: u32) -> io::Result<U>
+    fn read_unsigned<U>(&mut self, mut bits: u32) -> io::Result<U>
     where
         U: UnsignedNumeric,
     {
@@ -602,9 +634,9 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
     /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
-    /// assert_eq!(reader.read_in::<1, u8>().unwrap(), 0b1);
-    /// assert_eq!(reader.read_in::<2, u8>().unwrap(), 0b01);
-    /// assert_eq!(reader.read_in::<5, u8>().unwrap(), 0b10111);
+    /// assert_eq!(reader.read_unsigned_in::<1, u8>().unwrap(), 0b1);
+    /// assert_eq!(reader.read_unsigned_in::<2, u8>().unwrap(), 0b01);
+    /// assert_eq!(reader.read_unsigned_in::<5, u8>().unwrap(), 0b10111);
     /// ```
     ///
     /// ```
@@ -612,12 +644,12 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
     /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
-    /// assert_eq!(reader.read_in::<1, u8>().unwrap(), 0b1);
-    /// assert_eq!(reader.read_in::<2, u8>().unwrap(), 0b11);
-    /// assert_eq!(reader.read_in::<5, u8>().unwrap(), 0b10110);
+    /// assert_eq!(reader.read_unsigned_in::<1, u8>().unwrap(), 0b1);
+    /// assert_eq!(reader.read_unsigned_in::<2, u8>().unwrap(), 0b11);
+    /// assert_eq!(reader.read_unsigned_in::<5, u8>().unwrap(), 0b10110);
     /// ```
     #[inline]
-    fn read_in<const BITS: u32, U>(&mut self) -> io::Result<U>
+    fn read_unsigned_in<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
         U: UnsignedNumeric,
     {
@@ -780,7 +812,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
             self.reader.read_exact(buf)
         } else {
             for b in buf.iter_mut() {
-                *b = self.read_in::<8, _>()?;
+                *b = self.read_unsigned_in::<8, _>()?;
             }
             Ok(())
         }
