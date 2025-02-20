@@ -153,6 +153,7 @@ fn test_auto_signedness() {
                     w.$w(bits, i).unwrap();
                     i += I::ONE;
                 }
+                w.$w(bits, end).unwrap();
 
                 w.byte_align().unwrap();
 
@@ -162,6 +163,7 @@ fn test_auto_signedness() {
                     assert_eq!(r.$r::<I>(bits).unwrap(), start);
                     start += I::ONE;
                 }
+                assert_eq!(r.$r::<I>(bits).unwrap(), end);
             }
         }
     }

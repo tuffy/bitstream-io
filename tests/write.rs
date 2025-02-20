@@ -1822,7 +1822,7 @@ fn test_recorder_huffman_le() {
 fn test_negative_write() {
     let mut bit_writer = BitWriter::endian(Vec::new(), BigEndian);
     assert!(bit_writer.write_bit(false).is_ok());
-    assert!(bit_writer.write_signed(8, -1i8).is_ok());
+    assert!(bit_writer.write(8, -1i8).is_ok());
     assert!(bit_writer.write(7, 0u8).is_ok());
     if let Some(writer) = bit_writer.writer() {
         assert_eq!(writer[0] >> 7, 0);
