@@ -63,6 +63,24 @@
 //! to encountering errors at runtime, this will hopefully be
 //! an improvement in the long run.
 
+//! # Changes From 2.X.X
+//!
+//! `BitRead` and `BitWrite` traits previously used their
+//! `read` and `write` methods as the base upon which the
+//! the rest of the trait was implemented.
+//! Starting with version 3, the new `read_unsigned` and
+//! `write_unsigned` methods are the base,
+//! which take only unsigned integer types.
+//! `read_signed` and `write_signed` are implemented
+//! in terms of `read_unsigned` and `write_signed`
+//! based on the stream's endianness.
+//! The updated `read` and `write` methods take either
+//! signed or unsigned integer types (as they did before)
+//! and simply call `read|write_unsigned` or `read|write_signed`
+//! as needed.
+//! This change makes the interface both more symmetical
+//! and harder to accidentally misuse.
+
 //! # Migrating From Pre 1.0.0
 //!
 //! There are now `BitRead` and `BitWrite` traits for bitstream
@@ -317,22 +335,44 @@ macro_rules! define_numeric {
     };
 }
 
-/// This trait extends many common signed integer types
+/// This trait extends many common unsigned integer types
 /// so that they can be used with the bitstream handling traits.
 pub trait UnsignedNumeric: Numeric + Into<crate::write::UnsignedValue> {
     /// The signed variant of ourself
     type Signed: SignedNumeric<Unsigned = Self>;
 
     /// Given a twos-complement value,
-    /// return this value is a non-negative signed number
+    /// return this value is a non-negative signed number.
+    /// The location of the sign bit depends on the stream's endianness
+    /// and is not stored in the result.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::UnsignedNumeric;
+    /// assert_eq!(0b00000001u8.as_non_negative(), 1i8);
+    /// ```
     fn as_non_negative(self) -> Self::Signed;
 
     /// Given a two-complement positive value and certain number of bits,
     /// returns this value as a negative signed number.
+    /// The location of the sign bit depends on the stream's endianness
+    /// and is not stored in the result.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::UnsignedNumeric;
+    /// assert_eq!(0b01111111u8.as_negative(8), -1i8);
+    /// ```
     fn as_negative(self, bits: u32) -> Self::Signed;
 
     /// Given a two-complement positive value and certain number of bits,
     /// returns this value as a negative number.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::UnsignedNumeric;
+    /// assert_eq!(0b01111111u8.as_negative_fixed::<8>(), -1i8);
+    /// ```
     fn as_negative_fixed<const BITS: u32>(self) -> Self::Signed;
 }
 
@@ -397,17 +437,46 @@ pub trait SignedNumeric: Numeric + Into<crate::write::SignedValue> {
     type Unsigned: UnsignedNumeric<Signed = Self>;
 
     /// Returns true if this value is negative
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::SignedNumeric;
+    /// assert!(!1i8.is_negative());
+    /// assert!((-1i8).is_negative());
+    /// ```
     fn is_negative(self) -> bool;
 
-    /// Returns ourself as a non-negative value
+    /// Returns ourself as a non-negative value.
+    /// The location of the sign bit depends on the stream's endianness
+    /// and is not stored in the result.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::SignedNumeric;
+    /// assert_eq!(1i8.as_non_negative(), 0b00000001u8);
+    /// ```
     fn as_non_negative(self) -> Self::Unsigned;
 
     /// Given a negative value and a certain number of bits,
     /// returns this value as a twos-complement positive number.
+    /// The location of the sign bit depends on the stream's endianness
+    /// and is not stored in the result.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::SignedNumeric;
+    /// assert_eq!((-1i8).as_negative(8), 0b01111111u8);
+    /// ```
     fn as_negative(self, bits: u32) -> Self::Unsigned;
 
     /// Given a negative value and a certain number of bits,
     /// returns this value as a twos-complement positive number.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::SignedNumeric;
+    /// assert_eq!((-1i8).as_negative_fixed::<8>(), 0b01111111u8);
+    /// ```
     fn as_negative_fixed<const BITS: u32>(self) -> Self::Unsigned;
 }
 
@@ -690,13 +759,17 @@ impl Endianness for BigEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        let is_negative = r.read_bit()?;
-        let unsigned = r.read_unsigned::<S::Unsigned>(bits - 1)?;
-        Ok(if is_negative {
-            unsigned.as_negative(bits)
+        if bits == S::BITS_SIZE {
+            r.read_to()
         } else {
-            unsigned.as_non_negative()
-        })
+            let is_negative = r.read_bit()?;
+            let unsigned = r.read_unsigned::<S::Unsigned>(bits - 1)?;
+            Ok(if is_negative {
+                unsigned.as_negative(bits)
+            } else {
+                unsigned.as_non_negative()
+            })
+        }
     }
 
     fn read_signed_fixed<R, const B: u32, S>(r: &mut R) -> io::Result<S>
@@ -704,13 +777,17 @@ impl Endianness for BigEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        let is_negative = r.read_bit()?;
-        let unsigned = r.read_unsigned::<S::Unsigned>(B - 1)?;
-        Ok(if is_negative {
-            unsigned.as_negative_fixed::<B>()
+        if B == S::BITS_SIZE {
+            r.read_to()
         } else {
-            unsigned.as_non_negative()
-        })
+            let is_negative = r.read_bit()?;
+            let unsigned = r.read_unsigned::<S::Unsigned>(B - 1)?;
+            Ok(if is_negative {
+                unsigned.as_negative_fixed::<B>()
+            } else {
+                unsigned.as_non_negative()
+            })
+        }
     }
 
     fn write_signed<W, S>(w: &mut W, bits: u32, value: S) -> io::Result<()>
@@ -888,13 +965,17 @@ impl Endianness for LittleEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        let unsigned = r.read_unsigned::<S::Unsigned>(bits - 1)?;
-        let is_negative = r.read_bit()?;
-        Ok(if is_negative {
-            unsigned.as_negative(bits)
+        if bits == S::BITS_SIZE {
+            r.read_to()
         } else {
-            unsigned.as_non_negative()
-        })
+            let unsigned = r.read_unsigned::<S::Unsigned>(bits - 1)?;
+            let is_negative = r.read_bit()?;
+            Ok(if is_negative {
+                unsigned.as_negative(bits)
+            } else {
+                unsigned.as_non_negative()
+            })
+        }
     }
 
     fn read_signed_fixed<R, const B: u32, S>(r: &mut R) -> io::Result<S>
@@ -902,13 +983,17 @@ impl Endianness for LittleEndian {
         R: BitRead,
         S: SignedNumeric,
     {
-        let unsigned = r.read_unsigned::<S::Unsigned>(B - 1)?;
-        let is_negative = r.read_bit()?;
-        Ok(if is_negative {
-            unsigned.as_negative_fixed::<B>()
+        if B == S::BITS_SIZE {
+            r.read_to()
         } else {
-            unsigned.as_non_negative()
-        })
+            let unsigned = r.read_unsigned::<S::Unsigned>(B - 1)?;
+            let is_negative = r.read_bit()?;
+            Ok(if is_negative {
+                unsigned.as_negative_fixed::<B>()
+            } else {
+                unsigned.as_non_negative()
+            })
+        }
     }
 
     fn write_signed<W, S>(w: &mut W, bits: u32, value: S) -> io::Result<()>

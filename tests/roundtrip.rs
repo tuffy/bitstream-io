@@ -135,8 +135,8 @@ define_float_roundtrip!(test_f64_roundtrip_le, LittleEndian, f64);
 #[test]
 fn test_auto_signedness() {
     use bitstream_io::{
-        BitRead, BitReader, BitWrite, BitWriter, Endianness, Integer, UnsignedNumeric,
-        BigEndian, LittleEndian, SignedNumeric,
+        BigEndian, BitRead, BitReader, BitWrite, BitWriter, Endianness, Integer, LittleEndian,
+        SignedNumeric, UnsignedNumeric,
     };
 
     macro_rules! define_roundtrip {
@@ -157,7 +157,8 @@ fn test_auto_signedness() {
 
                 w.byte_align().unwrap();
 
-                let mut r: BitReader<_, E> = BitReader::new(Cursor::new(w.into_writer().into_inner()));
+                let mut r: BitReader<_, E> =
+                    BitReader::new(Cursor::new(w.into_writer().into_inner()));
                 assert_eq!(r.read_bit().unwrap(), true);
                 while start < end {
                     assert_eq!(r.$r::<I>(bits).unwrap(), start);
@@ -165,7 +166,7 @@ fn test_auto_signedness() {
                 }
                 assert_eq!(r.$r::<I>(bits).unwrap(), end);
             }
-        }
+        };
     }
 
     define_roundtrip!(test_writer_unsigned, UnsignedNumeric, write, read_unsigned);
