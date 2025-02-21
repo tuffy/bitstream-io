@@ -784,9 +784,8 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10110);
     /// ```
     fn skip(&mut self, mut bits: u32) -> io::Result<()> {
-        use core::cmp::min;
+        let to_drop = self.bitqueue.len().min(bits);
 
-        let to_drop = min(self.bitqueue.len(), bits);
         if to_drop != 0 {
             self.bitqueue.drop(to_drop);
             bits -= to_drop;
@@ -1056,13 +1055,11 @@ fn skip_aligned<R>(mut reader: R, mut bytes: u32) -> io::Result<()>
 where
     R: io::Read,
 {
-    use core::cmp::min;
-
     /*skip up to 8 bytes at a time
     (unlike with read_aligned, "bytes" may be larger than any native type)*/
     let mut buf = [0; 8];
     while bytes > 0 {
-        let to_read = min(8, bytes);
+        let to_read = bytes.min(8);
         reader.read_exact(&mut buf[0..to_read as usize])?;
         bytes -= to_read;
     }

@@ -437,6 +437,13 @@ pub trait BitWrite {
         F: Endianness,
         V: Primitive;
 
+    /// Pads the stream by writing 0 over the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn pad(&mut self, bits: u32) -> io::Result<()>;
+
     /// Writes the entirety of a byte buffer to the stream.
     ///
     /// # Errors
@@ -852,6 +859,19 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         F::write_primitive(self, value)
     }
 
+    fn pad(&mut self, mut bits: u32) -> io::Result<()> {
+        loop {
+            match bits {
+                0 => break Ok(()),
+                bits @ 1..64 => break self.write(bits, 0u64),
+                _ => {
+                    self.write_out::<64, u64>(0)?;
+                    bits -= 64;
+                }
+            }
+        }
+    }
+
     #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         if self.byte_aligned() {
@@ -1039,6 +1059,12 @@ where
     }
 
     #[inline]
+    fn pad(&mut self, bits: u32) -> io::Result<()> {
+        self.bits += bits.into();
+        Ok(())
+    }
+
+    #[inline]
     fn write_unary1(&mut self, value: u32) -> io::Result<()> {
         self.bits += (value + 1).into();
         Ok(())
@@ -1137,6 +1163,7 @@ enum WriteRecord {
     Bit(bool),
     Unsigned { bits: u32, value: UnsignedValue },
     Signed { bits: u32, value: SignedValue },
+    Pad { bits: u32 },
     Unary0(u32),
     Unary1(u32),
     Bytes(Box<[u8]>),
@@ -1166,6 +1193,7 @@ impl WriteRecord {
                 InnerSignedValue::I64(v) => writer.write_signed(*bits, *v),
                 InnerSignedValue::I128(v) => writer.write_signed(*bits, *v),
             },
+            WriteRecord::Pad { bits } => writer.pad(*bits),
             WriteRecord::Unary0(v) => writer.write_unary0(*v),
             WriteRecord::Unary1(v) => writer.write_unary1(*v),
             WriteRecord::Bytes(bytes) => writer.write_bytes(bytes),
@@ -1317,6 +1345,13 @@ where
     }
 
     #[inline]
+    fn pad(&mut self, bits: u32) -> io::Result<()> {
+        self.counter.pad(bits)?;
+        self.records.push(WriteRecord::Pad { bits });
+        Ok(())
+    }
+
+    #[inline]
     fn write_unary0(&mut self, value: u32) -> io::Result<()> {
         self.records.push(WriteRecord::Unary0(value));
         self.counter.write_unary0(value)
@@ -1373,16 +1408,15 @@ where
     E: Endianness,
     N: Numeric,
 {
-    if rem.is_empty() {
-        Ok(())
-    } else {
-        use core::cmp::min;
-        let bits_to_transfer = min(8 - rem.len(), acc.len());
-        rem.push(bits_to_transfer, acc.pop(bits_to_transfer).to_u8());
-        if rem.len() == 8 {
-            write_byte(writer, rem.pop(8))
-        } else {
-            Ok(())
+    match rem.is_empty() {
+        true => Ok(()),
+        false => {
+            let bits_to_transfer = acc.len().min(rem.remaining_len());
+            rem.push(bits_to_transfer, acc.pop(bits_to_transfer).to_u8());
+            match rem.is_full() {
+                true => write_byte(writer, rem.pop(8)),
+                false => Ok(()),
+            }
         }
     }
 }
@@ -1523,6 +1557,13 @@ pub trait ByteWrite {
     /// Passes along any I/O error from the underlying stream.
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()>;
 
+    /// Pads the stream by writing 0 over the given number of bytes.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn pad(&mut self, bytes: u32) -> io::Result<()>;
+
     /// Builds and writes complex type
     fn build<T: ToByteStream>(&mut self, build: &T) -> Result<(), T::Error> {
         build.to_writer(self)
@@ -1557,6 +1598,18 @@ impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
         V: Primitive,
     {
         F::write_numeric(&mut self.writer, value)
+    }
+
+    #[inline]
+    fn pad(&mut self, mut bytes: u32) -> io::Result<()> {
+        let buf = [0u8; 8];
+
+        while bytes > 0 {
+            let to_write = bytes.min(8);
+            self.write_bytes(&buf[0..to_write as usize])?;
+            bytes -= to_write;
+        }
+        Ok(())
     }
 
     #[inline]

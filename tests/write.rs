@@ -819,9 +819,7 @@ impl LimitedWriter {
 
 impl std::io::Write for LimitedWriter {
     fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-        use std::cmp::min;
-
-        let to_write = min(buf.len(), self.can_write);
+        let to_write = buf.len().min(self.can_write);
         self.can_write -= to_write;
         Ok(to_write)
     }
@@ -1816,6 +1814,39 @@ fn test_recorder_huffman_le() {
     let mut w2 = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
+}
+
+#[test]
+fn test_pad() {
+    use bitstream_io::{BigEndian, Endianness, LittleEndian};
+
+    fn test_pad_endian<E: Endianness>() {
+        use bitstream_io::BitWriter;
+
+        let mut plain: BitWriter<_, E> = BitWriter::new(Vec::new());
+        let mut padded: BitWriter<_, E> = BitWriter::new(Vec::new());
+
+        for bits in 1..64 {
+            plain.write_bit(true).unwrap();
+            plain.write(bits, 0u64).unwrap();
+
+            padded.write_bit(true).unwrap();
+            padded.pad(bits).unwrap();
+        }
+        // plain.write_from([0u8; 1024]).unwrap();
+        // plain.write_bit(true).unwrap();
+
+        // padded.pad(1024 * 8).unwrap();
+        // padded.write_bit(true).unwrap();
+
+        plain.byte_align().unwrap();
+        padded.byte_align().unwrap();
+
+        assert_eq!(plain.into_writer(), padded.into_writer());
+    }
+
+    test_pad_endian::<BigEndian>();
+    test_pad_endian::<LittleEndian>();
 }
 
 #[test]
