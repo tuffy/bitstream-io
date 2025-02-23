@@ -138,19 +138,19 @@ fn test_reader_be() {
 
     /*reading unary 0 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert_eq!(r.read_unary0().unwrap(), 1);
-    assert_eq!(r.read_unary0().unwrap(), 2);
-    assert_eq!(r.read_unary0().unwrap(), 0);
-    assert_eq!(r.read_unary0().unwrap(), 0);
-    assert_eq!(r.read_unary0().unwrap(), 4);
+    assert_eq!(r.read_unary::<0>().unwrap(), 1);
+    assert_eq!(r.read_unary::<0>().unwrap(), 2);
+    assert_eq!(r.read_unary::<0>().unwrap(), 0);
+    assert_eq!(r.read_unary::<0>().unwrap(), 0);
+    assert_eq!(r.read_unary::<0>().unwrap(), 4);
 
     /*reading unary 1 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert_eq!(r.read_unary1().unwrap(), 0);
-    assert_eq!(r.read_unary1().unwrap(), 1);
-    assert_eq!(r.read_unary1().unwrap(), 0);
-    assert_eq!(r.read_unary1().unwrap(), 3);
-    assert_eq!(r.read_unary1().unwrap(), 0);
+    assert_eq!(r.read_unary::<1>().unwrap(), 0);
+    assert_eq!(r.read_unary::<1>().unwrap(), 1);
+    assert_eq!(r.read_unary::<1>().unwrap(), 0);
+    assert_eq!(r.read_unary::<1>().unwrap(), 3);
+    assert_eq!(r.read_unary::<1>().unwrap(), 0);
 
     /*byte aligning*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
@@ -366,19 +366,19 @@ fn test_reader_le() {
 
     /*reading unary 0 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert_eq!(r.read_unary0().unwrap(), 1);
-    assert_eq!(r.read_unary0().unwrap(), 0);
-    assert_eq!(r.read_unary0().unwrap(), 0);
-    assert_eq!(r.read_unary0().unwrap(), 2);
-    assert_eq!(r.read_unary0().unwrap(), 2);
+    assert_eq!(r.read_unary::<0>().unwrap(), 1);
+    assert_eq!(r.read_unary::<0>().unwrap(), 0);
+    assert_eq!(r.read_unary::<0>().unwrap(), 0);
+    assert_eq!(r.read_unary::<0>().unwrap(), 2);
+    assert_eq!(r.read_unary::<0>().unwrap(), 2);
 
     /*reading unary 1 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert_eq!(r.read_unary1().unwrap(), 0);
-    assert_eq!(r.read_unary1().unwrap(), 3);
-    assert_eq!(r.read_unary1().unwrap(), 0);
-    assert_eq!(r.read_unary1().unwrap(), 1);
-    assert_eq!(r.read_unary1().unwrap(), 0);
+    assert_eq!(r.read_unary::<1>().unwrap(), 0);
+    assert_eq!(r.read_unary::<1>().unwrap(), 3);
+    assert_eq!(r.read_unary::<1>().unwrap(), 0);
+    assert_eq!(r.read_unary::<1>().unwrap(), 1);
+    assert_eq!(r.read_unary::<1>().unwrap(), 0);
 
     /*byte aligning*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
@@ -554,23 +554,23 @@ fn test_reader_io_errors_be() {
 
     /*unary 0 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert!(r.read_unary0().is_ok());
-    assert!(r.read_unary0().is_ok());
-    assert!(r.read_unary0().is_ok());
-    assert!(r.read_unary0().is_ok());
+    assert!(r.read_unary::<0>().is_ok());
+    assert!(r.read_unary::<0>().is_ok());
+    assert!(r.read_unary::<0>().is_ok());
+    assert!(r.read_unary::<0>().is_ok());
     assert_eq!(
-        r.read_unary0().unwrap_err().kind(),
+        r.read_unary::<0>().unwrap_err().kind(),
         ErrorKind::UnexpectedEof
     );
 
     /*unary 1 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert!(r.read_unary1().is_ok());
-    assert!(r.read_unary1().is_ok());
-    assert!(r.read_unary1().is_ok());
-    assert!(r.read_unary1().is_ok());
+    assert!(r.read_unary::<1>().is_ok());
+    assert!(r.read_unary::<1>().is_ok());
+    assert!(r.read_unary::<1>().is_ok());
+    assert!(r.read_unary::<1>().is_ok());
     assert_eq!(
-        r.read_unary1().unwrap_err().kind(),
+        r.read_unary::<1>().unwrap_err().kind(),
         ErrorKind::UnexpectedEof
     );
 
@@ -635,23 +635,23 @@ fn test_reader_io_errors_le() {
 
     /*unary 0 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert!(r.read_unary0().is_ok());
-    assert!(r.read_unary0().is_ok());
-    assert!(r.read_unary0().is_ok());
-    assert!(r.read_unary0().is_ok());
+    assert!(r.read_unary::<0>().is_ok());
+    assert!(r.read_unary::<0>().is_ok());
+    assert!(r.read_unary::<0>().is_ok());
+    assert!(r.read_unary::<0>().is_ok());
     assert_eq!(
-        r.read_unary0().unwrap_err().kind(),
+        r.read_unary::<0>().unwrap_err().kind(),
         ErrorKind::UnexpectedEof
     );
 
     /*unary 1 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert!(r.read_unary1().is_ok());
-    assert!(r.read_unary1().is_ok());
-    assert!(r.read_unary1().is_ok());
-    assert!(r.read_unary1().is_ok());
+    assert!(r.read_unary::<1>().is_ok());
+    assert!(r.read_unary::<1>().is_ok());
+    assert!(r.read_unary::<1>().is_ok());
+    assert!(r.read_unary::<1>().is_ok());
     assert_eq!(
-        r.read_unary1().unwrap_err().kind(),
+        r.read_unary::<1>().unwrap_err().kind(),
         ErrorKind::UnexpectedEof
     );
 

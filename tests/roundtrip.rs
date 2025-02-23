@@ -69,7 +69,7 @@ macro_rules! define_unary_roundtrip {
             {
                 let mut writer = BitWriter::endian(&mut output, $endianness);
                 for value in 0..1024 {
-                    writer.write_unary0(value).unwrap();
+                    writer.write_unary::<0>(value).unwrap();
                 }
                 writer.byte_align().unwrap();
             }
@@ -77,7 +77,7 @@ macro_rules! define_unary_roundtrip {
                 let mut c = Cursor::new(&output);
                 let mut reader = BitReader::endian(&mut c, $endianness);
                 for value in 0..1024 {
-                    assert_eq!(reader.read_unary0().unwrap(), value);
+                    assert_eq!(reader.read_unary::<0>().unwrap(), value);
                 }
             }
 
@@ -85,7 +85,7 @@ macro_rules! define_unary_roundtrip {
             {
                 let mut writer = BitWriter::endian(&mut output, $endianness);
                 for value in 0..1024 {
-                    writer.write_unary1(value).unwrap();
+                    writer.write_unary::<1>(value).unwrap();
                 }
                 writer.byte_align().unwrap();
             }
@@ -93,7 +93,7 @@ macro_rules! define_unary_roundtrip {
                 let mut c = Cursor::new(&output);
                 let mut reader = BitReader::endian(&mut c, $endianness);
                 for value in 0..1024 {
-                    assert_eq!(reader.read_unary1().unwrap(), value);
+                    assert_eq!(reader.read_unary::<1>().unwrap(), value);
                 }
             }
         }

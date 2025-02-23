@@ -468,8 +468,9 @@ pub trait BitWrite {
             .try_for_each(|b| self.write_unsigned_out::<8, _>(*b))
     }
 
-    /// Writes `value` number of 1 bits to the stream
-    /// and then writes a 0 bit.  This field is variably-sized.
+    /// Writes `value` number of non `STOP_BIT` bits to the stream
+    /// and then writes a `STOP_BIT`.  This field is variably-sized.
+    /// `STOP_BIT` must be 0 or 1.
     ///
     /// # Errors
     ///
@@ -480,9 +481,9 @@ pub trait BitWrite {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_unary0(0).unwrap();
-    /// writer.write_unary0(3).unwrap();
-    /// writer.write_unary0(10).unwrap();
+    /// writer.write_unary::<0>(0).unwrap();
+    /// writer.write_unary::<0>(3).unwrap();
+    /// writer.write_unary::<0>(10).unwrap();
     /// assert_eq!(writer.into_writer(), [0b01110111, 0b11111110]);
     /// ```
     ///
@@ -490,34 +491,59 @@ pub trait BitWrite {
     /// use std::io::Write;
     /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_unary0(0).unwrap();
-    /// writer.write_unary0(3).unwrap();
-    /// writer.write_unary0(10).unwrap();
+    /// writer.write_unary::<0>(0).unwrap();
+    /// writer.write_unary::<0>(3).unwrap();
+    /// writer.write_unary::<0>(10).unwrap();
     /// assert_eq!(writer.into_writer(), [0b11101110, 0b01111111]);
     /// ```
-    fn write_unary0(&mut self, value: u32) -> io::Result<()> {
-        match value {
-            0 => self.write_bit(false),
-            bits @ 1..=31 => self
-                .write_unsigned(value, (1u32 << bits) - 1)
-                .and_then(|()| self.write_bit(false)),
-            32 => self
-                .write_unsigned_out::<32, _>(0xFFFF_FFFFu32)
-                .and_then(|()| self.write_bit(false)),
-            bits @ 33..=63 => self
-                .write_unsigned(value, (1u64 << bits) - 1)
-                .and_then(|()| self.write_bit(false)),
-            64 => self
-                .write_unsigned_out::<64, _>(0xFFFF_FFFF_FFFF_FFFFu64)
-                .and_then(|()| self.write_bit(false)),
-            mut bits => {
-                while bits > 64 {
-                    self.write_unsigned_out::<64, _>(0xFFFF_FFFF_FFFF_FFFFu64)?;
-                    bits -= 64;
-                }
-                self.write_unary0(bits)
-            }
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+    /// writer.write_unary::<1>(0).unwrap();
+    /// writer.write_unary::<1>(3).unwrap();
+    /// writer.write_unary::<1>(10).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10001000, 0b00000001]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
+    /// writer.write_unary::<1>(0).unwrap();
+    /// writer.write_unary::<1>(3).unwrap();
+    /// writer.write_unary::<1>(10).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b00010001, 0b10000000]);
+    /// ```
+    fn write_unary<const STOP_BIT: u8>(&mut self, mut value: u32) -> io::Result<()> {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
         }
+
+        // a simple implementation which works anywhere
+        let continue_bit = match STOP_BIT {
+            0 => 1,
+            1 => 0,
+            _ => unreachable!(),
+        };
+
+        while value > 0 {
+            self.write_out::<1, u8>(continue_bit)?;
+            value -= 1;
+        }
+        self.write_out::<1, _>(STOP_BIT)
+    }
+
+    /// Writes `value` number of 1 bits to the stream
+    /// and then writes a 0 bit.  This field is variably-sized.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underyling stream.
+    #[deprecated(since = "3.0.0", note = "use write_unary::<0>() method instead")]
+    fn write_unary0(&mut self, value: u32) -> io::Result<()> {
+        self.write_unary::<0>(value)
     }
 
     /// Writes `value` number of 0 bits to the stream
@@ -526,44 +552,9 @@ pub trait BitWrite {
     /// # Errors
     ///
     /// Passes along any I/O error from the underyling stream.
-    ///
-    /// # Example
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_unary1(0).unwrap();
-    /// writer.write_unary1(3).unwrap();
-    /// writer.write_unary1(10).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10001000, 0b00000001]);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_unary1(0).unwrap();
-    /// writer.write_unary1(3).unwrap();
-    /// writer.write_unary1(10).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b00010001, 0b10000000]);
-    /// ```
+    #[deprecated(since = "3.0.0", note = "use write_unary::<1>() method instead")]
     fn write_unary1(&mut self, value: u32) -> io::Result<()> {
-        match value {
-            0 => self.write_bit(true),
-            1..=32 => self
-                .write_unsigned(value, 0u32)
-                .and_then(|()| self.write_bit(true)),
-            33..=64 => self
-                .write_unsigned(value, 0u64)
-                .and_then(|()| self.write_bit(true)),
-            mut bits => {
-                while bits > 64 {
-                    self.write_unsigned_out::<64, _>(0u64)?;
-                    bits -= 64;
-                }
-                self.write_unary1(bits)
-            }
-        }
+        self.write_unary::<1>(value)
     }
 
     /// Builds and writes complex type
@@ -872,6 +863,37 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         }
     }
 
+    fn write_unary<const STOP_BIT: u8>(&mut self, mut value: u32) -> io::Result<()> {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
+
+        loop {
+            match value {
+                0 => break self.write_out::<1, _>(STOP_BIT),
+                1..64 => {
+                    self.write(
+                        value,
+                        match STOP_BIT {
+                            0 => u64::MAX >> (64 - value),
+                            1 => 0,
+                            _ => unreachable!(),
+                        },
+                    )?;
+                    break self.write_out::<1, _>(STOP_BIT);
+                }
+                64.. => {
+                    self.write_out::<64, _>(match STOP_BIT {
+                        0 => u64::MAX,
+                        1 => 0,
+                        _ => unreachable!(),
+                    })?;
+                    value -= 64;
+                }
+            }
+        }
+    }
+
     #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
         if self.byte_aligned() {
@@ -1064,14 +1086,11 @@ where
         Ok(())
     }
 
-    #[inline]
-    fn write_unary1(&mut self, value: u32) -> io::Result<()> {
-        self.bits += (value + 1).into();
-        Ok(())
-    }
+    fn write_unary<const STOP_BIT: u8>(&mut self, value: u32) -> io::Result<()> {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
 
-    #[inline]
-    fn write_unary0(&mut self, value: u32) -> io::Result<()> {
         self.bits += (value + 1).into();
         Ok(())
     }
@@ -1194,8 +1213,8 @@ impl WriteRecord {
                 InnerSignedValue::I128(v) => writer.write_signed(*bits, *v),
             },
             WriteRecord::Pad { bits } => writer.pad(*bits),
-            WriteRecord::Unary0(v) => writer.write_unary0(*v),
-            WriteRecord::Unary1(v) => writer.write_unary1(*v),
+            WriteRecord::Unary0(v) => writer.write_unary::<0>(*v),
+            WriteRecord::Unary1(v) => writer.write_unary::<1>(*v),
             WriteRecord::Bytes(bytes) => writer.write_bytes(bytes),
         }
     }
@@ -1351,16 +1370,17 @@ where
         Ok(())
     }
 
-    #[inline]
-    fn write_unary0(&mut self, value: u32) -> io::Result<()> {
-        self.records.push(WriteRecord::Unary0(value));
-        self.counter.write_unary0(value)
-    }
+    fn write_unary<const STOP_BIT: u8>(&mut self, value: u32) -> io::Result<()> {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
 
-    #[inline]
-    fn write_unary1(&mut self, value: u32) -> io::Result<()> {
-        self.records.push(WriteRecord::Unary1(value));
-        self.counter.write_unary1(value)
+        match STOP_BIT {
+            0 => self.records.push(WriteRecord::Unary0(value)),
+            1 => self.records.push(WriteRecord::Unary1(value)),
+            _ => unreachable!(),
+        }
+        self.counter.write_unary::<STOP_BIT>(value)
     }
 
     #[inline]

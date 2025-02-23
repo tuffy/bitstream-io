@@ -1161,14 +1161,16 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
 
     /// Returns true if all bits remaining in the queue are 0
     #[inline(always)]
+    #[deprecated(since = "3.0.0", note = "use contain_no::<1>() method instead")]
     pub fn all_0(&self) -> bool {
-        self.value.count_ones() == 0
+        self.contains_no::<1>()
     }
 
     /// Returns true if all bits remaining in the queue are 1
     #[inline(always)]
+    #[deprecated(since = "3.0.0", note = "use contain_no::<0>() method instead")]
     pub fn all_1(&self) -> bool {
-        self.value.count_ones() == self.bits
+        self.contains_no::<0>()
     }
 
     /// Pushes a value with the given number of bits onto the tail of the queue
@@ -1222,22 +1224,57 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
         E::drop(self, bits)
     }
 
+    /// Returns `true` if the queue contains no instances of `STOP_BIT`.
+    /// `STOP_BIT` must be 0 or 1.
+    pub fn contains_no<const BIT: u8>(&self) -> bool {
+        const {
+            assert!(matches!(BIT, 0 | 1), "bit must be 0 or 1");
+        }
+
+        match BIT {
+            0 => self.value.count_ones() == self.bits,
+            1 => self.value.count_ones() == 0,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Pops all non-`STOP_BIT` bits up to and including the next `STOP_BIT`
+    /// and returns the amount of 0 bits popped.
+    /// `STOP_BIT` must be 0 or 1.
+    pub fn pop_until<const STOP_BIT: u8>(&mut self) -> u32 {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
+
+        match STOP_BIT {
+            0 => {
+                let ones = E::next_ones(self);
+                self.drop(ones + 1);
+                ones
+            }
+            1 => {
+                let zeros = E::next_zeros(self);
+                self.drop(zeros + 1);
+                zeros
+            }
+            _ => unreachable!(),
+        }
+    }
+
     /// Pops all 0 bits up to and including the next 1 bit
     /// and returns the amount of 0 bits popped
     #[inline]
+    #[deprecated(since = "3.0.0", note = "use pop_until::<1>() method instead")]
     pub fn pop_0(&mut self) -> u32 {
-        let zeros = E::next_zeros(self);
-        self.drop(zeros + 1);
-        zeros
+        self.pop_until::<1>()
     }
 
     /// Pops all 1 bits up to and including the next 0 bit
     /// and returns the amount of 1 bits popped
     #[inline]
+    #[deprecated(since = "3.0.0", note = "use pop_until::<0>() method instead")]
     pub fn pop_1(&mut self) -> u32 {
-        let ones = E::next_ones(self);
-        self.drop(ones + 1);
-        ones
+        self.pop_until::<0>()
     }
 }
 

@@ -224,43 +224,43 @@ fn test_writer_be() {
 
     /*writing unary 0 values*/
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
-    w.write_unary0(1).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(4).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(3).unwrap();
-    w.write_unary0(4).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(4).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(3).unwrap();
+    w.write_unary::<0>(4).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
     w.write(1, 1u32).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing unary 1 values*/
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(3).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(2).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(5).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(3).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(2).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(5).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*byte aligning*/
@@ -552,43 +552,43 @@ fn test_writer_le() {
 
     /*writing unary 0 values*/
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
-    w.write_unary0(1).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(5).unwrap();
-    w.write_unary0(3).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(5).unwrap();
+    w.write_unary::<0>(3).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
     w.write(2, 3u32).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*writing unary 1 values*/
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
-    w.write_unary1(0).unwrap();
-    w.write_unary1(3).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(2).unwrap();
-    w.write_unary1(5).unwrap();
-    w.write_unary1(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(3).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(2).unwrap();
+    w.write_unary::<1>(5).unwrap();
+    w.write_unary::<1>(0).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
     /*byte aligning*/
@@ -877,26 +877,32 @@ fn test_writer_io_errors_be() {
 
     /*unary 0 values*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
-    assert!(w.write_unary0(1).is_ok());
-    assert!(w.write_unary0(2).is_ok());
-    assert!(w.write_unary0(0).is_ok());
-    assert!(w.write_unary0(0).is_ok());
-    assert!(w.write_unary0(4).is_ok());
-    assert!(w.write_unary0(2).is_ok());
-    assert_eq!(w.write_unary0(1).unwrap_err().kind(), ErrorKind::WriteZero);
+    assert!(w.write_unary::<0>(1).is_ok());
+    assert!(w.write_unary::<0>(2).is_ok());
+    assert!(w.write_unary::<0>(0).is_ok());
+    assert!(w.write_unary::<0>(0).is_ok());
+    assert!(w.write_unary::<0>(4).is_ok());
+    assert!(w.write_unary::<0>(2).is_ok());
+    assert_eq!(
+        w.write_unary::<0>(1).unwrap_err().kind(),
+        ErrorKind::WriteZero
+    );
 
     /*unary 1 values*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
-    assert!(w.write_unary1(0).is_ok());
-    assert!(w.write_unary1(1).is_ok());
-    assert!(w.write_unary1(0).is_ok());
-    assert!(w.write_unary1(3).is_ok());
-    assert!(w.write_unary1(0).is_ok());
-    assert!(w.write_unary1(0).is_ok());
-    assert!(w.write_unary1(0).is_ok());
-    assert!(w.write_unary1(1).is_ok());
-    assert!(w.write_unary1(0).is_ok());
-    assert_eq!(w.write_unary1(1).unwrap_err().kind(), ErrorKind::WriteZero);
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert!(w.write_unary::<1>(1).is_ok());
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert!(w.write_unary::<1>(3).is_ok());
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert!(w.write_unary::<1>(1).is_ok());
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert_eq!(
+        w.write_unary::<1>(1).unwrap_err().kind(),
+        ErrorKind::WriteZero
+    );
 
     /*byte aligning*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
@@ -967,26 +973,32 @@ fn test_writer_io_errors_le() {
 
     /*unary 0 values*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
-    assert!(w.write_unary0(1).is_ok());
-    assert!(w.write_unary0(0).is_ok());
-    assert!(w.write_unary0(0).is_ok());
-    assert!(w.write_unary0(2).is_ok());
-    assert!(w.write_unary0(2).is_ok());
-    assert!(w.write_unary0(2).is_ok());
-    assert_eq!(w.write_unary0(5).unwrap_err().kind(), ErrorKind::WriteZero);
+    assert!(w.write_unary::<0>(1).is_ok());
+    assert!(w.write_unary::<0>(0).is_ok());
+    assert!(w.write_unary::<0>(0).is_ok());
+    assert!(w.write_unary::<0>(2).is_ok());
+    assert!(w.write_unary::<0>(2).is_ok());
+    assert!(w.write_unary::<0>(2).is_ok());
+    assert_eq!(
+        w.write_unary::<0>(5).unwrap_err().kind(),
+        ErrorKind::WriteZero
+    );
 
     /*unary 1 values*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
-    assert!(w.write_unary1(0).is_ok());
-    assert!(w.write_unary1(3).is_ok());
-    assert!(w.write_unary1(0).is_ok());
-    assert!(w.write_unary1(1).is_ok());
-    assert!(w.write_unary1(0).is_ok());
-    assert!(w.write_unary1(1).is_ok());
-    assert!(w.write_unary1(0).is_ok());
-    assert!(w.write_unary1(1).is_ok());
-    assert!(w.write_unary1(0).is_ok());
-    assert_eq!(w.write_unary1(1).unwrap_err().kind(), ErrorKind::WriteZero);
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert!(w.write_unary::<1>(3).is_ok());
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert!(w.write_unary::<1>(1).is_ok());
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert!(w.write_unary::<1>(1).is_ok());
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert!(w.write_unary::<1>(1).is_ok());
+    assert!(w.write_unary::<1>(0).is_ok());
+    assert_eq!(
+        w.write_unary::<1>(1).unwrap_err().kind(),
+        ErrorKind::WriteZero
+    );
 
     /*byte aligning*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
@@ -1213,43 +1225,43 @@ fn test_counter_be() {
 
     /*writing unary 0 values*/
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(4).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(3).unwrap();
-    w.write_unary0(4).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(4).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(3).unwrap();
+    w.write_unary::<0>(4).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
     w.write(1, 1u32).unwrap();
     assert_eq!(w.written(), 32);
 
     /*writing unary 1 values*/
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(3).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(2).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(5).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(3).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(2).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(5).unwrap();
     assert_eq!(w.written(), 32);
 
     /*byte aligning*/
@@ -1361,43 +1373,43 @@ fn test_counter_le() {
 
     /*writing unary 0 values*/
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(5).unwrap();
-    w.write_unary0(3).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(5).unwrap();
+    w.write_unary::<0>(3).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
     w.write(2, 3u32).unwrap();
     assert_eq!(w.written(), 32);
 
     /*writing unary 1 values*/
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(3).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(2).unwrap();
-    w.write_unary1(5).unwrap();
-    w.write_unary1(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(3).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(2).unwrap();
+    w.write_unary::<1>(5).unwrap();
+    w.write_unary::<1>(0).unwrap();
     assert_eq!(w.written(), 32);
 
     /*byte aligning*/
@@ -1519,20 +1531,20 @@ fn test_recorder_be() {
 
     /*writing unary 0 values*/
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(4).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(3).unwrap();
-    w.write_unary0(4).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(4).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(3).unwrap();
+    w.write_unary::<0>(4).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
     w.write(1, 1u32).unwrap();
     assert_eq!(w.written(), 32);
     let mut w2 = BitWriter::endian(Vec::with_capacity(4), BigEndian);
@@ -1541,24 +1553,24 @@ fn test_recorder_be() {
 
     /*writing unary 1 values*/
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(3).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(2).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(5).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(3).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(2).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(5).unwrap();
     assert_eq!(w.written(), 32);
     let mut w2 = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     w.playback(&mut w2).unwrap();
@@ -1698,20 +1710,20 @@ fn test_recorder_le() {
 
     /*writing unary 0 values*/
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(2).unwrap();
-    w.write_unary0(5).unwrap();
-    w.write_unary0(3).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(1).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
-    w.write_unary0(0).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(2).unwrap();
+    w.write_unary::<0>(5).unwrap();
+    w.write_unary::<0>(3).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(1).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
+    w.write_unary::<0>(0).unwrap();
     w.write(2, 3u32).unwrap();
     assert_eq!(w.written(), 32);
     let mut w2 = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
@@ -1720,24 +1732,24 @@ fn test_recorder_le() {
 
     /*writing unary 1 values*/
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(3).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(1).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(0).unwrap();
-    w.write_unary1(2).unwrap();
-    w.write_unary1(5).unwrap();
-    w.write_unary1(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(3).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(1).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(0).unwrap();
+    w.write_unary::<1>(2).unwrap();
+    w.write_unary::<1>(5).unwrap();
+    w.write_unary::<1>(0).unwrap();
     assert_eq!(w.written(), 32);
     let mut w2 = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.playback(&mut w2).unwrap();

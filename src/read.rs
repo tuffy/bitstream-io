@@ -363,6 +363,29 @@ pub trait BitRead {
         read_to_vec(|buf| self.read_bytes(buf), bytes)
     }
 
+    /// Counts the number of bits in the stream until `STOP_BIT`
+    /// and returns the amount read.
+    /// `STOP_BIT` must be 0 or 1.
+    /// Because this field is variably-sized and may be large,
+    /// its output is always a `u32` type.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// May panic if the number of bits exceeds `u32`.
+    fn read_unary<const STOP_BIT: u8>(&mut self) -> io::Result<u32> {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
+
+        // a simple implementation which works anywhere
+        let mut unary = 0;
+        while self.read_in::<1, u8>()? != STOP_BIT {
+            unary += 1;
+        }
+        Ok(unary)
+    }
+
     /// Counts the number of 1 bits in the stream until the next
     /// 0 bit and returns the amount read.
     /// Because this field is variably-sized and may be large,
@@ -371,12 +394,10 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    #[inline]
+    #[deprecated(since = "3.0.0", note = "use read_unary::<0>() method instead")]
     fn read_unary0(&mut self) -> io::Result<u32> {
-        let mut unary = 0;
-        while self.read_bit()? {
-            unary += 1;
-        }
-        Ok(unary)
+        self.read_unary::<0>()
     }
 
     /// Counts the number of 0 bits in the stream until the next
@@ -387,12 +408,9 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    #[deprecated(since = "3.0.0", note = "use read_unary::<1>() method instead")]
     fn read_unary1(&mut self) -> io::Result<u32> {
-        let mut unary = 0;
-        while !(self.read_bit()?) {
-            unary += 1;
-        }
-        Ok(unary)
+        self.read_unary::<1>()
     }
 
     /// Parses and returns complex type
@@ -817,71 +835,37 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
         }
     }
 
-    /// # Examples
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{BigEndian, BitReader, BitRead};
-    /// let data = [0b01110111, 0b11111110];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
-    /// assert_eq!(reader.read_unary0().unwrap(), 0);
-    /// assert_eq!(reader.read_unary0().unwrap(), 3);
-    /// assert_eq!(reader.read_unary0().unwrap(), 10);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{LittleEndian, BitReader, BitRead};
-    /// let data = [0b11101110, 0b01111111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
-    /// assert_eq!(reader.read_unary0().unwrap(), 0);
-    /// assert_eq!(reader.read_unary0().unwrap(), 3);
-    /// assert_eq!(reader.read_unary0().unwrap(), 10);
-    /// ```
-    fn read_unary0(&mut self) -> io::Result<u32> {
-        if self.bitqueue.is_empty() {
-            read_aligned_unary(&mut self.reader, 0b1111_1111, &mut self.bitqueue)
-                .map(|u| u + self.bitqueue.pop_1())
-        } else if self.bitqueue.all_1() {
-            let base = self.bitqueue.len();
-            self.bitqueue.clear();
-            read_aligned_unary(&mut self.reader, 0b1111_1111, &mut self.bitqueue)
-                .map(|u| base + u + self.bitqueue.pop_1())
-        } else {
-            Ok(self.bitqueue.pop_1())
+    fn read_unary<const STOP_BIT: u8>(&mut self) -> io::Result<u32> {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
         }
-    }
 
-    /// # Examples
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{BigEndian, BitReader, BitRead};
-    /// let data = [0b10001000, 0b00000001];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
-    /// assert_eq!(reader.read_unary1().unwrap(), 0);
-    /// assert_eq!(reader.read_unary1().unwrap(), 3);
-    /// assert_eq!(reader.read_unary1().unwrap(), 10);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::{Read, Cursor};
-    /// use bitstream_io::{LittleEndian, BitReader, BitRead};
-    /// let data = [0b00010001, 0b10000000];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
-    /// assert_eq!(reader.read_unary1().unwrap(), 0);
-    /// assert_eq!(reader.read_unary1().unwrap(), 3);
-    /// assert_eq!(reader.read_unary1().unwrap(), 10);
-    /// ```
-    fn read_unary1(&mut self) -> io::Result<u32> {
         if self.bitqueue.is_empty() {
-            read_aligned_unary(&mut self.reader, 0b0000_0000, &mut self.bitqueue)
-                .map(|u| u + self.bitqueue.pop_0())
-        } else if self.bitqueue.all_0() {
+            read_aligned_unary(
+                &mut self.reader,
+                match STOP_BIT {
+                    0 => 0b1111_1111,
+                    1 => 0b0000_0000,
+                    _ => unreachable!(),
+                },
+                &mut self.bitqueue,
+            )
+            .map(|u| u + self.bitqueue.pop_until::<STOP_BIT>())
+        } else if self.bitqueue.contains_no::<STOP_BIT>() {
             let base = self.bitqueue.len();
             self.bitqueue.clear();
-            read_aligned_unary(&mut self.reader, 0b0000_0000, &mut self.bitqueue)
-                .map(|u| base + u + self.bitqueue.pop_0())
+            read_aligned_unary(
+                &mut self.reader,
+                match STOP_BIT {
+                    0 => 0b1111_1111,
+                    1 => 0b0000_0000,
+                    _ => unreachable!(),
+                },
+                &mut self.bitqueue,
+            )
+            .map(|u| base + u + self.bitqueue.pop_until::<STOP_BIT>())
         } else {
-            Ok(self.bitqueue.pop_0())
+            Ok(self.bitqueue.pop_until::<STOP_BIT>())
         }
     }
 
