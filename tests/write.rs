@@ -1862,6 +1862,25 @@ fn test_pad() {
 }
 
 #[test]
+fn test_counter_overflow() {
+    use bitstream_io::{BitCounter, BigEndian};
+
+    // overflow u8 with many small writes
+    let mut counter: BitCounter<u8, BigEndian> = BitCounter::new();
+    for _ in 0..255 {
+        assert!(counter.write_bit(false).is_ok());
+    }
+    assert!(counter.write_bit(false).is_err());
+
+    // overflow u8 with one big write
+    let mut counter: BitCounter<u8, BigEndian> = BitCounter::new();
+    assert!(counter.write_from([0u8; 31]).is_ok());
+
+    let mut counter: BitCounter<u8, BigEndian> = BitCounter::new();
+    assert!(counter.write_from([0u8; 32]).is_err());
+}
+
+#[test]
 fn test_negative_write() {
     let mut bit_writer = BitWriter::endian(Vec::new(), BigEndian);
     assert!(bit_writer.write_bit(false).is_ok());

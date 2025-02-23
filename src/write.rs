@@ -173,8 +173,8 @@ use core2::io;
 #[cfg(not(feature = "alloc"))]
 use std::io;
 
-use core::convert::From;
-use core::ops::{AddAssign, Rem};
+use core::convert::{From, TryFrom, TryInto};
+use core::ops::AddAssign;
 
 use super::{
     huffman::WriteHuffmanTree, BitQueue, Endianness, Integer, Numeric, PhantomData, Primitive,
@@ -946,6 +946,56 @@ impl<W: io::Write, E: Endianness> HuffmanWrite<E> for BitWriter<W, E> {
     }
 }
 
+/// An error returned if performing math operations would overflow
+pub struct Overflowed;
+
+impl From<Overflowed> for std::io::Error {
+    fn from(Overflowed: Overflowed) -> Self {
+        std::io::Error::new(
+            std::io::ErrorKind::StorageFull,
+            "bitstream accumulator overflow",
+        )
+    }
+}
+
+/// A common trait for integer types for performing math operations
+/// which may check for overflow.
+pub trait Counter: Sized + From<u8> + TryFrom<u32> + TryFrom<usize> {
+    /// add rhs to self, returning `Overflowed` if the result is too large
+    fn checked_add_assign(&mut self, rhs: Self) -> Result<(), Overflowed>;
+
+    /// multiply self by rhs, returning `Overflowed` if the result is too large
+    fn checked_mul(self, rhs: Self) -> Result<Self, Overflowed>;
+
+    /// returns `true` if the number if bits written is divisible by 8
+    fn byte_aligned(&self) -> bool;
+}
+
+macro_rules! define_counter {
+    ($t:ty) => {
+        impl Counter for $t {
+            fn checked_add_assign(&mut self, rhs: Self) -> Result<(), Overflowed> {
+                *self = <$t>::checked_add(*self, rhs).ok_or(Overflowed)?;
+                Ok(())
+            }
+
+            fn checked_mul(self, rhs: Self) -> Result<Self, Overflowed> {
+                <$t>::checked_mul(self, rhs).ok_or(Overflowed)
+            }
+
+            fn byte_aligned(&self) -> bool {
+                self % 8 == 0
+            }
+        }
+    };
+}
+
+define_counter!(u8);
+define_counter!(u16);
+define_counter!(u32);
+define_counter!(u64);
+define_counter!(u128);
+
 /// For counting the number of bits written but generating no output.
 ///
 /// # Example
@@ -963,7 +1013,7 @@ pub struct BitCounter<N, E: Endianness> {
     phantom: PhantomData<E>,
 }
 
-impl<N: Default + Copy, E: Endianness> BitCounter<N, E> {
+impl<N: Default, E: Endianness> BitCounter<N, E> {
     /// Creates new counter
     #[inline]
     pub fn new() -> Self {
@@ -972,7 +1022,9 @@ impl<N: Default + Copy, E: Endianness> BitCounter<N, E> {
             phantom: PhantomData,
         }
     }
+}
 
+impl<N: Copy, E: Endianness> BitCounter<N, E> {
     /// Returns number of bits written
     #[inline]
     pub fn written(&self) -> N {
@@ -980,14 +1032,22 @@ impl<N: Default + Copy, E: Endianness> BitCounter<N, E> {
     }
 }
 
+impl<N, E: Endianness> BitCounter<N, E> {
+    /// Returns number of bits written
+    #[inline]
+    pub fn into_written(self) -> N {
+        self.bits
+    }
+}
+
 impl<N, E> BitWrite for BitCounter<N, E>
 where
     E: Endianness,
-    N: Copy + AddAssign + From<u32> + Rem<Output = N> + PartialEq,
+    N: Counter,
 {
     #[inline]
     fn write_bit(&mut self, _bit: bool) -> io::Result<()> {
-        self.bits += 1.into();
+        self.bits.checked_add_assign(1u8.into())?;
         Ok(())
     }
 
@@ -1007,7 +1067,8 @@ where
                 "excessive value for bits written",
             ))
         } else {
-            self.bits += bits.into();
+            self.bits
+                .checked_add_assign(bits.try_into().map_err(|_| Overflowed)?)?;
             Ok(())
         }
     }
@@ -1026,7 +1087,8 @@ where
                 "excessive value for bits written",
             ))
         } else {
-            self.bits += BITS.into();
+            self.bits
+                .checked_add_assign(BITS.try_into().map_err(|_| Overflowed)?)?;
             Ok(())
         }
     }
@@ -1080,7 +1142,8 @@ where
 
     #[inline]
     fn pad(&mut self, bits: u32) -> io::Result<()> {
-        self.bits += bits.into();
+        self.bits
+            .checked_add_assign(bits.try_into().map_err(|_| Overflowed)?)?;
         Ok(())
     }
 
@@ -1089,19 +1152,25 @@ where
             assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
         }
 
-        self.bits += (value + 1).into();
+        self.bits
+            .checked_add_assign(value.try_into().map_err(|_| Overflowed)?)?;
+        self.bits.checked_add_assign(1u8.into())?;
         Ok(())
     }
 
     #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.bits += (buf.len() as u32 * 8).into();
+        self.bits.checked_add_assign(
+            N::try_from(buf.len())
+                .map_err(|_| Overflowed)?
+                .checked_mul(8u8.into())?,
+        )?;
         Ok(())
     }
 
     #[inline]
     fn byte_aligned(&self) -> bool {
-        self.bits % 8.into() == 0.into()
+        self.bits.byte_aligned()
     }
 }
 
@@ -1284,7 +1353,7 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
 impl<N, E> BitWrite for BitRecorder<N, E>
 where
     E: Endianness,
-    N: Copy + From<u32> + AddAssign + Rem<Output = N> + Eq,
+    N: Counter,
 {
     #[inline]
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
@@ -1396,7 +1465,7 @@ where
 impl<N, E> HuffmanWrite<E> for BitRecorder<N, E>
 where
     E: Endianness,
-    N: Copy + From<u32> + AddAssign + Rem<Output = N> + Eq,
+    N: Counter,
 {
     #[inline]
     fn write_huffman<T>(&mut self, tree: &WriteHuffmanTree<E, T>, symbol: T) -> io::Result<()>
