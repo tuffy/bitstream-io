@@ -442,7 +442,18 @@ pub trait BitWrite {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn pad(&mut self, bits: u32) -> io::Result<()>;
+    fn pad(&mut self, mut bits: u32) -> io::Result<()> {
+        loop {
+            match bits {
+                0 => break Ok(()),
+                bits @ 1..64 => break self.write(bits, 0u64),
+                _ => {
+                    self.write_out::<64, u64>(0)?;
+                    bits -= 64;
+                }
+            }
+        }
+    }
 
     /// Writes the entirety of a byte buffer to the stream.
     ///
@@ -848,19 +859,6 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         V: Primitive,
     {
         F::write_primitive(self, value)
-    }
-
-    fn pad(&mut self, mut bits: u32) -> io::Result<()> {
-        loop {
-            match bits {
-                0 => break Ok(()),
-                bits @ 1..64 => break self.write(bits, 0u64),
-                _ => {
-                    self.write_out::<64, u64>(0)?;
-                    bits -= 64;
-                }
-            }
-        }
     }
 
     fn write_unary<const STOP_BIT: u8>(&mut self, mut value: u32) -> io::Result<()> {
