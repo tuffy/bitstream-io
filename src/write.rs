@@ -947,7 +947,16 @@ impl<W: io::Write, E: Endianness> HuffmanWrite<E> for BitWriter<W, E> {
 }
 
 /// An error returned if performing math operations would overflow
+#[derive(Copy, Clone, Debug)]
 pub struct Overflowed;
+
+impl std::fmt::Display for Overflowed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        "overflow occured in counter".fmt(f)
+    }
+}
+
+impl std::error::Error for Overflowed {}
 
 impl From<Overflowed> for std::io::Error {
     fn from(Overflowed: Overflowed) -> Self {
@@ -960,7 +969,7 @@ impl From<Overflowed> for std::io::Error {
 
 /// A common trait for integer types for performing math operations
 /// which may check for overflow.
-pub trait Counter: Sized + From<u8> + TryFrom<u32> + TryFrom<usize> {
+pub trait Counter: Default + Sized + From<u8> + TryFrom<u32> + TryFrom<usize> {
     /// add rhs to self, returning `Overflowed` if the result is too large
     fn checked_add_assign(&mut self, rhs: Self) -> Result<(), Overflowed>;
 
@@ -1748,6 +1757,16 @@ pub trait ToBitStream {
     fn to_writer<W: BitWrite + ?Sized>(&self, w: &mut W) -> Result<(), Self::Error>
     where
         Self: Sized;
+
+    /// Returns total length of self, if possible
+    fn bits_len<C: Counter, E: Endianness>(&self) -> Result<C, Self::Error>
+    where
+        Self: Sized,
+    {
+        let mut c: BitCounter<C, E> = BitCounter::new();
+        self.to_writer(&mut c)?;
+        Ok(c.into_written())
+    }
 }
 
 /// Implemented by complex types that require additional context
@@ -1767,6 +1786,16 @@ pub trait ToBitStreamWith<'a> {
     ) -> Result<(), Self::Error>
     where
         Self: Sized;
+
+    /// Returns total length of self, if possible
+    fn bits_len<C: Counter, E: Endianness>(&self, context: &Self::Context) -> Result<C, Self::Error>
+    where
+        Self: Sized,
+    {
+        let mut c: BitCounter<C, E> = BitCounter::new();
+        self.to_writer(&mut c, context)?;
+        Ok(c.into_written())
+    }
 }
 
 /// Implemented by complex types that don't require any additional context

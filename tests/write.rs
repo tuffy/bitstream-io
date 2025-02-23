@@ -1863,7 +1863,7 @@ fn test_pad() {
 
 #[test]
 fn test_counter_overflow() {
-    use bitstream_io::{BitCounter, BigEndian};
+    use bitstream_io::{BigEndian, BitCounter};
 
     // overflow u8 with many small writes
     let mut counter: BitCounter<u8, BigEndian> = BitCounter::new();
