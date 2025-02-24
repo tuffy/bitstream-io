@@ -163,18 +163,17 @@
 
 #![warn(missing_docs)]
 
-#[cfg(feature = "alloc")]
-use alloc::boxed::Box;
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
-#[cfg(feature = "alloc")]
+#[cfg(not(feature = "std"))]
 use core2::io;
 
-#[cfg(not(feature = "alloc"))]
+use alloc::{boxed::Box, vec::Vec};
+use core::{
+    convert::{From, TryFrom, TryInto},
+    fmt,
+    ops::AddAssign,
+};
+#[cfg(feature = "std")]
 use std::io;
-
-use core::convert::{From, TryFrom, TryInto};
-use core::ops::AddAssign;
 
 use super::{
     huffman::WriteHuffmanTree, BitQueue, Endianness, Integer, Numeric, PhantomData, Primitive,
@@ -950,18 +949,25 @@ impl<W: io::Write, E: Endianness> HuffmanWrite<E> for BitWriter<W, E> {
 #[derive(Copy, Clone, Debug)]
 pub struct Overflowed;
 
-impl std::fmt::Display for Overflowed {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for Overflowed {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         "overflow occured in counter".fmt(f)
     }
 }
 
-impl std::error::Error for Overflowed {}
+impl core::error::Error for Overflowed {}
 
-impl From<Overflowed> for std::io::Error {
+impl From<Overflowed> for io::Error {
     fn from(Overflowed: Overflowed) -> Self {
-        std::io::Error::new(
-            std::io::ErrorKind::StorageFull,
+        io::Error::new(
+            #[cfg(feature = "std")]
+            {
+                io::ErrorKind::StorageFull
+            },
+            #[cfg(not(feature = "std"))]
+            {
+                io::ErrorKind::Other
+            },
             "bitstream accumulator overflow",
         )
     }

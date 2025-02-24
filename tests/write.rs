@@ -9,6 +9,11 @@
 extern crate bitstream_io;
 
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
+#[cfg(not(feature = "std"))]
+use core2::io;
+
+#[cfg(feature = "std")]
+use std::io;
 
 #[test]
 fn test_write_queue_be() {
@@ -366,82 +371,82 @@ fn test_writer_edge_cases_be() {
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(8, std::i8::MAX)
+            .write_signed(8, core::i8::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i8::MAX.to_be_bytes());
+    assert_eq!(bytes, core::i8::MAX.to_be_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(8, std::i8::MIN)
+            .write_signed(8, core::i8::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i8::MIN.to_be_bytes());
+    assert_eq!(bytes, core::i8::MIN.to_be_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(16, std::i16::MAX)
+            .write_signed(16, core::i16::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i16::MAX.to_be_bytes());
+    assert_eq!(bytes, core::i16::MAX.to_be_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(16, std::i16::MIN)
+            .write_signed(16, core::i16::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i16::MIN.to_be_bytes());
+    assert_eq!(bytes, core::i16::MIN.to_be_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(32, std::i32::MAX)
+            .write_signed(32, core::i32::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i32::MAX.to_be_bytes());
+    assert_eq!(bytes, core::i32::MAX.to_be_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(32, std::i32::MIN)
+            .write_signed(32, core::i32::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i32::MIN.to_be_bytes());
+    assert_eq!(bytes, core::i32::MIN.to_be_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(64, std::i64::MAX)
+            .write_signed(64, core::i64::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i64::MAX.to_be_bytes());
+    assert_eq!(bytes, core::i64::MAX.to_be_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(64, std::i64::MIN)
+            .write_signed(64, core::i64::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i64::MIN.to_be_bytes());
+    assert_eq!(bytes, core::i64::MIN.to_be_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(128, std::i128::MAX)
+            .write_signed(128, core::i128::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i128::MAX.to_be_bytes());
+    assert_eq!(bytes, core::i128::MAX.to_be_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, BigEndian)
-            .write_signed(128, std::i128::MIN)
+            .write_signed(128, core::i128::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i128::MIN.to_be_bytes());
+    assert_eq!(bytes, core::i128::MIN.to_be_bytes());
 }
 
 #[test]
@@ -694,82 +699,82 @@ fn test_writer_edge_cases_le() {
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(8, std::i8::MAX)
+            .write_signed(8, core::i8::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i8::MAX.to_le_bytes());
+    assert_eq!(bytes, core::i8::MAX.to_le_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(8, std::i8::MIN)
+            .write_signed(8, core::i8::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i8::MIN.to_le_bytes());
+    assert_eq!(bytes, core::i8::MIN.to_le_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(16, std::i16::MAX)
+            .write_signed(16, core::i16::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i16::MAX.to_le_bytes());
+    assert_eq!(bytes, core::i16::MAX.to_le_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(16, std::i16::MIN)
+            .write_signed(16, core::i16::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i16::MIN.to_le_bytes());
+    assert_eq!(bytes, core::i16::MIN.to_le_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(32, std::i32::MAX)
+            .write_signed(32, core::i32::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i32::MAX.to_le_bytes());
+    assert_eq!(bytes, core::i32::MAX.to_le_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(32, std::i32::MIN)
+            .write_signed(32, core::i32::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i32::MIN.to_le_bytes());
+    assert_eq!(bytes, core::i32::MIN.to_le_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(64, std::i64::MAX)
+            .write_signed(64, core::i64::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i64::MAX.to_le_bytes());
+    assert_eq!(bytes, core::i64::MAX.to_le_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(64, std::i64::MIN)
+            .write_signed(64, core::i64::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i64::MIN.to_le_bytes());
+    assert_eq!(bytes, core::i64::MIN.to_le_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(128, std::i128::MAX)
+            .write_signed(128, core::i128::MAX)
             .unwrap();
     }
-    assert_eq!(bytes, std::i128::MAX.to_le_bytes());
+    assert_eq!(bytes, core::i128::MAX.to_le_bytes());
 
     let mut bytes = Vec::new();
     {
         BitWriter::endian(&mut bytes, LittleEndian)
-            .write_signed(128, std::i128::MIN)
+            .write_signed(128, core::i128::MIN)
             .unwrap();
     }
-    assert_eq!(bytes, std::i128::MIN.to_le_bytes());
+    assert_eq!(bytes, core::i128::MIN.to_le_bytes());
 }
 
 #[test]
@@ -817,14 +822,14 @@ impl LimitedWriter {
     }
 }
 
-impl std::io::Write for LimitedWriter {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+impl io::Write for LimitedWriter {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
         let to_write = buf.len().min(self.can_write);
         self.can_write -= to_write;
         Ok(to_write)
     }
 
-    fn flush(&mut self) -> Result<(), std::io::Error> {
+    fn flush(&mut self) -> Result<(), io::Error> {
         Ok(())
     }
 }
@@ -832,7 +837,7 @@ impl std::io::Write for LimitedWriter {
 #[test]
 fn test_writer_io_errors_be() {
     use bitstream_io::{BigEndian, BitWrite, BitWriter};
-    use std::io::ErrorKind;
+    use io::ErrorKind;
 
     /*individual bits*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
@@ -928,7 +933,7 @@ fn test_writer_io_errors_be() {
 #[test]
 fn test_writer_io_errors_le() {
     use bitstream_io::{BitWrite, BitWriter, LittleEndian};
-    use std::io::ErrorKind;
+    use io::ErrorKind;
 
     /*individual bits*/
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
@@ -1024,7 +1029,7 @@ fn test_writer_io_errors_le() {
 #[test]
 fn test_writer_bits_errors() {
     use bitstream_io::{BigEndian, BitWrite, BitWriter, LittleEndian};
-    use std::io::{sink, ErrorKind};
+    use io::{sink, ErrorKind};
 
     let mut w = BitWriter::endian(sink(), BigEndian);
     assert_eq!(w.write(9, 0u8).unwrap_err().kind(), ErrorKind::InvalidInput);

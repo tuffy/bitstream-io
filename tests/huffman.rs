@@ -1,5 +1,12 @@
+extern crate alloc;
 extern crate bitstream_io;
+
 use bitstream_io::huffman::{compile_read_tree, compile_write_tree, HuffmanTreeError};
+#[cfg(not(feature = "std"))]
+use core2::io;
+
+#[cfg(feature = "std")]
+use std::io;
 
 #[test]
 fn test_huffman_errors() {
@@ -63,9 +70,10 @@ fn test_huffman_errors() {
 fn test_huffman_values() {
     use bitstream_io::huffman::compile_read_tree;
     use bitstream_io::{BigEndian, BitReader, HuffmanRead};
-    use std::io::Cursor;
-    use std::ops::Deref;
-    use std::rc::Rc;
+    use io::Cursor;
+
+    use alloc::rc::Rc;
+    use core::ops::Deref;
 
     let data = [0xB1, 0xED];
 
@@ -105,7 +113,7 @@ fn test_huffman_values() {
 fn test_lengthy_huffman_values() {
     use bitstream_io::huffman::{compile_read_tree, compile_write_tree};
     use bitstream_io::{BitReader, BitWrite, BitWriter, HuffmanRead, HuffmanWrite, BE, LE};
-    use std::io::Cursor;
+    use io::Cursor;
 
     let max_bits = 70;
     let mut spec = Vec::new();
