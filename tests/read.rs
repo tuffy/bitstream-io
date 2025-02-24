@@ -7,7 +7,12 @@
 // except according to those terms.
 
 extern crate bitstream_io;
-use std::io::Cursor;
+
+#[cfg(not(feature = "std"))]
+use core2::io::{self, Cursor};
+
+#[cfg(feature = "std")]
+use std::io::{self, Cursor};
 
 #[test]
 fn test_read_queue_be() {
@@ -514,7 +519,7 @@ fn test_reader_huffman_le() {
 #[test]
 fn test_reader_io_errors_be() {
     use bitstream_io::{BigEndian, BitRead, BitReader};
-    use std::io::ErrorKind;
+    use io::ErrorKind;
 
     let actual_data: [u8; 1] = [0xB1];
 
@@ -595,7 +600,7 @@ fn test_reader_io_errors_be() {
 #[test]
 fn test_reader_io_errors_le() {
     use bitstream_io::{BitRead, BitReader, LittleEndian};
-    use std::io::ErrorKind;
+    use io::ErrorKind;
 
     let actual_data: [u8; 1] = [0xB1];
 
@@ -676,7 +681,7 @@ fn test_reader_io_errors_le() {
 #[test]
 fn test_reader_bits_errors() {
     use bitstream_io::{BigEndian, BitRead, BitReader, LittleEndian};
-    use std::io::ErrorKind;
+    use io::ErrorKind;
     let actual_data = [0u8; 10];
 
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
@@ -766,8 +771,8 @@ fn test_clone() {
     // Can still instantiate a BitReader when the backing std::io::Read is
     // !Clone.
     struct NotCloneRead<'a>(&'a [u8]);
-    impl<'a> std::io::Read for NotCloneRead<'a> {
-        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    impl<'a> io::Read for NotCloneRead<'a> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             self.0.read(buf)
         }
     }

@@ -7,7 +7,12 @@
 // except according to those terms.
 
 extern crate bitstream_io;
+
 use bitstream_io::{BigEndian, BitRead, BitReader, BitWrite, BitWriter, LittleEndian};
+#[cfg(not(feature = "std"))]
+use core2::io::Cursor;
+
+#[cfg(feature = "std")]
 use std::io::Cursor;
 
 macro_rules! define_roundtrip {
@@ -141,7 +146,7 @@ fn test_auto_signedness() {
 
     macro_rules! define_roundtrip {
         ($n:ident, $i:ident, $w:ident, $r:ident) => {
-            fn $n<I: Integer + $i + std::ops::AddAssign, E: Endianness>(
+            fn $n<I: Integer + $i + core::ops::AddAssign, E: Endianness>(
                 mut start: I,
                 end: I,
                 bits: u32,
