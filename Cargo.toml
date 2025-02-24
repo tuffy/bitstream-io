@@ -9,7 +9,7 @@ documentation = "https://docs.rs/bitstream-io/"
 homepage = "https://github.com/tuffy/bitstream-io"
 repository = "https://github.com/tuffy/bitstream-io"
 edition = "2018"
-rust-version = "1.79"
+rust-version = "1.83"
 
 [dependencies]
 core2 = "0.4"
