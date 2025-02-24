@@ -93,17 +93,18 @@
 
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
-#![cfg_attr(feature = "alloc", no_std)]
+#![no_std]
 
-#[cfg(feature = "alloc")]
 extern crate alloc;
-use core::fmt::Debug;
-use core::marker::PhantomData;
-use core::mem;
-use core::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
-#[cfg(feature = "alloc")]
+#[cfg(feature = "std")]
+extern crate std;
+
+#[cfg(not(feature = "std"))]
 use core2::io;
-#[cfg(not(feature = "alloc"))]
+
+use core::ops::{BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub};
+use core::{fmt::Debug, marker::PhantomData, mem};
+#[cfg(feature = "std")]
 use std::io;
 
 pub mod huffman;

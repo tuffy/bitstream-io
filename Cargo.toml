@@ -12,9 +12,8 @@ edition = "2018"
 rust-version = "1.79"
 
 [dependencies]
-core2 = {version = "0.4", optional = true, default-features = false, features = ["alloc"]}
+core2 = "0.4"
 
 [features]
 std = []
 default = ["std"]
-alloc = ["core2"]

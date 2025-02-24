@@ -171,13 +171,11 @@
 
 #![warn(missing_docs)]
 
-#[cfg(feature = "alloc")]
-use alloc::vec;
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
-#[cfg(feature = "alloc")]
+#[cfg(not(feature = "std"))]
 use core2::io::{self, SeekFrom};
-#[cfg(not(feature = "alloc"))]
+
+use alloc::{vec, vec::Vec};
+#[cfg(feature = "std")]
 use std::io::{self, SeekFrom};
 
 use super::{
