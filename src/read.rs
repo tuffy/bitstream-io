@@ -172,11 +172,11 @@
 #![warn(missing_docs)]
 
 #[cfg(not(feature = "std"))]
-use core2::io::{self, SeekFrom};
+use core2::io;
 
 use alloc::{vec, vec::Vec};
 #[cfg(feature = "std")]
-use std::io::{self, SeekFrom};
+use std::io;
 
 use super::{
     huffman::ReadHuffmanTree, BitQueue, Endianness, Integer, Numeric, PhantomData, Primitive,
@@ -962,7 +962,7 @@ where
     /// ```
     #[inline]
     pub fn position_in_bits(&mut self) -> io::Result<u64> {
-        let bytes = self.reader.seek(SeekFrom::Current(0))?;
+        let bytes = self.reader.stream_position()?;
         Ok(bytes * 8 - (self.bitqueue.len() as u64))
     }
 }
