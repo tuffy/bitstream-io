@@ -309,7 +309,9 @@ pub trait BitWrite {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn write_bit(&mut self, bit: bool) -> io::Result<()>;
+    fn write_bit(&mut self, bit: bool) -> io::Result<()> {
+        self.write_unsigned_out::<1, u8>(u8::from(bit))
+    }
 
     /// Writes a signed or unsigned value to the stream using the given
     /// number of bits.

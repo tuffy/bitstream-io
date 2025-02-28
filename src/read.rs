@@ -192,7 +192,9 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn read_bit(&mut self) -> io::Result<bool>;
+    fn read_bit(&mut self) -> io::Result<bool> {
+        self.read_unsigned_in::<1, u8>().map(|b| b == 1)
+    }
 
     /// Reads a signed or unsigned value from the stream with
     /// the given number of bits.
