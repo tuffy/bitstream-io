@@ -454,12 +454,12 @@ pub trait HuffmanRead<E: Endianness> {
 /// the requested number of bits.  It may cache up to a single partial byte
 /// but no more.
 #[derive(Clone, Debug)]
-pub struct BitReader<R: io::Read, E: Endianness> {
+pub struct BitReader<R, E: Endianness> {
     reader: R,
     bitqueue: BitQueue<E, u8>,
 }
 
-impl<R: io::Read, E: Endianness> BitReader<R, E> {
+impl<R, E: Endianness> BitReader<R, E> {
     /// Wraps a BitReader around something that implements `Read`
     pub fn new(reader: R) -> BitReader<R, E> {
         BitReader {
@@ -485,38 +485,6 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
     #[inline]
     pub fn into_reader(self) -> R {
         self.reader
-    }
-
-    /// If stream is byte-aligned, provides mutable reference
-    /// to internal reader.  Otherwise returns `None`
-    #[inline]
-    pub fn reader(&mut self) -> Option<&mut R> {
-        if self.byte_aligned() {
-            Some(&mut self.reader)
-        } else {
-            None
-        }
-    }
-
-    /// Converts `BitReader` to `ByteReader` in the same endianness.
-    ///
-    /// # Warning
-    ///
-    /// Any unread partial bits are discarded.
-    #[inline]
-    pub fn into_bytereader(self) -> ByteReader<R, E> {
-        ByteReader::new(self.into_reader())
-    }
-
-    /// If stream is byte-aligned, provides temporary `ByteReader`
-    /// in the same endianness.  Otherwise returns `None`
-    ///
-    /// # Warning
-    ///
-    /// Any reader bits left over when `ByteReader` is dropped are lost.
-    #[inline]
-    pub fn bytereader(&mut self) -> Option<ByteReader<&mut R, E>> {
-        self.reader().map(ByteReader::new)
     }
 
     /// Consumes reader and returns any un-read partial byte
@@ -547,6 +515,40 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
     #[inline]
     pub fn into_unread(self) -> (u32, u8) {
         (self.bitqueue.len(), self.bitqueue.value())
+    }
+}
+
+impl<R: io::Read, E: Endianness> BitReader<R, E> {
+    /// If stream is byte-aligned, provides mutable reference
+    /// to internal reader.  Otherwise returns `None`
+    #[inline]
+    pub fn reader(&mut self) -> Option<&mut R> {
+        if self.byte_aligned() {
+            Some(&mut self.reader)
+        } else {
+            None
+        }
+    }
+
+    /// Converts `BitReader` to `ByteReader` in the same endianness.
+    ///
+    /// # Warning
+    ///
+    /// Any unread partial bits are discarded.
+    #[inline]
+    pub fn into_bytereader(self) -> ByteReader<R, E> {
+        ByteReader::new(self.into_reader())
+    }
+
+    /// If stream is byte-aligned, provides temporary `ByteReader`
+    /// in the same endianness.  Otherwise returns `None`
+    ///
+    /// # Warning
+    ///
+    /// Any reader bits left over when `ByteReader` is dropped are lost.
+    #[inline]
+    pub fn bytereader(&mut self) -> Option<ByteReader<&mut R, E>> {
+        self.reader().map(ByteReader::new)
     }
 }
 
