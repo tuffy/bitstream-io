@@ -39,6 +39,21 @@ fn test_read_queue_be() {
 }
 
 #[test]
+fn test_queue_pop_be() {
+    use bitstream_io::{BitQueue, BE};
+    let mut q: BitQueue<BE, u8> = BitQueue::new();
+    assert_eq!(q.pop_bit(|| Ok::<_, ()>(0b10110001)), Ok(true));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(true));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(true));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(true));
+    assert_eq!(q.pop_bit(|| Err(())), Err(()));
+}
+
+#[test]
 fn test_read_queue_le() {
     use bitstream_io::{BitQueue, LE};
     let mut q: BitQueue<LE, u32> = BitQueue::new();
@@ -60,6 +75,21 @@ fn test_read_queue_le() {
     assert_eq!(q.pop(19), 0b11000001_00111011_111);
     assert!(q.is_empty());
     assert_eq!(q.value(), 0);
+}
+
+#[test]
+fn test_queue_pop_le() {
+    use bitstream_io::{BitQueue, LE};
+    let mut q: BitQueue<LE, u8> = BitQueue::new();
+    assert_eq!(q.pop_bit(|| Ok::<_, ()>(0b10110001)), Ok(true));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(true));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(true));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
+    assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(true));
+    assert_eq!(q.pop_bit(|| Err(())), Err(()));
 }
 
 #[test]
