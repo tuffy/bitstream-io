@@ -103,7 +103,8 @@ extern crate std;
 use core2::io;
 
 use core::ops::{
-    BitAnd, BitOr, BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub,
+    BitAnd, BitOr, BitOrAssign, BitXor, ControlFlow, Not, Rem, RemAssign, Shl, ShlAssign, Shr,
+    ShrAssign, Sub,
 };
 use core::{fmt::Debug, marker::PhantomData, mem};
 #[cfg(feature = "std")]
@@ -622,7 +623,25 @@ pub trait Endianness: Sized {
 
     /// Pushes the next bit into the queue,
     /// and returns `Some` value if the queue is full.
-    fn push_bit<U>(queue: &mut BitSink<Self, U>, bit: bool) -> Option<U>
+    fn push_bit_flush<U>(queue: &mut BitSinkFlush<Self, U>, bit: bool) -> Option<U>
+    where
+        U: UnsignedNumeric;
+
+    /// Pushes the next bit into the queue,
+    /// returning a whole value once the sink is full.
+    fn push_bit_once<U>(
+        queue: BitSinkOnce<Self, U>,
+        bit: bool,
+    ) -> ControlFlow<U, BitSinkOnce<Self, U>>
+    where
+        U: UnsignedNumeric;
+
+    /// Pushes the next bit into the queue,
+    /// returning a whole value once the sink is full.
+    fn push_bit_once_fixed<const B: u32, U>(
+        queue: BitSinkOnceFixed<B, Self, U>,
+        bit: bool,
+    ) -> ControlFlow<U, BitSinkOnceFixed<B, Self, U>>
     where
         U: UnsignedNumeric;
 
@@ -804,13 +823,47 @@ impl Endianness for BigEndian {
         } != U::ZERO)
     }
 
-    fn push_bit<U>(queue: &mut BitSink<Self, U>, bit: bool) -> Option<U>
+    #[inline]
+    fn push_bit_flush<U>(queue: &mut BitSinkFlush<Self, U>, bit: bool) -> Option<U>
     where
         U: UnsignedNumeric,
     {
         queue.value = if bit { U::LSB_BIT } else { U::ZERO } | (queue.value << 1);
         queue.bits = (queue.bits + 1) % U::BITS_SIZE;
         queue.is_empty().then(|| mem::take(&mut queue.value))
+    }
+
+    #[inline]
+    fn push_bit_once<U>(
+        mut queue: BitSinkOnce<Self, U>,
+        bit: bool,
+    ) -> ControlFlow<U, BitSinkOnce<Self, U>>
+    where
+        U: UnsignedNumeric,
+    {
+        queue.value = if bit { U::LSB_BIT } else { U::ZERO } | (queue.value << 1);
+        queue.bits += 1;
+        if queue.bits == queue.total_bits {
+            ControlFlow::Break(queue.value)
+        } else {
+            ControlFlow::Continue(queue)
+        }
+    }
+
+    fn push_bit_once_fixed<const B: u32, U>(
+        mut queue: BitSinkOnceFixed<B, Self, U>,
+        bit: bool,
+    ) -> ControlFlow<U, BitSinkOnceFixed<B, Self, U>>
+    where
+        U: UnsignedNumeric,
+    {
+        queue.value = if bit { U::LSB_BIT } else { U::ZERO } | (queue.value << 1);
+        queue.bits += 1;
+        if queue.bits == B {
+            ControlFlow::Break(queue.value)
+        } else {
+            ControlFlow::Continue(queue)
+        }
     }
 
     #[inline]
@@ -1106,13 +1159,46 @@ impl Endianness for LittleEndian {
         } != U::ZERO)
     }
 
-    fn push_bit<U>(queue: &mut BitSink<Self, U>, bit: bool) -> Option<U>
+    #[inline]
+    fn push_bit_flush<U>(queue: &mut BitSinkFlush<Self, U>, bit: bool) -> Option<U>
     where
         U: UnsignedNumeric,
     {
         queue.value = if bit { U::MSB_BIT } else { U::ZERO } | (queue.value >> 1);
         queue.bits = (queue.bits + 1) % U::BITS_SIZE;
         queue.is_empty().then(|| mem::take(&mut queue.value))
+    }
+
+    fn push_bit_once<U>(
+        mut queue: BitSinkOnce<Self, U>,
+        bit: bool,
+    ) -> ControlFlow<U, BitSinkOnce<Self, U>>
+    where
+        U: UnsignedNumeric,
+    {
+        queue.value = if bit { U::MSB_BIT } else { U::ZERO } | (queue.value >> 1);
+        queue.bits += 1;
+        if queue.bits == queue.total_bits {
+            ControlFlow::Break(queue.value >> (U::BITS_SIZE - queue.total_bits))
+        } else {
+            ControlFlow::Continue(queue)
+        }
+    }
+
+    fn push_bit_once_fixed<const B: u32, U>(
+        mut queue: BitSinkOnceFixed<B, Self, U>,
+        bit: bool,
+    ) -> ControlFlow<U, BitSinkOnceFixed<B, Self, U>>
+    where
+        U: UnsignedNumeric,
+    {
+        queue.value = if bit { U::MSB_BIT } else { U::ZERO } | (queue.value >> 1);
+        queue.bits += 1;
+        if queue.bits == B {
+            ControlFlow::Break(queue.value >> (U::BITS_SIZE - B))
+        } else {
+            ControlFlow::Continue(queue)
+        }
     }
 
     #[inline]
@@ -1404,14 +1490,17 @@ impl<E: Endianness, U: UnsignedNumeric> BitSourceOnce<E, U> {
 }
 
 /// A target for bits to be written into and flushed when full
+///
+/// This is useful to for bitstream writers so that
+/// whole bytes can be flushed to the stream when full.
 #[derive(Clone, Debug)]
-pub struct BitSink<E: Endianness, U: UnsignedNumeric> {
+pub struct BitSinkFlush<E: Endianness, U: UnsignedNumeric> {
     phantom: PhantomData<E>,
     value: U,
     bits: u32,
 }
 
-impl<E: Endianness, U: UnsignedNumeric> Default for BitSink<E, U> {
+impl<E: Endianness, U: UnsignedNumeric> Default for BitSinkFlush<E, U> {
     fn default() -> Self {
         Self {
             phantom: PhantomData,
@@ -1421,7 +1510,7 @@ impl<E: Endianness, U: UnsignedNumeric> Default for BitSink<E, U> {
     }
 }
 
-impl<E: Endianness, U: UnsignedNumeric> BitSink<E, U> {
+impl<E: Endianness, U: UnsignedNumeric> BitSinkFlush<E, U> {
     /// Returns true if sink is empty.
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
@@ -1432,7 +1521,92 @@ impl<E: Endianness, U: UnsignedNumeric> BitSink<E, U> {
     /// returning a whole value once the sink is full.
     #[inline(always)]
     pub fn push_bit(&mut self, bit: bool) -> Option<U> {
-        E::push_bit(self, bit)
+        E::push_bit_flush(self, bit)
+    }
+}
+
+/// A target for bits to be written into and unpacked once full
+///
+/// This is useful for bitstream readers to build a whole value
+/// from a series of stream bits.
+#[derive(Clone, Debug)]
+pub struct BitSinkOnce<E: Endianness, U: UnsignedNumeric> {
+    phantom: PhantomData<E>,
+    // our accumulated value
+    value: U,
+    // the number of bits pushed into the sink thus far
+    bits: u32,
+    // the total number of bits the sink can contain
+    total_bits: u32,
+}
+
+impl<E: Endianness, U: UnsignedNumeric> BitSinkOnce<E, U> {
+    /// Builds a new sink large enough for the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if bits is larger than the type can contain.
+    pub fn new(bits: u32) -> io::Result<Self> {
+        if bits <= U::BITS_SIZE {
+            Ok(Self {
+                phantom: PhantomData,
+                value: U::default(),
+                bits: 0,
+                total_bits: bits,
+            })
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
+        }
+    }
+
+    /// Pushes the next bit into the sink,
+    /// returning a whole value once the sink is full.
+    #[inline(always)]
+    pub fn push_bit(self, bit: bool) -> ControlFlow<U, Self> {
+        E::push_bit_once(self, bit)
+    }
+}
+
+/// A target for bits to be written into and unpacked once full
+///
+/// This is useful for bitstream readers to build a whole value
+/// from a series of stream bits.
+#[derive(Clone, Debug)]
+pub struct BitSinkOnceFixed<const B: u32, E: Endianness, U: UnsignedNumeric> {
+    phantom: PhantomData<E>,
+    // our accumulated value
+    value: U,
+    // the number of bits pushed into the sink thus far
+    bits: u32,
+}
+
+impl<const B: u32, E: Endianness, U: UnsignedNumeric> BitSinkOnceFixed<B, E, U> {
+    /// Builds a new sink large enough for the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// A compile-time error occurs if `B` is larger than the type
+    /// can contain.
+    pub fn new() -> Self {
+        const {
+            assert!(B <= U::BITS_SIZE, "excessive bits for type read");
+        }
+
+        Self {
+            phantom: PhantomData,
+            value: U::default(),
+            bits: 0,
+        }
+    }
+
+    /// Pushes the next bit into the sink,
+    /// returning a whole value once the sink is full.
+    #[inline(always)]
+    pub fn push_bit(self, bit: bool) -> ControlFlow<U, Self> {
+        E::push_bit_once_fixed(self, bit)
     }
 }
 

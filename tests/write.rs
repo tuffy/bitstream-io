@@ -46,8 +46,11 @@ fn test_write_queue_be() {
 
 #[test]
 fn test_queue_push_be() {
-    use bitstream_io::{BitSink, BE};
-    let mut q: BitSink<BE, u8> = BitSink::default();
+    use bitstream_io::{BitSinkFlush, BitSinkOnce, BitSinkOnceFixed, BE};
+    use core::ops::ControlFlow;
+
+    let mut q: BitSinkFlush<BE, u8> = BitSinkFlush::default();
+
     assert_eq!(q.push_bit(true), None);
     assert_eq!(q.push_bit(false), None);
     assert_eq!(q.push_bit(true), None);
@@ -56,6 +59,57 @@ fn test_queue_push_be() {
     assert_eq!(q.push_bit(false), None);
     assert_eq!(q.push_bit(false), None);
     assert_eq!(q.push_bit(true), Some(0b10110001));
+
+    let bits: [bool; 8] = [true, false, true, true, false, false, false, true];
+
+    assert!(matches!(
+        bits.iter()
+            .try_fold(BitSinkOnce::<BE, u8>::new(8).unwrap(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b10110001)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .try_fold(BitSinkOnceFixed::<8, BE, u8>::new(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b10110001)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .skip(1)
+            .try_fold(BitSinkOnce::<BE, u8>::new(7).unwrap(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b0110001)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .skip(1)
+            .try_fold(BitSinkOnceFixed::<7, BE, u8>::new(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b0110001)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .skip(6)
+            .try_fold(BitSinkOnce::<BE, u8>::new(2).unwrap(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b01)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .skip(6)
+            .try_fold(BitSinkOnceFixed::<2, BE, u8>::new(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b01)
+    ));
+
+    // too many bits for a u8
+    assert!(BitSinkOnce::<BE, u8>::new(9).is_err());
 }
 
 #[test]
@@ -130,8 +184,10 @@ fn test_write_queue_le() {
 
 #[test]
 fn test_queue_push_le() {
-    use bitstream_io::{BitSink, LE};
-    let mut q: BitSink<LE, u8> = BitSink::default();
+    use bitstream_io::{BitSinkFlush, BitSinkOnce, BitSinkOnceFixed, LE};
+    use core::ops::ControlFlow;
+
+    let mut q: BitSinkFlush<LE, u8> = BitSinkFlush::default();
     assert_eq!(q.push_bit(true), None);
     assert_eq!(q.push_bit(false), None);
     assert_eq!(q.push_bit(false), None);
@@ -140,6 +196,53 @@ fn test_queue_push_le() {
     assert_eq!(q.push_bit(true), None);
     assert_eq!(q.push_bit(false), None);
     assert_eq!(q.push_bit(true), Some(0b10110001));
+
+    let bits: [bool; 8] = [true, false, false, false, true, true, false, true];
+
+    assert!(matches!(
+        bits.iter()
+            .try_fold(BitSinkOnce::<LE, u8>::new(8).unwrap(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b10110001)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .try_fold(BitSinkOnceFixed::<8, LE, u8>::new(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b10110001)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .try_fold(BitSinkOnce::<LE, u8>::new(7).unwrap(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b0110001)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .try_fold(BitSinkOnceFixed::<7, LE, u8>::new(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b0110001)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .try_fold(BitSinkOnce::<LE, u8>::new(2).unwrap(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b01)
+    ));
+
+    assert!(matches!(
+        bits.iter()
+            .try_fold(BitSinkOnceFixed::<2, LE, u8>::new(), |acc, b| acc
+                .push_bit(*b)),
+        ControlFlow::Break(0b01)
+    ));
+
+    // too many bits for a u8
+    assert!(BitSinkOnce::<LE, u8>::new(9).is_err());
 }
 
 #[test]
