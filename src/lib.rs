@@ -103,7 +103,7 @@ extern crate std;
 use core2::io;
 
 use core::ops::{
-    BitAnd, BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub,
+    BitAnd, BitOr, BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub,
 };
 use core::{fmt::Debug, marker::PhantomData, mem};
 #[cfg(feature = "std")]
@@ -272,6 +272,7 @@ pub trait Numeric:
     + Rem<Self, Output = Self>
     + RemAssign<Self>
     + BitAnd<Self, Output = Self>
+    + BitOr<Self, Output = Self>
     + BitOrAssign<Self>
     + BitXor<Self, Output = Self>
     + Not<Output = Self>
@@ -579,10 +580,16 @@ define_primitive_numeric!(f64);
 pub trait Endianness: Sized {
     /// Pops the next bit from the queue,
     /// repleneshing it from the given closure if necessary
-    fn pop_bit<N, F, E>(queue: &mut BitQueue<Self, N>, read_val: F) -> Result<bool, E>
+    fn pop_bit<U, F, E>(queue: &mut BitSource<Self, U>, read_val: F) -> Result<bool, E>
     where
-        N: Numeric,
-        F: FnOnce() -> Result<N, E>;
+        U: UnsignedNumeric,
+        F: FnOnce() -> Result<U, E>;
+
+    /// Pushes the next bit into the queue,
+    /// and returns `Some` value if the queue is full.
+    fn push_bit<U>(queue: &mut BitSink<Self, U>, bit: bool) -> Option<U>
+    where
+        U: UnsignedNumeric;
 
     /// Pushes the given bits and value onto an accumulator
     /// with the given bits and value.
@@ -683,23 +690,32 @@ pub struct BigEndian;
 pub type BE = BigEndian;
 
 impl Endianness for BigEndian {
-    fn pop_bit<N, F, E>(queue: &mut BitQueue<Self, N>, read_val: F) -> Result<bool, E>
+    fn pop_bit<U, F, E>(queue: &mut BitSource<Self, U>, read_val: F) -> Result<bool, E>
     where
-        N: Numeric,
-        F: FnOnce() -> Result<N, E>,
+        U: UnsignedNumeric,
+        F: FnOnce() -> Result<U, E>,
     {
         Ok(if queue.is_empty() {
             let value = read_val()?;
-            let msb = value & N::MSB_BIT;
+            let msb = value & U::MSB_BIT;
             queue.value = value << 1;
-            queue.bits = N::BITS_SIZE - 1;
+            queue.bits = U::BITS_SIZE - 1;
             msb
         } else {
-            let msb = queue.value & N::MSB_BIT;
+            let msb = queue.value & U::MSB_BIT;
             queue.value <<= 1;
             queue.bits -= 1;
             msb
-        } != N::ZERO)
+        } != U::ZERO)
+    }
+
+    fn push_bit<U>(queue: &mut BitSink<Self, U>, bit: bool) -> Option<U>
+    where
+        U: UnsignedNumeric,
+    {
+        queue.value = if bit { U::LSB_BIT } else { U::ZERO } | (queue.value << 1);
+        queue.bits = (queue.bits + 1) % U::BITS_SIZE;
+        queue.is_empty().then(|| mem::take(&mut queue.value))
     }
 
     #[inline]
@@ -916,23 +932,32 @@ pub struct LittleEndian;
 pub type LE = LittleEndian;
 
 impl Endianness for LittleEndian {
-    fn pop_bit<N, F, E>(queue: &mut BitQueue<Self, N>, read_val: F) -> Result<bool, E>
+    fn pop_bit<U, F, E>(queue: &mut BitSource<Self, U>, read_val: F) -> Result<bool, E>
     where
-        N: Numeric,
-        F: FnOnce() -> Result<N, E>,
+        U: UnsignedNumeric,
+        F: FnOnce() -> Result<U, E>,
     {
         Ok(if queue.is_empty() {
             let value = read_val()?;
-            let lsb = value & N::LSB_BIT;
+            let lsb = value & U::LSB_BIT;
             queue.value = value >> 1;
-            queue.bits = N::BITS_SIZE - 1;
+            queue.bits = U::BITS_SIZE - 1;
             lsb
         } else {
-            let lsb = queue.value & N::LSB_BIT;
+            let lsb = queue.value & U::LSB_BIT;
             queue.value >>= 1;
             queue.bits -= 1;
             lsb
-        } != N::ZERO)
+        } != U::ZERO)
+    }
+
+    fn push_bit<U>(queue: &mut BitSink<Self, U>, bit: bool) -> Option<U>
+    where
+        U: UnsignedNumeric,
+    {
+        queue.value = if bit { U::MSB_BIT } else { U::ZERO } | (queue.value >> 1);
+        queue.bits = (queue.bits + 1) % U::BITS_SIZE;
+        queue.is_empty().then(|| mem::take(&mut queue.value))
     }
 
     #[inline]
@@ -1132,6 +1157,75 @@ impl Endianness for LittleEndian {
     }
 }
 
+/// A source for bits to be read from and refilled when full
+#[derive(Clone, Debug)]
+pub struct BitSource<E: Endianness, U: UnsignedNumeric> {
+    phantom: PhantomData<E>,
+    value: U,
+    bits: u32,
+}
+
+impl<E: Endianness, U: UnsignedNumeric> Default for BitSource<E, U> {
+    fn default() -> Self {
+        Self {
+            phantom: PhantomData,
+            value: U::default(),
+            bits: 0,
+        }
+    }
+}
+
+impl<E: Endianness, U: UnsignedNumeric> BitSource<E, U> {
+    /// Returns true if source is empty.
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.bits == 0
+    }
+
+    /// Pops the next bit from the source,
+    /// repleneshing it from the given closure if necessary
+    #[inline(always)]
+    pub fn pop_bit<F, G>(&mut self, read_val: F) -> Result<bool, G>
+    where
+        F: FnOnce() -> Result<U, G>,
+    {
+        E::pop_bit(self, read_val)
+    }
+}
+
+/// A target for bits to be written into and flushed when full
+#[derive(Clone, Debug)]
+pub struct BitSink<E: Endianness, U: UnsignedNumeric> {
+    phantom: PhantomData<E>,
+    value: U,
+    bits: u32,
+}
+
+impl<E: Endianness, U: UnsignedNumeric> Default for BitSink<E, U> {
+    fn default() -> Self {
+        Self {
+            phantom: PhantomData,
+            value: U::default(),
+            bits: 0,
+        }
+    }
+}
+
+impl<E: Endianness, U: UnsignedNumeric> BitSink<E, U> {
+    /// Returns true if sink is empty.
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.bits == 0
+    }
+
+    /// Pushes the next bit into the sink,
+    /// returning a whole value once the sink is full.
+    #[inline(always)]
+    pub fn push_bit(&mut self, bit: bool) -> Option<U> {
+        E::push_bit(self, bit)
+    }
+}
+
 /// A queue for efficiently pushing bits onto a value
 /// and popping them off a value.
 #[derive(Clone, Debug, Default)]
@@ -1251,16 +1345,6 @@ impl<E: Endianness, N: Numeric> BitQueue<E, N> {
     pub fn push_fixed<const B: u32>(&mut self, value: N) {
         assert!(B <= self.remaining_len()); // check for overflow
         E::push_fixed::<B, N>(self, value)
-    }
-
-    /// Pops the next bit from the queue,
-    /// repleneshing it from the given closure if necessary
-    #[inline(always)]
-    pub fn pop_bit<F, G>(&mut self, read_val: F) -> Result<bool, G>
-    where
-        F: FnOnce() -> Result<N, G>,
-    {
-        E::pop_bit(self, read_val)
     }
 
     /// Pops a value with the given number of bits from the head of the queue

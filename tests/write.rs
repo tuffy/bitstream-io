@@ -45,6 +45,20 @@ fn test_write_queue_be() {
 }
 
 #[test]
+fn test_queue_push_be() {
+    use bitstream_io::{BitSink, BE};
+    let mut q: BitSink<BE, u8> = BitSink::default();
+    assert_eq!(q.push_bit(true), None);
+    assert_eq!(q.push_bit(false), None);
+    assert_eq!(q.push_bit(true), None);
+    assert_eq!(q.push_bit(true), None);
+    assert_eq!(q.push_bit(false), None);
+    assert_eq!(q.push_bit(false), None);
+    assert_eq!(q.push_bit(false), None);
+    assert_eq!(q.push_bit(true), Some(0b10110001));
+}
+
+#[test]
 fn test_write_queue_edge_be() {
     use bitstream_io::{BitQueue, BE};
 
@@ -112,6 +126,20 @@ fn test_write_queue_le() {
     assert_eq!(q.pop(8), 0b11000001);
     assert!(v.is_empty());
     assert!(q.is_empty());
+}
+
+#[test]
+fn test_queue_push_le() {
+    use bitstream_io::{BitSink, LE};
+    let mut q: BitSink<LE, u8> = BitSink::default();
+    assert_eq!(q.push_bit(true), None);
+    assert_eq!(q.push_bit(false), None);
+    assert_eq!(q.push_bit(false), None);
+    assert_eq!(q.push_bit(false), None);
+    assert_eq!(q.push_bit(true), None);
+    assert_eq!(q.push_bit(true), None);
+    assert_eq!(q.push_bit(false), None);
+    assert_eq!(q.push_bit(true), Some(0b10110001));
 }
 
 #[test]

@@ -40,8 +40,8 @@ fn test_read_queue_be() {
 
 #[test]
 fn test_queue_pop_be() {
-    use bitstream_io::{BitQueue, BE};
-    let mut q: BitQueue<BE, u8> = BitQueue::new();
+    use bitstream_io::{BitSource, BE};
+    let mut q: BitSource<BE, u8> = BitSource::default();
     assert_eq!(q.pop_bit(|| Ok::<_, ()>(0b10110001)), Ok(true));
     assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
     assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(true));
@@ -79,8 +79,8 @@ fn test_read_queue_le() {
 
 #[test]
 fn test_queue_pop_le() {
-    use bitstream_io::{BitQueue, LE};
-    let mut q: BitQueue<LE, u8> = BitQueue::new();
+    use bitstream_io::{BitSource, LE};
+    let mut q: BitSource<LE, u8> = BitSource::default();
     assert_eq!(q.pop_bit(|| Ok::<_, ()>(0b10110001)), Ok(true));
     assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
     assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
