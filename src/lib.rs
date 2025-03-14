@@ -287,12 +287,6 @@ pub trait Numeric:
     /// The value of 1 in this type
     const ONE: Self;
 
-    /// This type's most-significant bit
-    const MSB_BIT: Self;
-
-    /// This type's least significant bit
-    const LSB_BIT: Self;
-
     /// Returns true if this value is 0, in its type
     fn is_zero(self) -> bool;
 
@@ -322,10 +316,6 @@ macro_rules! define_numeric {
             const ZERO: Self = 0;
 
             const ONE: Self = 1;
-
-            const MSB_BIT: Self = 1 << (Self::BITS_SIZE - 1);
-
-            const LSB_BIT: Self = 1;
 
             #[inline(always)]
             fn is_zero(self) -> bool {
@@ -358,6 +348,15 @@ macro_rules! define_numeric {
 /// This trait extends many common unsigned integer types
 /// so that they can be used with the bitstream handling traits.
 pub trait UnsignedNumeric: Numeric + Into<crate::write::UnsignedValue> {
+    /// This type's most-significant bit
+    const MSB_BIT: Self;
+
+    /// This type's least significant bit
+    const LSB_BIT: Self;
+
+    /// This type with all bits set
+    const ALL: Self;
+
     /// The signed variant of ourself
     type Signed: SignedNumeric<Unsigned = Self>;
 
@@ -402,6 +401,12 @@ macro_rules! define_unsigned_numeric {
 
         impl UnsignedNumeric for $t {
             type Signed = $s;
+
+            const MSB_BIT: Self = 1 << (Self::BITS_SIZE - 1);
+
+            const LSB_BIT: Self = 1;
+
+            const ALL: Self = <$t>::MAX;
 
             #[inline(always)]
             fn as_non_negative(self) -> Self::Signed {
@@ -578,9 +583,39 @@ define_primitive_numeric!(f64);
 /// and is not something programmers should have to implement
 /// in most cases.
 pub trait Endianness: Sized {
+    /// Creates a new `BitSource` with the given bits and value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bits are larger than the given
+    /// type, or if the value would not fit into the given number of bits.
+    fn new_source<U>(bits: u32, value: U) -> io::Result<BitSourceOnce<Self, U>>
+    where
+        U: UnsignedNumeric;
+
+    /// Creates a new `BitSource` with the given bits and value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value would not fit into
+    /// the given number of bits.
+    /// A compile-time error occurs if the number of bits is
+    /// larger than the value.
+    fn new_source_fixed<const BITS: u32, U>(value: U) -> io::Result<BitSourceOnce<Self, U>>
+    where
+        U: UnsignedNumeric;
+
+    /// Pops the next bit from the queue, if available.
+    fn pop_bit_once<U>(queue: &mut BitSourceOnce<Self, U>) -> Option<bool>
+    where
+        U: UnsignedNumeric;
+
     /// Pops the next bit from the queue,
     /// repleneshing it from the given closure if necessary
-    fn pop_bit<U, F, E>(queue: &mut BitSource<Self, U>, read_val: F) -> Result<bool, E>
+    fn pop_bit_refill<U, F, E>(
+        queue: &mut BitSourceRefill<Self, U>,
+        read_val: F,
+    ) -> Result<bool, E>
     where
         U: UnsignedNumeric,
         F: FnOnce() -> Result<U, E>;
@@ -690,7 +725,67 @@ pub struct BigEndian;
 pub type BE = BigEndian;
 
 impl Endianness for BigEndian {
-    fn pop_bit<U, F, E>(queue: &mut BitSource<Self, U>, read_val: F) -> Result<bool, E>
+    fn new_source<U>(bits: u32, value: U) -> io::Result<BitSourceOnce<Self, U>>
+    where
+        U: UnsignedNumeric,
+    {
+        if value
+            <= (U::ALL
+                >> U::BITS_SIZE.checked_sub(bits).ok_or(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "excessive bits for type written",
+                ))?)
+        {
+            Ok(BitSourceOnce {
+                phantom: PhantomData,
+                value: value << (U::BITS_SIZE - bits),
+                bits,
+            })
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            ))
+        }
+    }
+
+    fn new_source_fixed<const BITS: u32, U>(value: U) -> io::Result<BitSourceOnce<Self, U>>
+    where
+        U: UnsignedNumeric,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
+        }
+
+        if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+            Ok(BitSourceOnce {
+                phantom: PhantomData,
+                value: value << (U::BITS_SIZE - BITS),
+                bits: BITS,
+            })
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            ))
+        }
+    }
+
+    fn pop_bit_once<U>(queue: &mut BitSourceOnce<Self, U>) -> Option<bool>
+    where
+        U: UnsignedNumeric,
+    {
+        if queue.is_empty() {
+            None
+        } else {
+            let msb = queue.value & U::MSB_BIT;
+            queue.value <<= 1;
+            queue.bits -= 1;
+            Some(msb != U::ZERO)
+        }
+    }
+
+    fn pop_bit_refill<U, F, E>(queue: &mut BitSourceRefill<Self, U>, read_val: F) -> Result<bool, E>
     where
         U: UnsignedNumeric,
         F: FnOnce() -> Result<U, E>,
@@ -932,7 +1027,67 @@ pub struct LittleEndian;
 pub type LE = LittleEndian;
 
 impl Endianness for LittleEndian {
-    fn pop_bit<U, F, E>(queue: &mut BitSource<Self, U>, read_val: F) -> Result<bool, E>
+    fn new_source<U>(bits: u32, value: U) -> io::Result<BitSourceOnce<Self, U>>
+    where
+        U: UnsignedNumeric,
+    {
+        if value
+            <= (U::ALL
+                >> U::BITS_SIZE.checked_sub(bits).ok_or(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "excessive bits for type written",
+                ))?)
+        {
+            Ok(BitSourceOnce {
+                phantom: PhantomData,
+                value,
+                bits,
+            })
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            ))
+        }
+    }
+
+    fn new_source_fixed<const BITS: u32, U>(value: U) -> io::Result<BitSourceOnce<Self, U>>
+    where
+        U: UnsignedNumeric,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
+        }
+
+        if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+            Ok(BitSourceOnce {
+                phantom: PhantomData,
+                value,
+                bits: BITS,
+            })
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            ))
+        }
+    }
+
+    fn pop_bit_once<U>(queue: &mut BitSourceOnce<Self, U>) -> Option<bool>
+    where
+        U: UnsignedNumeric,
+    {
+        if queue.is_empty() {
+            None
+        } else {
+            let lsb = queue.value & U::LSB_BIT;
+            queue.value >>= 1;
+            queue.bits -= 1;
+            Some(lsb != U::ZERO)
+        }
+    }
+
+    fn pop_bit_refill<U, F, E>(queue: &mut BitSourceRefill<Self, U>, read_val: F) -> Result<bool, E>
     where
         U: UnsignedNumeric,
         F: FnOnce() -> Result<U, E>,
@@ -1158,14 +1313,19 @@ impl Endianness for LittleEndian {
 }
 
 /// A source for bits to be read from and refilled when full
+///
+/// This is useful to attach to bitstream readers so that
+/// the partial byte can be refilled from the input stream.
 #[derive(Clone, Debug)]
-pub struct BitSource<E: Endianness, U: UnsignedNumeric> {
+pub struct BitSourceRefill<E: Endianness, U: UnsignedNumeric> {
     phantom: PhantomData<E>,
+    // the current value in the source
     value: U,
+    // the bits remaining in the source
     bits: u32,
 }
 
-impl<E: Endianness, U: UnsignedNumeric> Default for BitSource<E, U> {
+impl<E: Endianness, U: UnsignedNumeric> Default for BitSourceRefill<E, U> {
     fn default() -> Self {
         Self {
             phantom: PhantomData,
@@ -1175,7 +1335,7 @@ impl<E: Endianness, U: UnsignedNumeric> Default for BitSource<E, U> {
     }
 }
 
-impl<E: Endianness, U: UnsignedNumeric> BitSource<E, U> {
+impl<E: Endianness, U: UnsignedNumeric> BitSourceRefill<E, U> {
     /// Returns true if source is empty.
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
@@ -1183,13 +1343,63 @@ impl<E: Endianness, U: UnsignedNumeric> BitSource<E, U> {
     }
 
     /// Pops the next bit from the source,
-    /// repleneshing it from the given closure if necessary
+    /// repleneshing it from the given closure if necessary.
     #[inline(always)]
     pub fn pop_bit<F, G>(&mut self, read_val: F) -> Result<bool, G>
     where
         F: FnOnce() -> Result<U, G>,
     {
-        E::pop_bit(self, read_val)
+        E::pop_bit_refill(self, read_val)
+    }
+}
+
+/// A source for bits to be read from until depleted.
+///
+/// This is useful to for bitstream writers so that
+/// partial bits can be pulled from an input value until empty.
+pub struct BitSourceOnce<E: Endianness, U: UnsignedNumeric> {
+    phantom: PhantomData<E>,
+    // the current value in the source
+    value: U,
+    // the bits remaining in the source
+    bits: u32,
+}
+
+impl<E: Endianness, U: UnsignedNumeric> BitSourceOnce<E, U> {
+    /// Creates a new `BitSource` with the given bits and value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bits are larger than the given
+    /// type, or if the value would not fit into the given number of bits.
+    #[inline(always)]
+    pub fn new(bits: u32, value: U) -> io::Result<Self> {
+        E::new_source(bits, value)
+    }
+
+    /// Creates a new `BitSource` with the given bits and value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value would not fit into
+    /// the given number of bits.
+    /// A compile-time error occurs if the number of bits is
+    /// larger than the value.
+    #[inline(always)]
+    pub fn new_fixed<const BITS: u32>(value: U) -> io::Result<Self> {
+        E::new_source_fixed::<BITS, U>(value)
+    }
+
+    /// Returns true if source is empty.
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.bits == 0
+    }
+
+    /// Pops the next bit from the source, if available.
+    #[inline(always)]
+    pub fn pop_bit(&mut self) -> Option<bool> {
+        E::pop_bit_once(self)
     }
 }
 
