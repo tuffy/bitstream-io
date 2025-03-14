@@ -15,30 +15,6 @@ use core2::io::{self, Cursor};
 use std::io::{self, Cursor};
 
 #[test]
-fn test_read_queue_be() {
-    use bitstream_io::{BitQueue, BE};
-    let mut q: BitQueue<BE, u32> = BitQueue::new();
-    assert!(q.is_empty());
-    assert_eq!(q.len(), 0);
-    q.push(8, 0b10_110_001);
-    assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(2), 0b10);
-    assert_eq!(q.len(), 6);
-    assert_eq!(q.pop(3), 0b110);
-    assert_eq!(q.len(), 3);
-    q.push(8, 0b11_101_101);
-    assert_eq!(q.len(), 11);
-    assert_eq!(q.pop(5), 0b001_11);
-    assert_eq!(q.len(), 6);
-    assert_eq!(q.pop(3), 0b101);
-    q.push(8, 0b00111011);
-    q.push(8, 0b11000001);
-    assert_eq!(q.pop(19), 0b101_00111011_11000001);
-    assert!(q.is_empty());
-    assert_eq!(q.value(), 0);
-}
-
-#[test]
 fn test_queue_pop_be() {
     use bitstream_io::{BitSourceOnce, BitSourceRefill, BE};
 
@@ -111,30 +87,6 @@ fn test_queue_pop_be() {
     // value too large for 2 bits
     assert!(BitSourceOnce::<BE, u8>::new(2, 0b111u8).is_err());
     assert!(BitSourceOnce::<BE, u8>::new_fixed::<2>(0b111u8).is_err());
-}
-
-#[test]
-fn test_read_queue_le() {
-    use bitstream_io::{BitQueue, LE};
-    let mut q: BitQueue<LE, u32> = BitQueue::new();
-    assert!(q.is_empty());
-    assert_eq!(q.len(), 0);
-    q.push(8, 0b101_100_01);
-    assert_eq!(q.len(), 8);
-    assert_eq!(q.pop(2), 0b01);
-    assert_eq!(q.len(), 6);
-    assert_eq!(q.pop(3), 0b100);
-    assert_eq!(q.len(), 3);
-    q.push(8, 0b111_011_01);
-    assert_eq!(q.len(), 11);
-    assert_eq!(q.pop(5), 0b01_101);
-    assert_eq!(q.len(), 6);
-    assert_eq!(q.pop(3), 0b011);
-    q.push(8, 0b00111011);
-    q.push(8, 0b11000001);
-    assert_eq!(q.pop(19), 0b11000001_00111011_111);
-    assert!(q.is_empty());
-    assert_eq!(q.value(), 0);
 }
 
 #[test]
