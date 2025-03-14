@@ -115,10 +115,10 @@ pub mod read;
 pub mod write;
 pub use read::{
     BitRead, BitReader, ByteRead, ByteReader, FromBitStream, FromBitStreamWith, FromByteStream,
-    FromByteStreamWith, HuffmanRead,
+    FromByteStreamWith,
 };
 pub use write::{
-    BitCounter, BitRecorder, BitWrite, BitWriter, ByteWrite, ByteWriter, HuffmanWrite, ToBitStream,
+    BitCounter, BitRecorder, BitWrite, BitWriter, ByteWrite, ByteWriter, ToBitStream,
     ToBitStreamWith, ToByteStream, ToByteStreamWith,
 };
 
@@ -1436,6 +1436,18 @@ impl<E: Endianness, U: UnsignedNumeric> BitSourceRefill<E, U> {
         F: FnOnce() -> Result<U, G>,
     {
         E::pop_bit_refill(self, read_val)
+    }
+
+    /// Empties queue of all values
+    #[inline]
+    pub fn clear(&mut self) {
+        self.value = U::default();
+        self.bits = 0;
+    }
+
+    /// Returns total bits in the sink
+    pub fn len(&self) -> u32 {
+        self.bits
     }
 }
 

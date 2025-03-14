@@ -10,32 +10,30 @@ use std::io;
 
 #[test]
 fn test_huffman_errors() {
-    use bitstream_io::BE;
-
     let empty: Vec<(i32, Vec<u8>)> = Vec::new();
-    assert!(if let Err(err) = compile_read_tree::<BE, i32>(empty) {
+    assert!(if let Err(err) = compile_read_tree::<i32>(empty) {
         err == HuffmanTreeError::MissingLeaf
     } else {
         false
     });
 
     assert!(
-        if let Err(err) = compile_read_tree::<BE, u32>(vec![(0u32, vec![0, 1, 2])]) {
+        if let Err(err) = compile_read_tree::<u32>(vec![(0u32, vec![0, 1, 2])]) {
             err == HuffmanTreeError::InvalidBit
         } else {
             false
         }
     );
 
-    assert!(if let Err(err) =
-        compile_read_tree::<BE, u32>(vec![(0u32, vec![1]), (1u32, vec![0, 1])])
-    {
-        err == HuffmanTreeError::MissingLeaf
-    } else {
-        false
-    });
+    assert!(
+        if let Err(err) = compile_read_tree::<u32>(vec![(0u32, vec![1]), (1u32, vec![0, 1])]) {
+            err == HuffmanTreeError::MissingLeaf
+        } else {
+            false
+        }
+    );
 
-    assert!(if let Err(err) = compile_read_tree::<BE, u32>(vec![
+    assert!(if let Err(err) = compile_read_tree::<u32>(vec![
         (0u32, vec![1]),
         (1u32, vec![0, 1]),
         (2u32, vec![0, 0]),
@@ -46,7 +44,7 @@ fn test_huffman_errors() {
         false
     });
 
-    assert!(if let Err(err) = compile_read_tree::<BE, u32>(vec![
+    assert!(if let Err(err) = compile_read_tree::<u32>(vec![
         (0u32, vec![1]),
         (1u32, vec![0]),
         (2u32, vec![0, 0]),
@@ -58,7 +56,7 @@ fn test_huffman_errors() {
     });
 
     assert!(
-        if let Err(err) = compile_write_tree::<BE, u32>(vec![(0, vec![1, 1, 2])]) {
+        if let Err(err) = compile_write_tree::<u32>(vec![(0, vec![1, 1, 2])]) {
             err == HuffmanTreeError::InvalidBit
         } else {
             false
@@ -69,11 +67,8 @@ fn test_huffman_errors() {
 #[test]
 fn test_huffman_values() {
     use bitstream_io::huffman::compile_read_tree;
-    use bitstream_io::{BigEndian, BitReader, HuffmanRead};
+    use bitstream_io::{BigEndian, BitRead, BitReader};
     use io::Cursor;
-
-    use alloc::rc::Rc;
-    use core::ops::Deref;
 
     let data = [0xB1, 0xED];
 
@@ -86,33 +81,32 @@ fn test_huffman_values() {
     ])
     .unwrap();
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read_huffman(&tree).unwrap(), Some(1));
-    assert_eq!(r.read_huffman(&tree).unwrap(), Some(2));
-    assert_eq!(r.read_huffman(&tree).unwrap(), Some(0));
-    assert_eq!(r.read_huffman(&tree).unwrap(), Some(0));
-    assert_eq!(r.read_huffman(&tree).unwrap(), None);
+    assert_eq!(r.read_huffman(&tree).unwrap().clone(), Some(1));
+    assert_eq!(r.read_huffman(&tree).unwrap().clone(), Some(2));
+    assert_eq!(r.read_huffman(&tree).unwrap().clone(), Some(0));
+    assert_eq!(r.read_huffman(&tree).unwrap().clone(), Some(0));
+    assert_eq!(r.read_huffman(&tree).unwrap().clone(), None);
 
-    // we can even lookup potentially large values,
-    // preferably using Rc to avoid making copies of each one
     let tree = compile_read_tree(vec![
-        (Rc::new("foo".to_owned()), vec![0]),
-        (Rc::new("bar".to_owned()), vec![1, 0]),
-        (Rc::new("baz".to_owned()), vec![1, 1, 0]),
-        (Rc::new("kelp".to_owned()), vec![1, 1, 1]),
+        ("foo", vec![0]),
+        ("bar", vec![1, 0]),
+        ("baz", vec![1, 1, 0]),
+        ("kelp", vec![1, 1, 1]),
     ])
     .unwrap();
+
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "bar");
-    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "baz");
-    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "foo");
-    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "foo");
-    assert_eq!(r.read_huffman(&tree).unwrap().deref(), "kelp");
+    assert_eq!(r.read_huffman(&tree).unwrap(), &"bar");
+    assert_eq!(r.read_huffman(&tree).unwrap(), &"baz");
+    assert_eq!(r.read_huffman(&tree).unwrap(), &"foo");
+    assert_eq!(r.read_huffman(&tree).unwrap(), &"foo");
+    assert_eq!(r.read_huffman(&tree).unwrap(), &"kelp");
 }
 
 #[test]
 fn test_lengthy_huffman_values() {
     use bitstream_io::huffman::{compile_read_tree, compile_write_tree};
-    use bitstream_io::{BitReader, BitWrite, BitWriter, HuffmanRead, HuffmanWrite, BE, LE};
+    use bitstream_io::{BitRead, BitReader, BitWrite, BitWriter, BE, LE};
     use io::Cursor;
 
     let max_bits = 70;
@@ -131,16 +125,16 @@ fn test_lengthy_huffman_values() {
     }
     spec.push((None, entry));
 
-    let read_tree_be = compile_read_tree::<BE, Option<i32>>(spec.clone()).unwrap();
-    let write_tree_be = compile_write_tree::<BE, Option<i32>>(spec.clone()).unwrap();
-    let read_tree_le = compile_read_tree::<LE, Option<i32>>(spec.clone()).unwrap();
-    let write_tree_le = compile_write_tree::<LE, Option<i32>>(spec).unwrap();
+    let read_tree_be = compile_read_tree::<Option<i32>>(spec.clone()).unwrap();
+    let write_tree_be = compile_write_tree::<Option<i32>>(spec.clone()).unwrap();
+    let read_tree_le = compile_read_tree::<Option<i32>>(spec.clone()).unwrap();
+    let write_tree_le = compile_write_tree::<Option<i32>>(spec).unwrap();
 
     let mut data_be = Vec::new();
     let mut data_le = Vec::new();
     {
-        let mut writer_be = BitWriter::new(&mut data_be);
-        let mut writer_le = BitWriter::new(&mut data_le);
+        let mut writer_be = BitWriter::<_, BE>::new(&mut data_be);
+        let mut writer_le = BitWriter::<_, LE>::new(&mut data_le);
         for _ in 0..20 {
             for bits in 0..max_bits {
                 writer_be.write_huffman(&write_tree_be, Some(bits)).unwrap();
@@ -153,12 +147,18 @@ fn test_lengthy_huffman_values() {
     {
         let mut cursor_be = Cursor::new(&data_be);
         let mut cursor_le = Cursor::new(&data_le);
-        let mut reader_be = BitReader::new(&mut cursor_be);
-        let mut reader_le = BitReader::new(&mut cursor_le);
+        let mut reader_be = BitReader::<_, BE>::new(&mut cursor_be);
+        let mut reader_le = BitReader::<_, LE>::new(&mut cursor_le);
         for _ in 0..20 {
             for bits in 0..max_bits {
-                assert_eq!(reader_be.read_huffman(&read_tree_be).unwrap(), Some(bits));
-                assert_eq!(reader_le.read_huffman(&read_tree_le).unwrap(), Some(bits));
+                assert_eq!(
+                    reader_be.read_huffman(&read_tree_be).unwrap().clone(),
+                    Some(bits)
+                );
+                assert_eq!(
+                    reader_le.read_huffman(&read_tree_le).unwrap().clone(),
+                    Some(bits)
+                );
             }
         }
     }

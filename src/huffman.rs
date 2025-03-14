@@ -12,28 +12,7 @@
 #![warn(missing_docs)]
 
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
-use core::{error::Error, fmt, marker::PhantomData};
-
-use super::{BitQueue, Endianness};
-
-/// A compiled Huffman tree element for use with the `read_huffman` method.
-/// Returned by `compile_read_tree`.
-///
-/// Compiled read trees are optimized for faster lookup
-/// and are therefore endian-specific.
-///
-/// In addition, each symbol in the source tree may occur many times
-/// in the compiled tree.  If symbols require a nontrivial amount of space,
-/// consider using reference counting so that they may be cloned
-/// more efficiently.
-pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
-    /// The final value and new reader state
-    Done(T, u8, u32, PhantomData<E>),
-    /// Another byte is necessary to determine final value
-    Continue(Box<[ReadHuffmanTree<E, T>]>),
-    /// An invalid reader state has been used
-    InvalidState,
-}
+use core::{error::Error, fmt};
 
 /// Given a vector of symbol/code pairs, compiles a Huffman tree
 /// for reading.
@@ -49,7 +28,7 @@ pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
 /// ```
 /// use bitstream_io::huffman::compile_read_tree;
 /// use bitstream_io::BigEndian;
-/// assert!(compile_read_tree::<BigEndian,i32>(
+/// assert!(compile_read_tree::<i32>(
 ///     vec![(1, vec![0]),
 ///          (2, vec![1, 0]),
 ///          (3, vec![1, 1])]).is_ok());
@@ -57,7 +36,7 @@ pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
 ///
 /// ```
 /// use std::io::{Read, Cursor};
-/// use bitstream_io::{BigEndian, BitReader, HuffmanRead};
+/// use bitstream_io::{BigEndian, BitReader, BitRead};
 /// use bitstream_io::huffman::compile_read_tree;
 /// let tree = compile_read_tree(
 ///     vec![('a', vec![0]),
@@ -67,72 +46,32 @@ pub enum ReadHuffmanTree<E: Endianness, T: Clone> {
 /// let data = [0b10110111];
 /// let mut cursor = Cursor::new(&data);
 /// let mut reader = BitReader::endian(&mut cursor, BigEndian);
-/// assert_eq!(reader.read_huffman(&tree).unwrap(), 'b');
-/// assert_eq!(reader.read_huffman(&tree).unwrap(), 'c');
-/// assert_eq!(reader.read_huffman(&tree).unwrap(), 'd');
+/// assert_eq!(reader.read_huffman(&tree).unwrap().clone(), 'b');
+/// assert_eq!(reader.read_huffman(&tree).unwrap().clone(), 'c');
+/// assert_eq!(reader.read_huffman(&tree).unwrap().clone(), 'd');
 /// ```
-pub fn compile_read_tree<E, T>(
+// pub fn compile_read_tree<E, T>(
+//     values: Vec<(T, Vec<u8>)>,
+// ) -> Result<Box<[ReadHuffmanTree<E, T>]>, HuffmanTreeError>
+// where
+//     E: Endianness,
+//     T: Clone,
+// {
+pub fn compile_read_tree<T>(
     values: Vec<(T, Vec<u8>)>,
-) -> Result<Box<[ReadHuffmanTree<E, T>]>, HuffmanTreeError>
-where
-    E: Endianness,
-    T: Clone,
-{
-    let tree = FinalHuffmanTree::new(values)?;
-
-    let mut result = Vec::with_capacity(256);
-    result.extend((0..256).map(|_| ReadHuffmanTree::InvalidState));
-    let queue = BitQueue::from_value(0, 0);
-    let i = queue.to_state();
-    result[i] = compile_queue(queue, &tree);
-    for bits in 1..8 {
-        for value in 0..(1 << bits) {
-            let queue = BitQueue::from_value(value, bits);
-            let i = queue.to_state();
-            result[i] = compile_queue(queue, &tree);
-        }
-    }
-    assert_eq!(result.len(), 256);
-    Ok(result.into_boxed_slice())
+) -> Result<FinalHuffmanTree<T>, HuffmanTreeError> {
+    FinalHuffmanTree::new(values)
 }
 
-fn compile_queue<E, T>(
-    mut queue: BitQueue<E, u8>,
-    tree: &FinalHuffmanTree<T>,
-) -> ReadHuffmanTree<E, T>
-where
-    E: Endianness,
-    T: Clone,
-{
-    match tree {
-        FinalHuffmanTree::Leaf(ref value) => {
-            let len = queue.len();
-            ReadHuffmanTree::Done(value.clone(), queue.value(), len, PhantomData)
-        }
-        FinalHuffmanTree::Tree(ref bit0, ref bit1) => {
-            if queue.is_empty() {
-                ReadHuffmanTree::Continue(
-                    (0..256)
-                        .map(|byte| compile_queue(BitQueue::from_value(byte as u8, 8), tree))
-                        .collect::<Vec<ReadHuffmanTree<E, T>>>()
-                        .into_boxed_slice(),
-                )
-            } else if queue.pop(1) == 0 {
-                compile_queue(queue, bit0)
-            } else {
-                compile_queue(queue, bit1)
-            }
-        }
-    }
-}
-
-// A complete Huffman tree with no empty nodes
-enum FinalHuffmanTree<T: Clone> {
+///usr A complete Huffman tree with no empty nodes
+pub enum FinalHuffmanTree<T> {
+    /// A Huffman tree leaf node
     Leaf(T),
+    /// A Huffman tree non-leaf node
     Tree(Box<FinalHuffmanTree<T>>, Box<FinalHuffmanTree<T>>),
 }
 
-impl<T: Clone> FinalHuffmanTree<T> {
+impl<T> FinalHuffmanTree<T> {
     fn new(values: Vec<(T, Vec<u8>)>) -> Result<FinalHuffmanTree<T>, HuffmanTreeError> {
         let mut tree = WipHuffmanTree::new_empty();
 
@@ -142,19 +81,40 @@ impl<T: Clone> FinalHuffmanTree<T> {
 
         tree.into_read_tree()
     }
+
+    /// Reads a value from the compiled Huffman tree
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    pub fn read<R: crate::BitRead + ?Sized>(&self, reader: &mut R) -> crate::io::Result<&T> {
+        let mut tree = self;
+
+        loop {
+            match tree {
+                Self::Leaf(t) => break Ok(t),
+                Self::Tree(bit_0, bit_1) => {
+                    tree = match reader.read_bit()? {
+                        false => bit_0,
+                        true => bit_1,
+                    };
+                }
+            }
+        }
+    }
 }
 
 // Work-in-progress trees may have empty nodes during construction
 // but those are not allowed in a finalized tree.
 // If the user wants some codes to be None or an error symbol of some sort,
 // those will need to be specified explicitly.
-enum WipHuffmanTree<T: Clone> {
+enum WipHuffmanTree<T> {
     Empty,
     Leaf(T),
     Tree(Box<WipHuffmanTree<T>>, Box<WipHuffmanTree<T>>),
 }
 
-impl<T: Clone> WipHuffmanTree<T> {
+impl<T> WipHuffmanTree<T> {
     fn new_empty() -> WipHuffmanTree<T> {
         WipHuffmanTree::Empty
     }
@@ -250,8 +210,7 @@ impl Error for HuffmanTreeError {}
 /// ## Examples
 /// ```
 /// use bitstream_io::huffman::compile_write_tree;
-/// use bitstream_io::BigEndian;
-/// assert!(compile_write_tree::<BigEndian,i32>(
+/// assert!(compile_write_tree::<i32>(
 ///     vec![(1, vec![0]),
 ///          (2, vec![1, 0]),
 ///          (3, vec![1, 1])]).is_ok());
@@ -259,7 +218,7 @@ impl Error for HuffmanTreeError {}
 ///
 /// ```
 /// use std::io::Write;
-/// use bitstream_io::{BigEndian, BitWriter, HuffmanWrite};
+/// use bitstream_io::{BigEndian, BitWriter, BitWrite};
 /// use bitstream_io::huffman::compile_write_tree;
 /// let tree = compile_write_tree(
 ///     vec![('a', vec![0]),
@@ -275,58 +234,46 @@ impl Error for HuffmanTreeError {}
 /// }
 /// assert_eq!(data, [0b10110111]);
 /// ```
-pub fn compile_write_tree<E, T>(
+pub fn compile_write_tree<T>(
     values: Vec<(T, Vec<u8>)>,
-) -> Result<WriteHuffmanTree<E, T>, HuffmanTreeError>
+) -> Result<WriteHuffmanTree<T>, HuffmanTreeError>
 where
-    E: Endianness,
-    T: Ord + Clone,
+    T: Ord,
 {
-    let mut map = BTreeMap::new();
-
-    for (symbol, code) in values {
-        let mut encoded = Vec::new();
-        for bits in code.chunks(32) {
-            let mut acc = BitQueue::<E, u32>::new();
-            for bit in bits {
-                match *bit {
-                    0 => acc.push(1, 0),
-                    1 => acc.push(1, 1),
-                    _ => return Err(HuffmanTreeError::InvalidBit),
-                }
-            }
-            let len = acc.len();
-            encoded.push((len, acc.value()))
-        }
-        map.entry(symbol)
-            .or_insert_with(|| encoded.into_boxed_slice());
-    }
-
-    Ok(WriteHuffmanTree {
-        map,
-        phantom: PhantomData,
-    })
+    values
+        .into_iter()
+        .map(|(symbol, bits)| {
+            bits.into_iter()
+                .map(|bit| match bit {
+                    0 => Ok(false),
+                    1 => Ok(true),
+                    _ => Err(HuffmanTreeError::InvalidBit),
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(|bits| (symbol, bits.into_boxed_slice()))
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()
+        .map(|map| WriteHuffmanTree { map })
 }
 
 /// A compiled Huffman tree for use with the `write_huffman` method.
 /// Returned by `compiled_write_tree`.
-pub struct WriteHuffmanTree<E: Endianness, T: Ord> {
-    map: BTreeMap<T, Box<[(u32, u32)]>>,
-    phantom: PhantomData<E>,
+pub struct WriteHuffmanTree<T: Ord> {
+    map: BTreeMap<T, Box<[bool]>>,
 }
 
-impl<E: Endianness, T: Ord + Clone> WriteHuffmanTree<E, T> {
+impl<T: Ord> WriteHuffmanTree<T> {
     /// Returns true if symbol is in tree.
     #[inline]
     pub fn has_symbol(&self, symbol: &T) -> bool {
         self.map.contains_key(symbol)
     }
 
-    /// Given symbol, returns iterator of
-    /// (bits, value) pairs for writing code.
+    /// Given symbol, returns iterator of bits for writing code.
+    ///
+    /// # Panics
     /// Panics if symbol is not found.
-    #[inline]
-    pub fn get(&self, symbol: &T) -> impl Iterator<Item = &(u32, u32)> {
-        self.map[symbol].iter()
+    pub fn get(&self, symbol: &T) -> impl Iterator<Item = bool> + use<'_, T> {
+        self.map[symbol].iter().copied()
     }
 }
