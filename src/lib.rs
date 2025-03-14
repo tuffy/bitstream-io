@@ -850,6 +850,7 @@ impl Endianness for BigEndian {
         }
     }
 
+    #[inline]
     fn push_bit_once_fixed<const B: u32, U>(
         mut queue: BitSinkOnceFixed<B, Self, U>,
         bit: bool,
@@ -1185,6 +1186,7 @@ impl Endianness for LittleEndian {
         }
     }
 
+    #[inline]
     fn push_bit_once_fixed<const B: u32, U>(
         mut queue: BitSinkOnceFixed<B, Self, U>,
         bit: bool,
