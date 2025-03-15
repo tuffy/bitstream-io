@@ -320,7 +320,9 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn skip(&mut self, bits: u32) -> io::Result<()>;
+    fn skip(&mut self, bits: u32) -> io::Result<()> {
+        (0..bits).try_for_each(|_| self.read_bit().map(|_| ()))
+    }
 
     /// Completely fills the given buffer with whole bytes.
     /// If the stream is already byte-aligned, it will map
@@ -762,7 +764,11 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert_eq!(reader.read::<u8>(5).unwrap(), 0b10110);
     /// ```
     fn skip(&mut self, bits: u32) -> io::Result<()> {
-        (0..bits).try_for_each(|_| self.read_bit().map(|_| ()))
+        if self.byte_aligned() && bits % 8 == 0 {
+            skip_aligned(self.reader.by_ref(), bits / 8)
+        } else {
+            (0..bits).try_for_each(|_| self.read_bit().map(|_| ()))
+        }
     }
 
     /// # Example
@@ -906,19 +912,29 @@ where
         .map(|()| byte)
 }
 
-fn skip_aligned<R>(mut reader: R, mut bytes: u32) -> io::Result<()>
+fn skip_aligned<R>(reader: R, bytes: u32) -> io::Result<()>
 where
     R: io::Read,
 {
-    /*skip up to 8 bytes at a time
-    (unlike with read_aligned, "bytes" may be larger than any native type)*/
-    let mut buf = [0; 8];
-    while bytes > 0 {
-        let to_read = bytes.min(8);
-        reader.read_exact(&mut buf[0..to_read as usize])?;
-        bytes -= to_read;
+    fn skip_chunks<const SIZE: usize, R>(mut reader: R, mut bytes: usize) -> io::Result<()>
+    where
+        R: io::Read,
+    {
+        let mut buf = [0; SIZE];
+        while bytes > 0 {
+            let to_read = bytes.min(SIZE);
+            reader.read_exact(&mut buf[0..to_read])?;
+            bytes -= to_read;
+        }
+        Ok(())
     }
-    Ok(())
+
+    match bytes {
+        0..256 => skip_chunks::<8, R>(reader, bytes as usize),
+        256..1024 => skip_chunks::<256, R>(reader, bytes as usize),
+        1024..4096 => skip_chunks::<1024, R>(reader, bytes as usize),
+        _ => skip_chunks::<4096, R>(reader, bytes as usize),
+    }
 }
 
 /// A trait for anything that can read aligned values from an input stream
