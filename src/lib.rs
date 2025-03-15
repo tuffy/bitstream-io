@@ -621,6 +621,40 @@ pub trait Endianness: Sized {
         U: UnsignedNumeric,
         F: FnOnce() -> Result<U, E>;
 
+    /// Pops the next unary value from the source until
+    /// `STOP_BIT` is encountered, replenishing it from the given
+    /// closure if necessary.
+    ///
+    /// `STOP_BIT` must be 0 or 1.
+    fn pop_unary<const STOP_BIT: u8, U, F, E>(
+        queue: &mut BitSourceRefill<Self, U>,
+        mut read_val: F,
+    ) -> Result<u32, E>
+    where
+        U: UnsignedNumeric,
+        F: FnMut() -> Result<U, E>,
+    {
+        // FIXME - optimize this for different endianness-es
+
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
+
+        let mut bits = 0;
+
+        while Self::pop_bit_refill(queue, || read_val())?
+            != match STOP_BIT {
+                0 => false,
+                1 => true,
+                _ => unreachable!(),
+            }
+        {
+            bits += 1;
+        }
+
+        Ok(bits)
+    }
+
     /// Pushes the next bit into the queue,
     /// and returns `Some` value if the queue is full.
     fn push_bit_flush<U>(queue: &mut BitSinkFlush<Self, U>, bit: bool) -> Option<U>
@@ -1203,13 +1237,26 @@ impl<E: Endianness, U: UnsignedNumeric> BitSourceRefill<E, U> {
     }
 
     /// Pops the next bit from the source,
-    /// repleneshing it from the given closure if necessary.
+    /// replenishing it from the given closure if necessary.
     #[inline(always)]
     pub fn pop_bit<F, G>(&mut self, read_val: F) -> Result<bool, G>
     where
         F: FnOnce() -> Result<U, G>,
     {
         E::pop_bit_refill(self, read_val)
+    }
+
+    /// Pops the next unary value from the source until
+    /// `STOP_BIT` is encountered, replenishing it from the given
+    /// closure if necessary.
+    ///
+    /// `STOP_BIT` must be 0 or 1.
+    #[inline(always)]
+    pub fn pop_unary<const STOP_BIT: u8, F, G>(&mut self, read_val: F) -> Result<u32, G>
+    where
+        F: FnMut() -> Result<U, G>,
+    {
+        E::pop_unary::<STOP_BIT, U, F, G>(self, read_val)
     }
 
     /// Empties queue of all values

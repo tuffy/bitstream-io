@@ -90,6 +90,77 @@ fn test_queue_pop_be() {
 }
 
 #[test]
+fn test_queue_unary_be() {
+    use bitstream_io::{BitSourceRefill, BE};
+
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b00000000)),
+        Ok(0),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b10000000)),
+        Ok(1),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b11000000)),
+        Ok(2),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b11100000)),
+        Ok(3),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b11110000)),
+        Ok(4),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b11111000)),
+        Ok(5),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b11111100)),
+        Ok(6),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b11111110)),
+        Ok(7),
+    );
+
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b11111111)),
+        Ok(0),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b01111111)),
+        Ok(1),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b00111111)),
+        Ok(2),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b00011111)),
+        Ok(3),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b00001111)),
+        Ok(4),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b00000111)),
+        Ok(5),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b00000011)),
+        Ok(6),
+    );
+    assert_eq!(
+        BitSourceRefill::<BE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b00000001)),
+        Ok(7),
+    );
+}
+
+#[test]
 fn test_queue_pop_le() {
     use bitstream_io::{BitSourceOnce, BitSourceRefill, LE};
 
@@ -163,6 +234,77 @@ fn test_queue_pop_le() {
     // value too large for 2 bits
     assert!(BitSourceOnce::<LE, u8>::new(2, 0b111u8).is_err());
     assert!(BitSourceOnce::<LE, u8>::new_fixed::<2>(0b111u8).is_err());
+}
+
+#[test]
+fn test_queue_unary_le() {
+    use bitstream_io::{BitSourceRefill, LE};
+
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b00000000)),
+        Ok(0),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b00000001)),
+        Ok(1),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b00000011)),
+        Ok(2),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b00000111)),
+        Ok(3),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b00001111)),
+        Ok(4),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b00011111)),
+        Ok(5),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b00111111)),
+        Ok(6),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<0, _, _>(|| Ok::<_, ()>(0b01111111)),
+        Ok(7),
+    );
+
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b11111111)),
+        Ok(0),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b11111110)),
+        Ok(1),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b11111100)),
+        Ok(2),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b11111000)),
+        Ok(3),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b11110000)),
+        Ok(4),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b11100000)),
+        Ok(5),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b11000000)),
+        Ok(6),
+    );
+    assert_eq!(
+        BitSourceRefill::<LE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b10000000)),
+        Ok(7),
+    );
 }
 
 #[test]
