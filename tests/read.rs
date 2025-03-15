@@ -158,6 +158,41 @@ fn test_queue_unary_be() {
         BitSourceRefill::<BE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b00000001)),
         Ok(7),
     );
+
+    // unary value that spans bytes
+    let mut r = BitSourceRefill::<BE, u8>::default();
+    assert_eq!(r.pop_bit(|| Ok::<_, ()>(0b11111111)), Ok(true));
+    assert_eq!(
+        r.pop_unary::<0, _, _>(|| Ok::<_, ()>(0b11111101)),
+        Ok(7 + 6)
+    );
+    assert_eq!(r.pop_bit(|| panic!()), Ok::<_, ()>(true));
+
+    let mut r = BitSourceRefill::<BE, u8>::default();
+    assert_eq!(r.pop_bit(|| Ok::<_, ()>(0b00000000)), Ok(false));
+    assert_eq!(
+        r.pop_unary::<1, _, _>(|| Ok::<_, ()>(0b00000010)),
+        Ok(7 + 6)
+    );
+    assert_eq!(r.pop_bit(|| panic!()), Ok::<_, ()>(false));
+
+    let mut bytes = vec![0b11111111, 0b11111111, 0b11111101];
+    let mut r = BitSourceRefill::<BE, u8>::default();
+    assert_eq!(r.pop_bit(|| Ok::<u8, ()>(bytes.remove(0))), Ok(true));
+    assert_eq!(
+        r.pop_unary::<0, _, _>(|| Ok::<u8, ()>(bytes.remove(0))),
+        Ok(7 + 8 + 6)
+    );
+    assert_eq!(r.pop_bit(|| Ok::<u8, ()>(bytes.remove(0))), Ok(true));
+
+    let mut bytes = vec![0b00000000, 0b00000000, 0b00000010];
+    let mut r = BitSourceRefill::<BE, u8>::default();
+    assert_eq!(r.pop_bit(|| Ok::<u8, ()>(bytes.remove(0))), Ok(false));
+    assert_eq!(
+        r.pop_unary::<1, _, _>(|| Ok::<u8, ()>(bytes.remove(0))),
+        Ok(7 + 8 + 6)
+    );
+    assert_eq!(r.pop_bit(|| Ok::<u8, ()>(bytes.remove(0))), Ok(false));
 }
 
 #[test]
@@ -305,6 +340,41 @@ fn test_queue_unary_le() {
         BitSourceRefill::<LE, u8>::default().pop_unary::<1, _, _>(|| Ok::<_, ()>(0b10000000)),
         Ok(7),
     );
+
+    // unary value that spans bytes
+    let mut r = BitSourceRefill::<LE, u8>::default();
+    assert_eq!(r.pop_bit(|| Ok::<_, ()>(0b11111111)), Ok(true));
+    assert_eq!(
+        r.pop_unary::<0, _, _>(|| Ok::<_, ()>(0b10111111)),
+        Ok(7 + 6)
+    );
+    assert_eq!(r.pop_bit(|| panic!()), Ok::<_, ()>(true));
+
+    let mut r = BitSourceRefill::<LE, u8>::default();
+    assert_eq!(r.pop_bit(|| Ok::<_, ()>(0b00000000)), Ok(false));
+    assert_eq!(
+        r.pop_unary::<1, _, _>(|| Ok::<_, ()>(0b01000000)),
+        Ok(7 + 6)
+    );
+    assert_eq!(r.pop_bit(|| panic!()), Ok::<_, ()>(false));
+
+    let mut bytes = vec![0b11111111, 0b11111111, 0b10111111];
+    let mut r = BitSourceRefill::<LE, u8>::default();
+    assert_eq!(r.pop_bit(|| Ok::<u8, ()>(bytes.remove(0))), Ok(true));
+    assert_eq!(
+        r.pop_unary::<0, _, _>(|| Ok::<u8, ()>(bytes.remove(0))),
+        Ok(7 + 8 + 6)
+    );
+    assert_eq!(r.pop_bit(|| Ok::<u8, ()>(bytes.remove(0))), Ok(true));
+
+    let mut bytes = vec![0b00000000, 0b00000000, 0b01000000];
+    let mut r = BitSourceRefill::<LE, u8>::default();
+    assert_eq!(r.pop_bit(|| Ok::<u8, ()>(bytes.remove(0))), Ok(false));
+    assert_eq!(
+        r.pop_unary::<1, _, _>(|| Ok::<u8, ()>(bytes.remove(0))),
+        Ok(7 + 8 + 6)
+    );
+    assert_eq!(r.pop_bit(|| Ok::<u8, ()>(bytes.remove(0))), Ok(false));
 }
 
 #[test]

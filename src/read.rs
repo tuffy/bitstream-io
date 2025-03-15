@@ -787,6 +787,14 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
         }
     }
 
+    fn read_unary<const STOP_BIT: u8>(&mut self) -> io::Result<u32> {
+        let Self {
+            bitqueue,
+            ref mut reader,
+        } = self;
+        bitqueue.pop_unary::<STOP_BIT, _, _>(|| read_byte(reader.by_ref()))
+    }
+
     /// # Example
     /// ```
     /// use std::io::{Read, Cursor};

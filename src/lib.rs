@@ -303,8 +303,20 @@ pub trait Numeric:
     /// Counts the number of leading zeros
     fn leading_zeros(self) -> u32;
 
+    /// Counts the number of leading ones
+    fn leading_ones(self) -> u32;
+
     /// Counts the number of trailing zeros
     fn trailing_zeros(self) -> u32;
+
+    /// Counts the number of trailing ones
+    fn trailing_ones(self) -> u32;
+
+    /// Checked shift left
+    fn checked_shl(self, rhs: u32) -> Option<Self>;
+
+    /// Checked shift right
+    fn checked_shr(self, rhs: u32) -> Option<Self>;
 }
 
 macro_rules! define_numeric {
@@ -339,8 +351,24 @@ macro_rules! define_numeric {
                 self.leading_zeros()
             }
             #[inline(always)]
+            fn leading_ones(self) -> u32 {
+                self.leading_ones()
+            }
+            #[inline(always)]
             fn trailing_zeros(self) -> u32 {
                 self.trailing_zeros()
+            }
+            #[inline(always)]
+            fn trailing_ones(self) -> u32 {
+                self.trailing_ones()
+            }
+            #[inline(always)]
+            fn checked_shl(self, rhs: u32) -> Option<Self> {
+                self.checked_shl(rhs)
+            }
+            #[inline(always)]
+            fn checked_shr(self, rhs: u32) -> Option<Self> {
+                self.checked_shr(rhs)
             }
         }
     };
@@ -628,32 +656,11 @@ pub trait Endianness: Sized {
     /// `STOP_BIT` must be 0 or 1.
     fn pop_unary<const STOP_BIT: u8, U, F, E>(
         queue: &mut BitSourceRefill<Self, U>,
-        mut read_val: F,
+        read_val: F,
     ) -> Result<u32, E>
     where
         U: UnsignedNumeric,
-        F: FnMut() -> Result<U, E>,
-    {
-        // FIXME - optimize this for different endianness-es
-
-        const {
-            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
-        }
-
-        let mut bits = 0;
-
-        while Self::pop_bit_refill(queue, || read_val())?
-            != match STOP_BIT {
-                0 => false,
-                1 => true,
-                _ => unreachable!(),
-            }
-        {
-            bits += 1;
-        }
-
-        Ok(bits)
-    }
+        F: FnMut() -> Result<U, E>;
 
     /// Pushes the next bit into the queue,
     /// and returns `Some` value if the queue is full.
@@ -813,6 +820,35 @@ impl Endianness for BigEndian {
             queue.bits -= 1;
             msb
         } != U::ZERO)
+    }
+
+    fn pop_unary<const STOP_BIT: u8, U, F, E>(
+        queue: &mut BitSourceRefill<Self, U>,
+        read_val: F,
+    ) -> Result<u32, E>
+    where
+        U: UnsignedNumeric,
+        F: FnMut() -> Result<U, E>,
+    {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
+
+        match STOP_BIT {
+            0 => queue.find_unary(
+                |v| v.leading_ones(),
+                |q| q.bits,
+                |v, b| v.checked_shl(b),
+                read_val,
+            ),
+            1 => queue.find_unary(
+                |v| v.leading_zeros(),
+                |_| U::BITS_SIZE,
+                |v, b| v.checked_shl(b),
+                read_val,
+            ),
+            _ => unreachable!(),
+        }
     }
 
     #[inline]
@@ -1055,6 +1091,37 @@ impl Endianness for LittleEndian {
         } != U::ZERO)
     }
 
+    fn pop_unary<const STOP_BIT: u8, U, F, E>(
+        queue: &mut BitSourceRefill<Self, U>,
+        read_val: F,
+    ) -> Result<u32, E>
+    where
+        U: UnsignedNumeric,
+        F: FnMut() -> Result<U, E>,
+    {
+        // FIXME - optimize this for different endianness-es
+
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
+
+        match STOP_BIT {
+            0 => queue.find_unary(
+                |v| v.trailing_ones(),
+                |q| q.bits,
+                |v, b| v.checked_shr(b),
+                read_val,
+            ),
+            1 => queue.find_unary(
+                |v| v.trailing_zeros(),
+                |_| U::BITS_SIZE,
+                |v, b| v.checked_shr(b),
+                read_val,
+            ),
+            _ => unreachable!(),
+        }
+    }
+
     #[inline]
     fn push_bit_flush<U>(queue: &mut BitSinkFlush<Self, U>, bit: bool) -> Option<U>
     where
@@ -1269,6 +1336,48 @@ impl<E: Endianness, U: UnsignedNumeric> BitSourceRefill<E, U> {
     /// Returns total bits in the sink
     pub fn len(&self) -> u32 {
         self.bits
+    }
+
+    fn find_unary<L, M, S, F, G>(
+        &mut self,
+        leading_bits: L,
+        max_bits: M,
+        checked_shift: S,
+        mut read_val: F,
+    ) -> Result<u32, G>
+    where
+        L: Fn(U) -> u32,
+        M: Fn(&Self) -> u32,
+        S: Fn(U, u32) -> Option<U>,
+        F: FnMut() -> Result<U, G>,
+    {
+        let mut acc = 0;
+
+        loop {
+            match leading_bits(self.value) {
+                bits if bits == max_bits(self) => {
+                    // all bits exhausted
+                    // fetch another byte and keep going
+                    acc += self.bits;
+                    self.value = read_val()?;
+                    self.bits = U::BITS_SIZE;
+                }
+                bits => match checked_shift(self.value, bits + 1) {
+                    Some(value) => {
+                        // fetch part of source byte
+                        self.value = value;
+                        self.bits -= bits + 1;
+                        break Ok(acc + bits);
+                    }
+                    None => {
+                        // fetch all of source byte
+                        self.value = U::default();
+                        self.bits = 0;
+                        break Ok(acc + bits);
+                    }
+                },
+            }
+        }
     }
 }
 
