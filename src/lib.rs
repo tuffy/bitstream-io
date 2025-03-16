@@ -635,9 +635,13 @@ pub trait Endianness: Sized {
         U: UnsignedNumeric;
 
     /// Pops the next bit from the queue, if available.
-    fn pop_bit_once<U>(queue: &mut BitSourceOnce<Self, U>) -> Option<bool>
+    #[inline]
+    fn pop_bit_once<U>(BitSourceOnce(queue): &mut BitSourceOnce<Self, U>) -> Option<bool>
     where
-        U: UnsignedNumeric;
+        U: UnsignedNumeric,
+    {
+        Self::pop_bit_refill(queue, || Err(())).ok()
+    }
 
     /// Pops the next bit from the queue,
     /// repleneshing it from the given closure if necessary
@@ -754,11 +758,11 @@ impl Endianness for BigEndian {
                     "excessive bits for type written",
                 ))?)
         {
-            Ok(BitSourceOnce {
+            Ok(BitSourceOnce(BitSourceRefill {
                 phantom: PhantomData,
                 value: value << (U::BITS_SIZE - bits),
                 bits,
-            })
+            }))
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -776,30 +780,16 @@ impl Endianness for BigEndian {
         }
 
         if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
-            Ok(BitSourceOnce {
+            Ok(BitSourceOnce(BitSourceRefill {
                 phantom: PhantomData,
                 value: value << (U::BITS_SIZE - BITS),
                 bits: BITS,
-            })
+            }))
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive value for bits written",
             ))
-        }
-    }
-
-    fn pop_bit_once<U>(queue: &mut BitSourceOnce<Self, U>) -> Option<bool>
-    where
-        U: UnsignedNumeric,
-    {
-        if queue.is_empty() {
-            None
-        } else {
-            let msb = queue.value & U::MSB_BIT;
-            queue.value <<= 1;
-            queue.bits -= 1;
-            Some(msb != U::ZERO)
         }
     }
 
@@ -1023,11 +1013,11 @@ impl Endianness for LittleEndian {
                     "excessive bits for type written",
                 ))?)
         {
-            Ok(BitSourceOnce {
+            Ok(BitSourceOnce(BitSourceRefill {
                 phantom: PhantomData,
                 value,
                 bits,
-            })
+            }))
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -1045,30 +1035,16 @@ impl Endianness for LittleEndian {
         }
 
         if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
-            Ok(BitSourceOnce {
+            Ok(BitSourceOnce(BitSourceRefill {
                 phantom: PhantomData,
                 value,
                 bits: BITS,
-            })
+            }))
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive value for bits written",
             ))
-        }
-    }
-
-    fn pop_bit_once<U>(queue: &mut BitSourceOnce<Self, U>) -> Option<bool>
-    where
-        U: UnsignedNumeric,
-    {
-        if queue.is_empty() {
-            None
-        } else {
-            let lsb = queue.value & U::LSB_BIT;
-            queue.value >>= 1;
-            queue.bits -= 1;
-            Some(lsb != U::ZERO)
         }
     }
 
@@ -1379,13 +1355,7 @@ impl<E: Endianness, U: UnsignedNumeric> BitSourceRefill<E, U> {
 ///
 /// This is useful to for bitstream writers so that
 /// partial bits can be pulled from an input value until empty.
-pub struct BitSourceOnce<E: Endianness, U: UnsignedNumeric> {
-    phantom: PhantomData<E>,
-    // the current value in the source
-    value: U,
-    // the bits remaining in the source
-    bits: u32,
-}
+pub struct BitSourceOnce<E: Endianness, U: UnsignedNumeric>(BitSourceRefill<E, U>);
 
 impl<E: Endianness, U: UnsignedNumeric> BitSourceOnce<E, U> {
     /// Creates a new `BitSource` with the given bits and value.
@@ -1415,7 +1385,7 @@ impl<E: Endianness, U: UnsignedNumeric> BitSourceOnce<E, U> {
     /// Returns true if source is empty.
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
-        self.bits == 0
+        self.0.is_empty()
     }
 
     /// Pops the next bit from the source, if available.
