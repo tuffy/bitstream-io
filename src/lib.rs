@@ -1338,19 +1338,13 @@ impl<E: Endianness, U: UnsignedNumeric> BitSourceRefill<E, U> {
         self.bits
     }
 
-    fn find_unary<L, M, S, F, G>(
+    fn find_unary<G>(
         &mut self,
-        leading_bits: L,
-        max_bits: M,
-        checked_shift: S,
-        mut read_val: F,
-    ) -> Result<u32, G>
-    where
-        L: Fn(U) -> u32,
-        M: Fn(&Self) -> u32,
-        S: Fn(U, u32) -> Option<U>,
-        F: FnMut() -> Result<U, G>,
-    {
+        leading_bits: impl Fn(U) -> u32,
+        max_bits: impl Fn(&Self) -> u32,
+        checked_shift: impl Fn(U, u32) -> Option<U>,
+        mut read_val: impl FnMut() -> Result<U, G>,
+    ) -> Result<u32, G> {
         let mut acc = 0;
 
         loop {
