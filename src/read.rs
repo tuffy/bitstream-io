@@ -179,7 +179,7 @@ use alloc::{vec, vec::Vec};
 use std::io;
 
 use super::{
-    huffman::FinalHuffmanTree, BitSourceRefill, Endianness, Integer, PhantomData, Primitive,
+    huffman::HuffmanReadTree, BitSourceRefill, Endianness, Integer, PhantomData, Primitive,
     SignedNumeric, UnsignedNumeric,
 };
 
@@ -441,7 +441,7 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn read_huffman<'h, T>(&mut self, tree: &'h FinalHuffmanTree<T>) -> io::Result<&'h T> {
+    fn read_huffman<'h, T>(&mut self, tree: &'h HuffmanReadTree<T>) -> io::Result<&'h T> {
         tree.read(self)
     }
 }

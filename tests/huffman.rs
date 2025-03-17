@@ -70,7 +70,7 @@ fn test_huffman_values() {
     use bitstream_io::{BigEndian, BitRead, BitReader};
     use io::Cursor;
 
-    let data = [0xB1, 0xED];
+    let data = [0b10110001, 0b11101101];
 
     // we can lookup values that aren't just integers also
     let tree = compile_read_tree(vec![
