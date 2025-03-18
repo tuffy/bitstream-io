@@ -35,7 +35,7 @@ fn test_queue_push_be() {
 
     assert!(matches!(
         bits.iter()
-            .try_fold(BitSinkOnce::<BE, u8>::new(8).unwrap(), |acc, b| acc
+            .try_fold(BitSinkOnce::<BE, u8>::new(8.into()).unwrap(), |acc, b| acc
                 .push_bit(*b)),
         ControlFlow::Break(0b10110001)
     ));
@@ -50,7 +50,7 @@ fn test_queue_push_be() {
     assert!(matches!(
         bits.iter()
             .skip(1)
-            .try_fold(BitSinkOnce::<BE, u8>::new(7).unwrap(), |acc, b| acc
+            .try_fold(BitSinkOnce::<BE, u8>::new(7.into()).unwrap(), |acc, b| acc
                 .push_bit(*b)),
         ControlFlow::Break(0b0110001)
     ));
@@ -66,7 +66,7 @@ fn test_queue_push_be() {
     assert!(matches!(
         bits.iter()
             .skip(6)
-            .try_fold(BitSinkOnce::<BE, u8>::new(2).unwrap(), |acc, b| acc
+            .try_fold(BitSinkOnce::<BE, u8>::new(2.into()).unwrap(), |acc, b| acc
                 .push_bit(*b)),
         ControlFlow::Break(0b01)
     ));
@@ -80,7 +80,7 @@ fn test_queue_push_be() {
     ));
 
     // too many bits for a u8
-    assert!(BitSinkOnce::<BE, u8>::new(9).is_err());
+    assert!(BitSinkOnce::<BE, u8>::new(9.into()).is_err());
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn test_queue_push_le() {
 
     assert!(matches!(
         bits.iter()
-            .try_fold(BitSinkOnce::<LE, u8>::new(8).unwrap(), |acc, b| acc
+            .try_fold(BitSinkOnce::<LE, u8>::new(8.into()).unwrap(), |acc, b| acc
                 .push_bit(*b)),
         ControlFlow::Break(0b10110001)
     ));
@@ -116,7 +116,7 @@ fn test_queue_push_le() {
 
     assert!(matches!(
         bits.iter()
-            .try_fold(BitSinkOnce::<LE, u8>::new(7).unwrap(), |acc, b| acc
+            .try_fold(BitSinkOnce::<LE, u8>::new(7.into()).unwrap(), |acc, b| acc
                 .push_bit(*b)),
         ControlFlow::Break(0b0110001)
     ));
@@ -130,7 +130,7 @@ fn test_queue_push_le() {
 
     assert!(matches!(
         bits.iter()
-            .try_fold(BitSinkOnce::<LE, u8>::new(2).unwrap(), |acc, b| acc
+            .try_fold(BitSinkOnce::<LE, u8>::new(2.into()).unwrap(), |acc, b| acc
                 .push_bit(*b)),
         ControlFlow::Break(0b01)
     ));
@@ -143,7 +143,7 @@ fn test_queue_push_le() {
     ));
 
     // too many bits for a u8
-    assert!(BitSinkOnce::<LE, u8>::new(9).is_err());
+    assert!(BitSinkOnce::<LE, u8>::new(9.into()).is_err());
 }
 
 #[test]
