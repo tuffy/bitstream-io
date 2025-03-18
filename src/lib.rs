@@ -103,7 +103,7 @@ extern crate std;
 use core2::io;
 
 use core::ops::{
-    BitAnd, BitOr, BitOrAssign, BitXor, ControlFlow, Not, Rem, RemAssign, Shl, ShlAssign, Shr,
+    BitAnd, BitOr, BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr,
     ShrAssign, Sub,
 };
 use core::{fmt::Debug, marker::PhantomData, mem};
@@ -675,43 +675,150 @@ pub trait Endianness: Sized {
     where
         U: UnsignedNumeric;
 
-    /// Pushes the next bit into the queue,
-    /// returning a whole value once the sink is full.
-    fn push_bit_once<U>(
-        queue: BitSinkOnce<Self, U>,
-        bit: bool,
-    ) -> ControlFlow<U, BitSinkOnce<Self, U>>
+    /// For extracting multiple bits from a source
+    fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
         U: UnsignedNumeric;
 
-    /// Pushes the next bit into the queue,
-    /// returning a whole value once the sink is full.
-    fn push_bit_once_fixed<const B: u32, U>(
-        queue: BitSinkOnceFixed<B, Self, U>,
-        bit: bool,
-    ) -> ControlFlow<U, BitSinkOnceFixed<B, Self, U>>
+    /// For extracting all bits from a source
+    /// Returns value and value's bit count
+    fn pop_all_bits<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    where
+        U: UnsignedNumeric;
+
+    /// For pushing multiple bits into a sink
+    fn push_bits<U>(sink: &mut U, sink_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric;
 
     /// For performing bulk reads from a bit source to an output type.
     fn read_bits<const BITS: u32, U, F, E>(
         queue: &mut BitSourceRefill<Self, u8>,
-        bits: BitCount<BITS>,
-        read_byte: F,
+        BitCount { mut bits }: BitCount<BITS>,
+        mut read_byte: F,
     ) -> Result<U, E>
     where
         U: UnsignedNumeric,
         F: FnMut() -> Result<u8, E>,
-        E: From<io::Error>;
+        E: From<io::Error>,
+    {
+        if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            match queue.bits >= bits {
+                true => {
+                    // the queue has all the bits we need
+                    // so shift them into our output
+                    // and update the queue
+
+                    Ok(U::from_u8(Self::pop_bits(
+                        &mut queue.value,
+                        &mut queue.bits,
+                        bits,
+                    )))
+                }
+                false => {
+                    // need more bits than available in the queue
+
+                    // first empty out queue of current bits, if any
+                    bits -= queue.bits;
+
+                    let (value, mut value_bits) =
+                        Self::pop_all_bits(&mut queue.value, &mut queue.bits);
+                    let mut value = U::from_u8(value);
+
+                    // populate value from whole bytes
+                    while bits > 8 {
+                        Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+                        bits -= 8;
+                    }
+
+                    if bits > 0 {
+                        // then divide any remaining partial byte
+                        // between final value and queue
+
+                        let mut last = read_byte()?;
+                        let mut last_bits = 8;
+
+                        Self::push_bits(
+                            &mut value,
+                            &mut value_bits,
+                            bits,
+                            U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
+                        );
+
+                        queue.value = last;
+                        queue.bits = last_bits;
+
+                        Ok(value)
+                    } else {
+                        Ok(value)
+                    }
+                }
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
+        }
+    }
 
     /// For performing bulk reads from a bit source to an output type.
     fn read_bits_fixed<const BITS: u32, U, F, E>(
         queue: &mut BitSourceRefill<Self, u8>,
-        read_byte: F,
+        mut read_byte: F,
     ) -> Result<U, E>
     where
         U: UnsignedNumeric,
-        F: FnMut() -> Result<u8, E>;
+        F: FnMut() -> Result<u8, E>,
+    {
+        match queue.bits >= BITS {
+            true => {
+                // the queue has all the bits we need
+                // so shift them into our output
+                // and update the queue
+
+                Ok(U::from_u8(Self::pop_bits(
+                    &mut queue.value,
+                    &mut queue.bits,
+                    BITS,
+                )))
+            }
+            false => {
+                // need more bits than available in the queue
+
+                // first empty out queue of current bits, if any
+                let mut bits = BITS - queue.bits;
+
+                let (value, mut value_bits) = Self::pop_all_bits(&mut queue.value, &mut queue.bits);
+                let mut value = U::from_u8(value);
+
+                // populate value from whole bytes
+                while bits > 8 {
+                    Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+                    bits -= 8;
+                }
+
+                if bits > 0 {
+                    // then divide any remaining partial byte
+                    // between final value and queue
+
+                    let mut last = read_byte()?;
+                    let mut last_bits = 8;
+
+                    Self::push_bits(
+                        &mut value,
+                        &mut value_bits,
+                        bits,
+                        U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
+                    );
+
+                    queue.value = last;
+                    queue.bits = last_bits;
+
+                    Ok(value)
+                } else {
+                    Ok(value)
+                }
+            }
+        }
+    }
 
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits<U, F, E>(
@@ -949,165 +1056,40 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
-    fn push_bit_once<U>(
-        mut queue: BitSinkOnce<Self, U>,
-        bit: bool,
-    ) -> ControlFlow<U, BitSinkOnce<Self, U>>
+    fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
         U: UnsignedNumeric,
     {
-        queue.value = if bit { U::LSB_BIT } else { U::ZERO } | (queue.value << 1);
-        queue.bits += 1;
-        if queue.bits == queue.total_bits {
-            ControlFlow::Break(queue.value)
-        } else {
-            ControlFlow::Continue(queue)
-        }
+        let value = source.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO);
+        *source = source.checked_shl(bits).unwrap_or(U::ZERO);
+        *source_bits -= bits;
+        value
     }
 
     #[inline]
-    fn push_bit_once_fixed<const B: u32, U>(
-        mut queue: BitSinkOnceFixed<B, Self, U>,
-        bit: bool,
-    ) -> ControlFlow<U, BitSinkOnceFixed<B, Self, U>>
+    fn pop_all_bits<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
     where
         U: UnsignedNumeric,
     {
-        queue.value = if bit { U::LSB_BIT } else { U::ZERO } | (queue.value << 1);
-        queue.bits += 1;
-        if queue.bits == B {
-            ControlFlow::Break(queue.value)
-        } else {
-            ControlFlow::Continue(queue)
-        }
+        let bits = std::mem::take(source_bits);
+        (
+            std::mem::take(source)
+                .checked_shr(U::BITS_SIZE - bits)
+                .unwrap_or(U::ZERO),
+            bits,
+        )
     }
 
-    fn read_bits<const BITS: u32, U, F, E>(
-        queue: &mut BitSourceRefill<Self, u8>,
-        BitCount { mut bits }: BitCount<BITS>,
-        mut read_byte: F,
-    ) -> Result<U, E>
+    #[inline]
+    fn push_bits<U>(sink: &mut U, sink_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric,
-        F: FnMut() -> Result<u8, E>,
-        E: From<io::Error>,
     {
-        if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            // FIXME - make this into a generic thing
-            match queue.bits.checked_sub(bits) {
-                Some(remaining_bits) => {
-                    // the queue has all the bits we need
-                    // so shift them into our output
-                    // and update the queue
-
-                    let value = U::from_u8(
-                        queue
-                            .value
-                            .checked_shr(u8::BITS_SIZE - bits)
-                            .unwrap_or(u8::ZERO),
-                    );
-                    queue.value <<= bits;
-                    queue.bits = remaining_bits;
-                    Ok(value)
-                }
-                None => {
-                    // need more bits than available in the queue
-
-                    // first empty out queue of current bits, if any
-                    let mut value = U::from_u8(
-                        std::mem::take(&mut queue.value)
-                            .checked_shr(u8::BITS_SIZE - queue.bits)
-                            .unwrap_or(u8::ZERO),
-                    );
-                    bits -= std::mem::take(&mut queue.bits);
-
-                    // populate value from whole bytes
-                    while bits > 8 {
-                        value = (value << 8) | U::from_u8(read_byte()?);
-                        bits -= 8;
-                    }
-
-                    if bits > 0 {
-                        // then divide any remaining partial byte
-                        // between final value and queue
-                        let last = read_byte()?;
-                        queue.value = last.checked_shl(bits).unwrap_or_default();
-                        queue.bits = u8::BITS_SIZE - bits;
-                        Ok(value.checked_shl(bits).unwrap_or_default()
-                            | U::from_u8(
-                                last.checked_shr(u8::BITS_SIZE - bits).unwrap_or(u8::ZERO),
-                            ))
-                    } else {
-                        Ok(value)
-                    }
-                }
-            }
-        } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
-        }
+        *sink = sink.checked_shl(bits).unwrap_or(U::ZERO) | value;
+        *sink_bits += bits;
     }
 
-    fn read_bits_fixed<const BITS: u32, U, F, E>(
-        queue: &mut BitSourceRefill<Self, u8>,
-        mut read_byte: F,
-    ) -> Result<U, E>
-    where
-        U: UnsignedNumeric,
-        F: FnMut() -> Result<u8, E>,
-    {
-        const {
-            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
-        }
-
-        // FIXME - make this into a generic thing
-        match queue.bits.checked_sub(BITS) {
-            Some(remaining_bits) => {
-                // the queue has all the bits we need
-                // so shift them into our output
-                // and update the queue
-
-                let value = U::from_u8(
-                    queue
-                        .value
-                        .checked_shr(u8::BITS_SIZE - BITS)
-                        .unwrap_or(u8::ZERO),
-                );
-                queue.value <<= BITS;
-                queue.bits = remaining_bits;
-                Ok(value)
-            }
-            None => {
-                // need more bits than available in the queue
-
-                // first empty out queue of current bits, if any
-                let mut value = U::from_u8(
-                    std::mem::take(&mut queue.value)
-                        .checked_shr(u8::BITS_SIZE - queue.bits)
-                        .unwrap_or(u8::ZERO),
-                );
-                let mut bits = BITS - std::mem::take(&mut queue.bits);
-
-                // populate value from whole bytes
-                while bits > 8 {
-                    value = (value << 8) | U::from_u8(read_byte()?);
-                    bits -= 8;
-                }
-
-                if bits > 0 {
-                    // then divide any remaining partial byte
-                    // between final value and queue
-                    let last = read_byte()?;
-                    queue.value = last.checked_shl(bits).unwrap_or_default();
-                    queue.bits = u8::BITS_SIZE - bits;
-                    Ok(value.checked_shl(bits).unwrap_or_default()
-                        | U::from_u8(last.checked_shr(u8::BITS_SIZE - bits).unwrap_or(u8::ZERO)))
-                } else {
-                    Ok(value)
-                }
-            }
-        }
-    }
-
+    // fn read_bits_fix
     fn read_signed<const BITS: u32, R, S>(
         r: &mut R,
         BitCount { bits }: BitCount<BITS>,
@@ -1341,89 +1323,36 @@ impl Endianness for LittleEndian {
         queue.is_empty().then(|| mem::take(&mut queue.value))
     }
 
-    fn push_bit_once<U>(
-        mut queue: BitSinkOnce<Self, U>,
-        bit: bool,
-    ) -> ControlFlow<U, BitSinkOnce<Self, U>>
+    #[inline]
+    fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
         U: UnsignedNumeric,
     {
-        queue.value = if bit { U::MSB_BIT } else { U::ZERO } | (queue.value >> 1);
-        queue.bits += 1;
-        if queue.bits == queue.total_bits {
-            ControlFlow::Break(queue.value >> (U::BITS_SIZE - queue.total_bits))
-        } else {
-            ControlFlow::Continue(queue)
-        }
+        let value = *source & (U::ALL.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO));
+        *source = source.checked_shr(bits).unwrap_or(U::ZERO);
+        *source_bits -= bits;
+        value
     }
 
     #[inline]
-    fn push_bit_once_fixed<const B: u32, U>(
-        mut queue: BitSinkOnceFixed<B, Self, U>,
-        bit: bool,
-    ) -> ControlFlow<U, BitSinkOnceFixed<B, Self, U>>
+    fn pop_all_bits<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
     where
         U: UnsignedNumeric,
     {
-        queue.value = if bit { U::MSB_BIT } else { U::ZERO } | (queue.value >> 1);
-        queue.bits += 1;
-        if queue.bits == B {
-            ControlFlow::Break(queue.value >> (U::BITS_SIZE - B))
-        } else {
-            ControlFlow::Continue(queue)
-        }
+        let bits = std::mem::take(source_bits);
+        (
+            std::mem::take(source) & (U::ALL.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO)),
+            bits,
+        )
     }
 
-    fn read_bits<const BITS: u32, U, F, E>(
-        queue: &mut BitSourceRefill<Self, u8>,
-        bits: BitCount<BITS>,
-        mut read_byte: F,
-    ) -> Result<U, E>
+    #[inline]
+    fn push_bits<U>(sink: &mut U, sink_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric,
-        F: FnMut() -> Result<u8, E>,
-        E: From<io::Error>,
     {
-        // FIXME - update this for bulk transfer
-
-        use core::ops::ControlFlow;
-
-        if bits.bits == 0 {
-            Ok(U::default())
-        } else {
-            let mut acc: BitSinkOnce<Self, U> = BitSinkOnce::new(bits)?;
-            loop {
-                acc = match acc.push_bit(queue.pop_bit(&mut read_byte)?) {
-                    ControlFlow::Continue(acc) => acc,
-                    ControlFlow::Break(value) => break Ok(value),
-                }
-            }
-        }
-    }
-
-    fn read_bits_fixed<const BITS: u32, U, F, E>(
-        queue: &mut BitSourceRefill<Self, u8>,
-        mut read_byte: F,
-    ) -> Result<U, E>
-    where
-        U: UnsignedNumeric,
-        F: FnMut() -> Result<u8, E>,
-    {
-        // FIXME - update this for bulk transfer
-
-        use core::ops::ControlFlow;
-
-        if BITS == 0 {
-            Ok(U::default())
-        } else {
-            let mut acc: BitSinkOnceFixed<BITS, Self, U> = BitSinkOnceFixed::new();
-            loop {
-                acc = match acc.push_bit(queue.pop_bit(&mut read_byte)?) {
-                    ControlFlow::Continue(acc) => acc,
-                    ControlFlow::Break(value) => break Ok(value),
-                }
-            }
-        }
+        *sink |= value.checked_shl(*sink_bits).unwrap_or(U::ZERO);
+        *sink_bits += bits;
     }
 
     fn read_signed<const BITS: u32, R, S>(
@@ -1725,90 +1654,5 @@ impl<E: Endianness, U: UnsignedNumeric> BitSinkFlush<E, U> {
     #[inline(always)]
     pub fn push_bit(&mut self, bit: bool) -> Option<U> {
         E::push_bit_flush(self, bit)
-    }
-}
-
-/// A target for bits to be written into and unpacked once full
-///
-/// This is useful for bitstream readers to build a whole value
-/// from a series of stream bits.
-#[derive(Clone, Debug)]
-pub struct BitSinkOnce<E: Endianness, U: UnsignedNumeric> {
-    phantom: PhantomData<E>,
-    // our accumulated value
-    value: U,
-    // the number of bits pushed into the sink thus far
-    bits: u32,
-    // the total number of bits the sink can contain
-    total_bits: u32,
-}
-
-impl<E: Endianness, U: UnsignedNumeric> BitSinkOnce<E, U> {
-    /// Builds a new sink large enough for the given number of bits.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if bits is larger than the type can contain.
-    pub fn new<const BITS: u32>(BitCount { bits }: BitCount<BITS>) -> io::Result<Self> {
-        if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            Ok(Self {
-                phantom: PhantomData,
-                value: U::default(),
-                bits: 0,
-                total_bits: bits,
-            })
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
-    }
-
-    /// Pushes the next bit into the sink,
-    /// returning a whole value once the sink is full.
-    #[inline(always)]
-    pub fn push_bit(self, bit: bool) -> ControlFlow<U, Self> {
-        E::push_bit_once(self, bit)
-    }
-}
-
-/// A target for bits to be written into and unpacked once full
-///
-/// This is useful for bitstream readers to build a whole value
-/// from a series of stream bits.
-#[derive(Clone, Debug)]
-pub struct BitSinkOnceFixed<const B: u32, E: Endianness, U: UnsignedNumeric> {
-    phantom: PhantomData<E>,
-    // our accumulated value
-    value: U,
-    // the number of bits pushed into the sink thus far
-    bits: u32,
-}
-
-impl<const B: u32, E: Endianness, U: UnsignedNumeric> BitSinkOnceFixed<B, E, U> {
-    /// Builds a new sink large enough for the given number of bits.
-    ///
-    /// # Errors
-    ///
-    /// A compile-time error occurs if `B` is larger than the type
-    /// can contain.
-    pub fn new() -> Self {
-        const {
-            assert!(B <= U::BITS_SIZE, "excessive bits for type read");
-        }
-
-        Self {
-            phantom: PhantomData,
-            value: U::default(),
-            bits: 0,
-        }
-    }
-
-    /// Pushes the next bit into the sink,
-    /// returning a whole value once the sink is full.
-    #[inline(always)]
-    pub fn push_bit(self, bit: bool) -> ControlFlow<U, Self> {
-        E::push_bit_once_fixed(self, bit)
     }
 }
