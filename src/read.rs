@@ -329,7 +329,6 @@ pub trait BitRead {
     /// let bytes: &[u8] = &[0b10011110];
     /// let mut r = BitReader::endian(bytes, BigEndian);
     /// let count = r.read_count::<3>().unwrap();
-    /// assert_eq!(count, 0b100);
     /// // size of count is known at compile-time, so no runtime check needed
     /// assert_eq!(r.read_counted::<3, u8>(count).unwrap(), 0b1111);
     /// ```
