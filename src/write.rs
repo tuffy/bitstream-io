@@ -671,17 +671,8 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     where
         U: UnsignedNumeric,
     {
-        use crate::BitSourceOnce;
-
-        if bits > 0 {
-            let mut acc: BitSourceOnce<E, U> = BitSourceOnce::new(bits, value)?;
-            while let Some(bit) = acc.pop_bit() {
-                if let Some(byte) = self.bitqueue.push_bit(bit) {
-                    write_byte(&mut self.writer, byte)?;
-                }
-            }
-        }
-        Ok(())
+        let Self { bitqueue, writer } = self;
+        E::write_bits::<U, _, _>(bitqueue, bits, value, |b| write_byte(writer.by_ref(), b))
     }
 
     /// # Examples
@@ -714,21 +705,13 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// assert!(w.write_unsigned_out::<3, _>(8u8).is_err());      // can't write   8 in 3 bits
     /// assert!(w.write_unsigned_out::<4, _>(16u8).is_err());     // can't write  16 in 4 bits
     /// ```
+    #[inline(always)]
     fn write_unsigned_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: UnsignedNumeric,
     {
-        use crate::BitSourceOnce;
-
-        if BITS > 0 {
-            let mut acc: BitSourceOnce<E, U> = BitSourceOnce::new_fixed::<BITS>(value)?;
-            while let Some(bit) = acc.pop_bit() {
-                if let Some(byte) = self.bitqueue.push_bit(bit) {
-                    write_byte(&mut self.writer, byte)?;
-                }
-            }
-        }
-        Ok(())
+        let Self { bitqueue, writer } = self;
+        E::write_bits_fixed::<BITS, U, _, _>(bitqueue, value, |b| write_byte(writer.by_ref(), b))
     }
 
     /// # Examples

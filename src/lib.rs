@@ -690,6 +690,111 @@ pub trait Endianness: Sized {
     where
         U: UnsignedNumeric;
 
+    /// For performing bulk reads from a bit source to an output type.
+    fn read_bits<U, F, E>(
+        queue: &mut BitSourceRefill<Self, u8>,
+        bits: u32,
+        mut read_byte: F,
+    ) -> Result<U, E>
+    where
+        U: UnsignedNumeric,
+        F: FnMut() -> Result<u8, E>,
+        E: From<io::Error>,
+    {
+        // FIXME - update this for bulk transfer
+
+        use core::ops::ControlFlow;
+
+        if bits == 0 {
+            Ok(U::default())
+        } else {
+            let mut acc: BitSinkOnce<Self, U> = BitSinkOnce::new(bits)?;
+            loop {
+                acc = match acc.push_bit(queue.pop_bit(|| read_byte())?) {
+                    ControlFlow::Continue(acc) => acc,
+                    ControlFlow::Break(value) => break Ok(value),
+                }
+            }
+        }
+    }
+
+    /// For performing bulk reads from a bit source to an output type.
+    fn read_bits_fixed<const BITS: u32, U, F, E>(
+        queue: &mut BitSourceRefill<Self, u8>,
+        mut read_byte: F,
+    ) -> Result<U, E>
+    where
+        U: UnsignedNumeric,
+        F: FnMut() -> Result<u8, E>,
+    {
+        // FIXME - update this for bulk transfer
+
+        use core::ops::ControlFlow;
+
+        if BITS == 0 {
+            Ok(U::default())
+        } else {
+            let mut acc: BitSinkOnceFixed<BITS, Self, U> = BitSinkOnceFixed::new();
+            loop {
+                acc = match acc.push_bit(queue.pop_bit(|| read_byte())?) {
+                    ControlFlow::Continue(acc) => acc,
+                    ControlFlow::Break(value) => break Ok(value),
+                }
+            }
+        }
+    }
+
+    /// For performing bulk writes of a type to a bit sink.
+    fn write_bits<U, F, E>(
+        queue: &mut BitSinkFlush<Self, u8>,
+        bits: u32,
+        value: U,
+        mut write_byte: F,
+    ) -> Result<(), E>
+    where
+        U: UnsignedNumeric,
+        F: FnMut(u8) -> Result<(), E>,
+        E: From<io::Error>,
+    {
+        // FIXME - update this for bulk transfer
+
+        if bits > 0 {
+            let mut acc: BitSourceOnce<Self, U> = BitSourceOnce::new(bits, value)?;
+            while let Some(bit) = acc.pop_bit() {
+                if let Some(byte) = queue.push_bit(bit) {
+                    write_byte(byte)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// For performing bulk writes of a type to a bit sink.
+    fn write_bits_fixed<const BITS: u32, U, F, E>(
+        queue: &mut BitSinkFlush<Self, u8>,
+        value: U,
+        mut write_byte: F,
+    ) -> Result<(), E>
+    where
+        U: UnsignedNumeric,
+        F: FnMut(u8) -> Result<(), E>,
+        E: From<io::Error>,
+    {
+        // FIXME - update this for bulk transfer
+
+        use crate::BitSourceOnce;
+
+        if BITS > 0 {
+            let mut acc: BitSourceOnce<Self, U> = BitSourceOnce::new_fixed::<BITS>(value)?;
+            while let Some(bit) = acc.pop_bit() {
+                if let Some(byte) = queue.push_bit(bit) {
+                    write_byte(byte)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Reads signed value from reader in this endianness
     fn read_signed<R, S>(r: &mut R, bits: u32) -> io::Result<S>
     where

@@ -589,25 +589,13 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert!(reader.read_unsigned::<u32>(33).is_err());  // can't read 33 bits to u32
     /// assert!(reader.read_unsigned::<u64>(65).is_err());  // can't read 65 bits to u64
     /// ```
-    #[inline]
+    #[inline(always)]
     fn read_unsigned<U>(&mut self, bits: u32) -> io::Result<U>
     where
         U: UnsignedNumeric,
     {
-        use crate::BitSinkOnce;
-        use core::ops::ControlFlow;
-
-        if bits == 0 {
-            Ok(U::default())
-        } else {
-            let mut acc: BitSinkOnce<E, U> = BitSinkOnce::new(bits)?;
-            loop {
-                acc = match acc.push_bit(self.read_bit()?) {
-                    ControlFlow::Continue(acc) => acc,
-                    ControlFlow::Break(value) => break Ok(value),
-                }
-            }
-        }
+        let Self { bitqueue, reader } = self;
+        E::read_bits(bitqueue, bits, || read_byte(reader.by_ref()))
     }
 
     /// # Examples
@@ -635,20 +623,8 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     where
         U: UnsignedNumeric,
     {
-        use crate::BitSinkOnceFixed;
-        use core::ops::ControlFlow;
-
-        if BITS == 0 {
-            Ok(U::default())
-        } else {
-            let mut acc: BitSinkOnceFixed<BITS, E, U> = BitSinkOnceFixed::new();
-            loop {
-                acc = match acc.push_bit(self.read_bit()?) {
-                    ControlFlow::Continue(acc) => acc,
-                    ControlFlow::Break(value) => break Ok(value),
-                }
-            }
-        }
+        let Self { bitqueue, reader } = self;
+        E::read_bits_fixed::<BITS, U, _, _>(bitqueue, || read_byte(reader.by_ref()))
     }
 
     /// # Examples
