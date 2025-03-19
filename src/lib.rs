@@ -716,57 +716,42 @@ pub trait Endianness: Sized {
         F: FnMut() -> Result<u8, E>,
         E: From<io::Error>,
     {
-        // FIXME - shorten this up a bit
-
         if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            match queue.bits >= bits {
-                true => {
-                    // the queue has all the bits we need
-                    // so shift them into our output
-                    // and update the queue
+            let mut value_bits = bits.min(queue.bits);
+            let mut value = U::from_u8(Self::pop_bits(
+                &mut queue.value,
+                &mut queue.bits,
+                value_bits,
+            ));
+            bits -= value_bits;
 
-                    Ok(U::from_u8(Self::pop_bits(
-                        &mut queue.value,
-                        &mut queue.bits,
-                        bits,
-                    )))
-                }
-                false => {
-                    // need more bits than available in the queue
+            loop {
+                match bits {
+                    0 => break Ok(value),
+                    1..8 => {
+                        break Ok({
+                            // divide any remaining partial byte
+                            // between final value and queue
 
-                    // first empty out queue of current bits, if any
-                    bits -= queue.bits;
+                            let mut last = read_byte()?;
+                            let mut last_bits = 8;
 
-                    let (value, mut value_bits) =
-                        Self::pop_all_bits(&mut queue.value, &mut queue.bits);
-                    let mut value = U::from_u8(value);
+                            Self::push_bits(
+                                &mut value,
+                                &mut value_bits,
+                                bits,
+                                U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
+                            );
 
-                    // populate value from whole bytes
-                    while bits > 8 {
+                            queue.value = last;
+                            queue.bits = last_bits;
+
+                            value
+                        });
+                    }
+                    8.. => {
                         Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
                         bits -= 8;
-                    }
-
-                    if bits > 0 {
-                        // then divide any remaining partial byte
-                        // between final value and queue
-
-                        let mut last = read_byte()?;
-                        let mut last_bits = 8;
-
-                        Self::push_bits(
-                            &mut value,
-                            &mut value_bits,
-                            bits,
-                            U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
-                        );
-
-                        queue.value = last;
-                        queue.bits = last_bits;
-
-                        Ok(value)
-                    } else {
-                        Ok(value)
                     }
                 }
             }
@@ -784,53 +769,45 @@ pub trait Endianness: Sized {
         U: UnsignedNumeric,
         F: FnMut() -> Result<u8, E>,
     {
-        match queue.bits >= BITS {
-            true => {
-                // the queue has all the bits we need
-                // so shift them into our output
-                // and update the queue
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
+        }
 
-                Ok(U::from_u8(Self::pop_bits(
-                    &mut queue.value,
-                    &mut queue.bits,
-                    BITS,
-                )))
-            }
-            false => {
-                // need more bits than available in the queue
+        let mut value_bits = BITS.min(queue.bits);
+        let mut value = U::from_u8(Self::pop_bits(
+            &mut queue.value,
+            &mut queue.bits,
+            value_bits,
+        ));
+        let mut bits = BITS - value_bits;
 
-                // first empty out queue of current bits, if any
-                let mut bits = BITS - queue.bits;
+        loop {
+            match bits {
+                0 => break Ok(value),
+                1..8 => {
+                    break Ok({
+                        // divide any remaining partial byte
+                        // between final value and queue
 
-                let (value, mut value_bits) = Self::pop_all_bits(&mut queue.value, &mut queue.bits);
-                let mut value = U::from_u8(value);
+                        let mut last = read_byte()?;
+                        let mut last_bits = 8;
 
-                // populate value from whole bytes
-                while bits > 8 {
+                        Self::push_bits(
+                            &mut value,
+                            &mut value_bits,
+                            bits,
+                            U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
+                        );
+
+                        queue.value = last;
+                        queue.bits = last_bits;
+
+                        value
+                    });
+                }
+                8.. => {
                     Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
                     bits -= 8;
-                }
-
-                if bits > 0 {
-                    // then divide any remaining partial byte
-                    // between final value and queue
-
-                    let mut last = read_byte()?;
-                    let mut last_bits = 8;
-
-                    Self::push_bits(
-                        &mut value,
-                        &mut value_bits,
-                        bits,
-                        U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
-                    );
-
-                    queue.value = last;
-                    queue.bits = last_bits;
-
-                    Ok(value)
-                } else {
-                    Ok(value)
                 }
             }
         }
@@ -988,7 +965,7 @@ impl Endianness for BigEndian {
     {
         // FIXME - pull this out into its own thing eventually
         if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            if value <= U::ALL >> U::BITS_SIZE - bits {
+            if value <= U::ALL >> (U::BITS_SIZE - bits) {
                 Ok(BitSourceOnce(BitSourceRefill {
                     phantom: PhantomData,
                     value: value << (U::BITS_SIZE - bits),
@@ -1180,7 +1157,7 @@ impl Endianness for BigEndian {
     {
         match bits.bits {
             count if count < S::BITS_SIZE => {
-                w.write_bit(if value.is_negative() { true } else { false })?;
+                w.write_bit(value.is_negative())?;
                 w.write_unsigned_counted(
                     bits.checked_sub(1).ok_or(io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -1275,7 +1252,7 @@ impl Endianness for LittleEndian {
     {
         // FIXME - pull this out into its own thing eventually
         if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            if value <= U::ALL >> U::BITS_SIZE - bits {
+            if value <= U::ALL >> (U::BITS_SIZE - bits) {
                 Ok(BitSourceOnce(BitSourceRefill {
                     phantom: PhantomData,
                     value,
@@ -1475,7 +1452,7 @@ impl Endianness for LittleEndian {
                         value.as_non_negative()
                     },
                 )?;
-                w.write_bit(if value.is_negative() { true } else { false })
+                w.write_bit(value.is_negative())
             }
             count if count == S::BITS_SIZE => w.write_bytes(value.to_le_bytes().as_ref()),
             _ => Err(io::Error::new(
