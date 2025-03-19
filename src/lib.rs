@@ -689,13 +689,18 @@ pub trait Endianness: Sized {
     where
         U: UnsignedNumeric;
 
+    /// For extracting all the values from a source into a final value
+    fn pop_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    where
+        U: UnsignedNumeric;
+
     /// For extracting multiple bits from a source
     fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
         U: UnsignedNumeric;
 
-    /// For pushing multiple bits into a sink
-    fn push_bits<U>(sink: &mut U, sink_bits: &mut u32, bits: u32, value: U)
+    /// For pushing multiple bits into a final value
+    fn push_value<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric;
 
@@ -730,7 +735,7 @@ pub trait Endianness: Sized {
                             let mut last = read_byte()?;
                             let mut last_bits = 8;
 
-                            Self::push_bits(
+                            Self::push_value(
                                 &mut value,
                                 &mut value_bits,
                                 bits,
@@ -744,7 +749,7 @@ pub trait Endianness: Sized {
                         });
                     }
                     8.. => {
-                        Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+                        Self::push_value(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
                         bits -= 8;
                     }
                 }
@@ -767,43 +772,41 @@ pub trait Endianness: Sized {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
         }
 
-        let mut value_bits = BITS.min(queue.bits);
-        let mut value = U::from_u8(Self::pop_bits(
-            &mut queue.value,
-            &mut queue.bits,
-            value_bits,
-        ));
-        let mut bits = BITS - value_bits;
+        if BITS <= queue.bits {
+            // all bits available in queue
+            Ok(U::from_u8(Self::pop_bits(
+                &mut queue.value,
+                &mut queue.bits,
+                BITS,
+            )))
+        } else {
+            // pop everything off the queue
+            let (value, mut value_bits) = Self::pop_value(&mut queue.value, &mut queue.bits);
+            let mut value = U::from_u8(value);
+            let mut bits = BITS - value_bits;
 
-        loop {
-            match bits {
-                0 => break Ok(value),
-                1..8 => {
-                    break Ok({
-                        // divide any remaining partial byte
-                        // between final value and queue
-
-                        let mut last = read_byte()?;
-                        let mut last_bits = 8;
-
-                        Self::push_bits(
-                            &mut value,
-                            &mut value_bits,
-                            bits,
-                            U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
-                        );
-
-                        queue.value = last;
-                        queue.bits = last_bits;
-
-                        value
-                    });
-                }
-                8.. => {
-                    Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
-                    bits -= 8;
-                }
+            // fill whole bytes
+            while bits >= 8 {
+                Self::push_value(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+                bits -= 8;
             }
+
+            if bits > 0 {
+                let mut last = read_byte()?;
+                let mut last_bits = 8;
+
+                Self::push_value(
+                    &mut value,
+                    &mut value_bits,
+                    bits,
+                    U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
+                );
+
+                queue.value = last;
+                queue.bits = last_bits;
+            }
+
+            Ok(value)
         }
     }
 
@@ -1073,6 +1076,19 @@ impl Endianness for BigEndian {
         queue.is_empty().then(|| mem::take(&mut queue.value))
     }
 
+    fn pop_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    where
+        U: UnsignedNumeric,
+    {
+        let bits = std::mem::take(source_bits);
+        (
+            std::mem::take(source)
+                .checked_shr(U::BITS_SIZE - bits)
+                .unwrap_or(U::ZERO),
+            bits,
+        )
+    }
+
     #[inline]
     fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
@@ -1085,15 +1101,14 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
-    fn push_bits<U>(sink: &mut U, sink_bits: &mut u32, bits: u32, value: U)
+    fn push_value<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric,
     {
-        *sink = sink.checked_shl(bits).unwrap_or(U::ZERO) | value;
-        *sink_bits += bits;
+        *target = target.checked_shl(bits).unwrap_or(U::ZERO) | value;
+        *target_bits += bits;
     }
 
-    // fn read_bits_fix
     fn read_signed<const BITS: u32, R, S>(r: &mut R, bits: BitCount<BITS>) -> io::Result<S>
     where
         R: BitRead,
@@ -1346,6 +1361,17 @@ impl Endianness for LittleEndian {
         queue.is_empty().then(|| mem::take(&mut queue.value))
     }
 
+    fn pop_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    where
+        U: UnsignedNumeric,
+    {
+        let bits = std::mem::take(source_bits);
+        (
+            std::mem::take(source) & (U::ALL.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO)),
+            bits,
+        )
+    }
+
     #[inline]
     fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
@@ -1358,12 +1384,12 @@ impl Endianness for LittleEndian {
     }
 
     #[inline]
-    fn push_bits<U>(sink: &mut U, sink_bits: &mut u32, bits: u32, value: U)
+    fn push_value<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric,
     {
-        *sink |= value.checked_shl(*sink_bits).unwrap_or(U::ZERO);
-        *sink_bits += bits;
+        *target |= value.checked_shl(*target_bits).unwrap_or(U::ZERO);
+        *target_bits += bits;
     }
 
     fn read_signed<const BITS: u32, R, S>(r: &mut R, bits: BitCount<BITS>) -> io::Result<S>
