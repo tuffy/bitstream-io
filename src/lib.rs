@@ -689,25 +689,6 @@ pub trait Endianness: Sized {
     where
         U: UnsignedNumeric;
 
-    /// Aligns a native type to be used as a source or sink
-    ///
-    /// For big-endian, this shifts all the type's bits to the right
-    /// so they can be pulled out from the topmost bit in the type.
-    ///
-    /// For little-endian, this does nothing.
-    fn align<U>(value: U, bits: u32) -> U
-    where
-        U: UnsignedNumeric;
-
-    /// Un-aligns a source or sink to back to native alignment
-    ///
-    /// For big-endian, this shifts all the type's bits to the left.
-    ///
-    /// For little-endian, this does nothing.
-    fn unalign<U>(value: U, bits: u32) -> U
-    where
-        U: UnsignedNumeric;
-
     /// For extracting multiple bits from a source
     fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
@@ -721,7 +702,7 @@ pub trait Endianness: Sized {
     /// For performing bulk reads from a bit source to an output type.
     fn read_bits<const BITS: u32, U, F, E>(
         queue: &mut BitSourceRefill<Self, u8>,
-        BitCount { bits }: BitCount<BITS>,
+        BitCount { mut bits }: BitCount<BITS>,
         mut read_byte: F,
     ) -> Result<U, E>
     where
@@ -731,19 +712,16 @@ pub trait Endianness: Sized {
     {
         if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             let mut value_bits = bits.min(queue.bits);
-            let mut value = Self::align(
-                U::from_u8(Self::pop_bits(
-                    &mut queue.value,
-                    &mut queue.bits,
-                    value_bits,
-                )),
+            let mut value = U::from_u8(Self::pop_bits(
+                &mut queue.value,
+                &mut queue.bits,
                 value_bits,
-            );
-            let mut bits_left = bits - value_bits;
+            ));
+            bits -= value_bits;
 
             loop {
-                match bits_left {
-                    0 => break Ok(Self::unalign(value, bits)),
+                match bits {
+                    0 => break Ok(value),
                     1..8 => {
                         break Ok({
                             // divide any remaining partial byte
@@ -755,19 +733,19 @@ pub trait Endianness: Sized {
                             Self::push_bits(
                                 &mut value,
                                 &mut value_bits,
-                                bits_left,
-                                U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits_left)),
+                                bits,
+                                U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
                             );
 
                             queue.value = last;
                             queue.bits = last_bits;
 
-                            Self::unalign(value, bits)
+                            value
                         });
                     }
                     8.. => {
                         Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
-                        bits_left -= 8;
+                        bits -= 8;
                     }
                 }
             }
@@ -790,19 +768,16 @@ pub trait Endianness: Sized {
         }
 
         let mut value_bits = BITS.min(queue.bits);
-        let mut value = Self::align(
-            U::from_u8(Self::pop_bits(
-                &mut queue.value,
-                &mut queue.bits,
-                value_bits,
-            )),
+        let mut value = U::from_u8(Self::pop_bits(
+            &mut queue.value,
+            &mut queue.bits,
             value_bits,
-        );
+        ));
         let mut bits = BITS - value_bits;
 
         loop {
             match bits {
-                0 => break Ok(Self::unalign(value, BITS)),
+                0 => break Ok(value),
                 1..8 => {
                     break Ok({
                         // divide any remaining partial byte
@@ -821,7 +796,7 @@ pub trait Endianness: Sized {
                         queue.value = last;
                         queue.bits = last_bits;
 
-                        Self::unalign(value, BITS)
+                        value
                     });
                 }
                 8.. => {
@@ -1099,22 +1074,6 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
-    fn align<U>(value: U, bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        value.checked_shl(U::BITS_SIZE - bits).unwrap_or(U::ZERO)
-    }
-
-    #[inline]
-    fn unalign<U>(value: U, bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        value.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO)
-    }
-
-    #[inline]
     fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
         U: UnsignedNumeric,
@@ -1130,12 +1089,11 @@ impl Endianness for BigEndian {
     where
         U: UnsignedNumeric,
     {
-        *sink |= value
-            .checked_shl(U::BITS_SIZE - *sink_bits - bits)
-            .unwrap_or(U::ZERO);
+        *sink = sink.checked_shl(bits).unwrap_or(U::ZERO) | value;
         *sink_bits += bits;
     }
 
+    // fn read_bits_fix
     fn read_signed<const BITS: u32, R, S>(r: &mut R, bits: BitCount<BITS>) -> io::Result<S>
     where
         R: BitRead,
@@ -1386,22 +1344,6 @@ impl Endianness for LittleEndian {
         queue.value = if bit { U::MSB_BIT } else { U::ZERO } | (queue.value >> 1);
         queue.bits = (queue.bits + 1) % U::BITS_SIZE;
         queue.is_empty().then(|| mem::take(&mut queue.value))
-    }
-
-    #[inline]
-    fn align<U>(value: U, _bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        value
-    }
-
-    #[inline]
-    fn unalign<U>(value: U, _bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        value
     }
 
     #[inline]
