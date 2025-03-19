@@ -175,8 +175,8 @@ use core::{
 use std::io;
 
 use super::{
-    huffman::WriteHuffmanTree, BitSinkFlush, Endianness, Integer, Numeric, PhantomData, Primitive,
-    SignedNumeric, UnsignedNumeric,
+    huffman::WriteHuffmanTree, BitCount, BitSinkFlush, Endianness, Integer, Numeric, PhantomData,
+    Primitive, SignedNumeric, UnsignedNumeric,
 };
 
 /// For writing bit values to an underlying stream in a given endianness.
@@ -291,7 +291,7 @@ pub trait BitWrite {
     where
         I: Integer,
     {
-        Integer::write(value, self, bits)
+        self.write_counted(bits.into(), value)
     }
 
     /// Writes a signed or unsigned value to the stream using the given
@@ -322,9 +322,47 @@ pub trait BitWrite {
     /// to hold the given number of bits.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+    /// writer.write_unsigned(1, 0b1u8).unwrap();
+    /// writer.write_unsigned(2, 0b01u8).unwrap();
+    /// writer.write_unsigned(5, 0b10111u8).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
+    /// writer.write_unsigned(1, 0b1u8).unwrap();
+    /// writer.write_unsigned(2, 0b11u8).unwrap();
+    /// writer.write_unsigned(5, 0b10110u8).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Write, sink};
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    /// let mut w = BitWriter::endian(sink(), BigEndian);
+    /// assert!(w.write_unsigned(9, 0u8).is_err());    // can't write  u8 in 9 bits
+    /// assert!(w.write_unsigned(17, 0u16).is_err());  // can't write u16 in 17 bits
+    /// assert!(w.write_unsigned(33, 0u32).is_err());  // can't write u32 in 33 bits
+    /// assert!(w.write_unsigned(65, 0u64).is_err());  // can't write u64 in 65 bits
+    /// assert!(w.write_unsigned(1, 2u8).is_err());      // can't write   2 in 1 bit
+    /// assert!(w.write_unsigned(2, 4u8).is_err());      // can't write   4 in 2 bits
+    /// assert!(w.write_unsigned(3, 8u8).is_err());      // can't write   8 in 3 bits
+    /// assert!(w.write_unsigned(4, 16u8).is_err());     // can't write  16 in 4 bits
+    /// ```
     fn write_unsigned<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric;
+        U: UnsignedNumeric,
+    {
+        self.write_unsigned_counted(bits.into(), value)
+    }
 
     /// Writes an unsigned value to the stream using the given
     /// const number of bits.
@@ -356,9 +394,32 @@ pub trait BitWrite {
     /// since one bit is always needed for the sign.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+    /// writer.write_signed(4, -5).unwrap();
+    /// writer.write_signed(4, 7).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
+    /// writer.write_signed(4, 7).unwrap();
+    /// writer.write_signed(4, -5).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
+    /// ```
+    #[inline(always)]
     fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
-        S: SignedNumeric;
+        S: SignedNumeric,
+    {
+        self.write_signed_counted(bits.into(), value)
+    }
 
     /// Writes a twos-complement signed value to the stream
     /// with the given const number of bits.
@@ -378,6 +439,58 @@ pub trait BitWrite {
     {
         self.write_signed(BITS, value)
     }
+
+    /// Writes a signed or unsigned value to the stream with
+    /// the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if the value is too large
+    /// to fit the given number of bits.
+    #[inline(always)]
+    fn write_counted<const BITS: u32, I>(
+        &mut self,
+        bits: BitCount<BITS>,
+        value: I,
+    ) -> io::Result<()>
+    where
+        I: Integer + Sized,
+    {
+        I::write::<BITS, _>(value, self, bits)
+    }
+
+    /// Writes a signed value to the stream with
+    /// the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if the value is too large
+    /// to fit the given number of bits.
+    fn write_unsigned_counted<const BITS: u32, U>(
+        &mut self,
+        bits: BitCount<BITS>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        U: UnsignedNumeric;
+
+    /// Writes an unsigned value to the stream with
+    /// the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if the value is too large
+    /// to fit the given number of bits.
+    fn write_signed_counted<const BITS: u32, S>(
+        &mut self,
+        bits: BitCount<BITS>,
+        value: S,
+    ) -> io::Result<()>
+    where
+        S: SignedNumeric;
 
     /// Writes whole value to the stream whose size in bits
     /// is equal to its type's size.
@@ -637,49 +750,6 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_unsigned(1, 0b1u8).unwrap();
-    /// writer.write_unsigned(2, 0b01u8).unwrap();
-    /// writer.write_unsigned(5, 0b10111u8).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_unsigned(1, 0b1u8).unwrap();
-    /// writer.write_unsigned(2, 0b11u8).unwrap();
-    /// writer.write_unsigned(5, 0b10110u8).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::{Write, sink};
-    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut w = BitWriter::endian(sink(), BigEndian);
-    /// assert!(w.write_unsigned(9, 0u8).is_err());    // can't write  u8 in 9 bits
-    /// assert!(w.write_unsigned(17, 0u16).is_err());  // can't write u16 in 17 bits
-    /// assert!(w.write_unsigned(33, 0u32).is_err());  // can't write u32 in 33 bits
-    /// assert!(w.write_unsigned(65, 0u64).is_err());  // can't write u64 in 65 bits
-    /// assert!(w.write_unsigned(1, 2u8).is_err());      // can't write   2 in 1 bit
-    /// assert!(w.write_unsigned(2, 4u8).is_err());      // can't write   4 in 2 bits
-    /// assert!(w.write_unsigned(3, 8u8).is_err());      // can't write   8 in 3 bits
-    /// assert!(w.write_unsigned(4, 16u8).is_err());     // can't write  16 in 4 bits
-    /// ```
-    #[inline]
-    fn write_unsigned<U>(&mut self, bits: u32, value: U) -> io::Result<()>
-    where
-        U: UnsignedNumeric,
-    {
-        let Self { bitqueue, writer } = self;
-        E::write_bits::<U, _, _>(bitqueue, bits, value, |b| write_byte(writer.by_ref(), b))
-    }
-
-    /// # Examples
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write_unsigned_out::<1, _>(0b1u8).unwrap();
     /// writer.write_unsigned_out::<2, _>(0b01u8).unwrap();
     /// writer.write_unsigned_out::<5, _>(0b10111u8).unwrap();
@@ -714,40 +784,28 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         E::write_bits_fixed::<BITS, U, _, _>(bitqueue, value, |b| write_byte(writer.by_ref(), b))
     }
 
-    /// # Examples
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_signed(4, -5).unwrap();
-    /// writer.write_signed(4, 7).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_signed(4, 7).unwrap();
-    /// writer.write_signed(4, -5).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
-    #[inline]
-    fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
+    fn write_unsigned_counted<const BITS: u32, U>(
+        &mut self,
+        bits: BitCount<BITS>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        U: UnsignedNumeric,
+    {
+        let Self { bitqueue, writer } = self;
+        E::write_bits::<BITS, U, _, _>(bitqueue, bits, value, |b| write_byte(writer.by_ref(), b))
+    }
+
+    #[inline(always)]
+    fn write_signed_counted<const BITS: u32, S>(
+        &mut self,
+        bits: BitCount<BITS>,
+        value: S,
+    ) -> io::Result<()>
     where
         S: SignedNumeric,
     {
-        match bits {
-            0 => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "signed writes need at least 1 bit for sign",
-            )),
-            bits if bits <= S::BITS_SIZE => E::write_signed(self, bits, value),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            )),
-        }
+        E::write_signed::<BITS, _, _>(self, bits, value)
     }
 
     /// # Examples
@@ -976,28 +1034,6 @@ where
         Ok(())
     }
 
-    #[inline]
-    fn write_unsigned<U>(&mut self, bits: u32, value: U) -> io::Result<()>
-    where
-        U: Numeric,
-    {
-        if bits > U::BITS_SIZE {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            ))
-        } else if (bits < U::BITS_SIZE) && (value >= (U::ONE << bits)) {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive value for bits written",
-            ))
-        } else {
-            self.bits
-                .checked_add_assign(bits.try_into().map_err(|_| Overflowed)?)?;
-            Ok(())
-        }
-    }
-
     fn write_unsigned_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: Numeric,
@@ -1023,17 +1059,7 @@ where
     where
         S: SignedNumeric,
     {
-        match bits {
-            0 => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "signed writes need at least 1 bit for sign",
-            )),
-            bits if bits <= S::BITS_SIZE => E::write_signed(self, bits, value),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            )),
-        }
+        self.write_signed_counted(bits.into(), value)
     }
 
     #[inline]
@@ -1046,6 +1072,44 @@ where
             assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
         }
         E::write_signed_fixed::<_, BITS, S>(self, value)
+    }
+
+    #[inline]
+    fn write_unsigned_counted<const BITS: u32, U>(
+        &mut self,
+        BitCount { bits }: BitCount<BITS>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        U: Numeric,
+    {
+        if bits > U::BITS_SIZE {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
+        } else if (bits < U::BITS_SIZE) && (value >= (U::ONE << bits)) {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            ))
+        } else {
+            self.bits
+                .checked_add_assign(bits.try_into().map_err(|_| Overflowed)?)?;
+            Ok(())
+        }
+    }
+
+    #[inline(always)]
+    fn write_signed_counted<const BITS: u32, S>(
+        &mut self,
+        bits: BitCount<BITS>,
+        value: S,
+    ) -> io::Result<()>
+    where
+        S: SignedNumeric,
+    {
+        E::write_signed::<BITS, _, _>(self, bits, value)
     }
 
     #[inline]
@@ -1270,19 +1334,6 @@ where
     }
 
     #[inline]
-    fn write_unsigned<U>(&mut self, bits: u32, value: U) -> io::Result<()>
-    where
-        U: UnsignedNumeric,
-    {
-        self.counter.write_unsigned(bits, value)?;
-        self.records.push(WriteRecord::Unsigned {
-            bits,
-            value: value.into(),
-        });
-        Ok(())
-    }
-
-    #[inline]
     fn write_unsigned_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: UnsignedNumeric,
@@ -1296,13 +1347,34 @@ where
     }
 
     #[inline]
-    fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
+    fn write_unsigned_counted<const BITS: u32, U>(
+        &mut self,
+        bits: BitCount<BITS>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        U: UnsignedNumeric,
+    {
+        self.counter.write_unsigned_counted(bits, value)?;
+        self.records.push(WriteRecord::Unsigned {
+            bits: bits.bits,
+            value: value.into(),
+        });
+        Ok(())
+    }
+
+    #[inline]
+    fn write_signed_counted<const BITS: u32, S>(
+        &mut self,
+        bits: BitCount<BITS>,
+        value: S,
+    ) -> io::Result<()>
     where
         S: SignedNumeric,
     {
-        self.counter.write_signed(bits, value)?;
+        self.counter.write_signed_counted(bits, value)?;
         self.records.push(WriteRecord::Signed {
-            bits,
+            bits: bits.bits,
             value: value.into(),
         });
         Ok(())
