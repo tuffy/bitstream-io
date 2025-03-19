@@ -291,7 +291,7 @@ pub trait BitWrite {
     where
         I: Integer,
     {
-        self.write_counted(bits.into(), value)
+        self.write_counted(BitCount::unknown(bits), value)
     }
 
     /// Writes a signed or unsigned value to the stream using the given
@@ -361,7 +361,7 @@ pub trait BitWrite {
     where
         U: UnsignedNumeric,
     {
-        self.write_unsigned_counted(bits.into(), value)
+        self.write_unsigned_counted(BitCount::unknown(bits), value)
     }
 
     /// Writes an unsigned value to the stream using the given
@@ -418,7 +418,7 @@ pub trait BitWrite {
     where
         S: SignedNumeric,
     {
-        self.write_signed_counted(bits.into(), value)
+        self.write_signed_counted(BitCount::unknown(bits), value)
     }
 
     /// Writes a twos-complement signed value to the stream
@@ -1059,7 +1059,7 @@ where
     where
         S: SignedNumeric,
     {
-        self.write_signed_counted(bits.into(), value)
+        self.write_signed_counted(BitCount::unknown(bits), value)
     }
 
     #[inline]

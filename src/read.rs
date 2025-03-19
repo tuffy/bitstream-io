@@ -209,7 +209,7 @@ pub trait BitRead {
     where
         I: Integer + Sized,
     {
-        I::read(self, bits.into())
+        I::read(self, BitCount::unknown(bits))
     }
 
     /// Reads a signed or unsigned value from the stream with
@@ -273,7 +273,7 @@ pub trait BitRead {
     where
         U: UnsignedNumeric,
     {
-        self.read_unsigned_counted(bits.into())
+        self.read_unsigned_counted(BitCount::unknown(bits))
     }
 
     /// Reads an unsigned value from the stream with
@@ -335,7 +335,7 @@ pub trait BitRead {
     where
         S: SignedNumeric,
     {
-        self.read_signed_counted(bits.into())
+        self.read_signed_counted(BitCount::unknown(bits))
     }
 
     /// Reads an unsigned bit count with the given number of bits.

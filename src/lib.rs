@@ -920,30 +920,31 @@ pub struct BitCount<const MAX: u32> {
 }
 
 impl<const MAX: u32> BitCount<MAX> {
-    /// Builds a new count with the given number of bits.
-    ///
-    /// The number of bits must be less than or equal to the maximum.
-    pub fn new<const BITS: u32>() -> Self {
-        const {
-            assert!(BITS <= MAX, "BITS must be <= MAX");
-        }
-
-        Self { bits: BITS }
-    }
-
     /// Subtracts a number of bits from our count,
     /// returning a new count.
-    pub fn checked_sub(self, bits: u32) -> Option<Self> {
+    pub const fn checked_sub(self, bits: u32) -> Option<Self> {
         // it's okay for the number of bits to be smaller than MAX
         // so subtracting into a smaller number of bits is fine
-        self.bits.checked_sub(bits).map(|bits| BitCount { bits })
+        match self.bits.checked_sub(bits) {
+            Some(bits) => Some(Self { bits }),
+            None => None,
+        }
     }
 }
 
-impl From<u32> for BitCount<{ u32::MAX }> {
-    /// Assume the highest number of maximum bits, if unknown
-    #[inline(always)]
-    fn from(bits: u32) -> Self {
+impl<const MAX: u32> core::convert::TryFrom<u32> for BitCount<MAX> {
+    type Error = u32;
+
+    fn try_from(bits: u32) -> Result<Self, Self::Error> {
+        (bits <= MAX).then_some(Self { bits }).ok_or(bits)
+    }
+}
+
+impl BitCount<{ u32::MAX }> {
+    /// Builds a bit count where the maximum bits is unknown.
+    ///
+    /// In this case, the maximum number is assumed.
+    pub const fn unknown(bits: u32) -> Self {
         Self { bits }
     }
 }
