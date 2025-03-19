@@ -694,12 +694,6 @@ pub trait Endianness: Sized {
     where
         U: UnsignedNumeric;
 
-    /// For extracting all bits from a source
-    /// Returns value and value's bit count
-    fn pop_all_bits<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
-    where
-        U: UnsignedNumeric;
-
     /// For pushing multiple bits into a sink
     fn push_bits<U>(sink: &mut U, sink_bits: &mut u32, bits: u32, value: U)
     where
@@ -1077,20 +1071,6 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
-    fn pop_all_bits<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
-    where
-        U: UnsignedNumeric,
-    {
-        let bits = std::mem::take(source_bits);
-        (
-            std::mem::take(source)
-                .checked_shr(U::BITS_SIZE - bits)
-                .unwrap_or(U::ZERO),
-            bits,
-        )
-    }
-
-    #[inline]
     fn push_bits<U>(sink: &mut U, sink_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric,
@@ -1361,18 +1341,6 @@ impl Endianness for LittleEndian {
         *source = source.checked_shr(bits).unwrap_or(U::ZERO);
         *source_bits -= bits;
         value
-    }
-
-    #[inline]
-    fn pop_all_bits<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
-    where
-        U: UnsignedNumeric,
-    {
-        let bits = std::mem::take(source_bits);
-        (
-            std::mem::take(source) & (U::ALL.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO)),
-            bits,
-        )
     }
 
     #[inline]
