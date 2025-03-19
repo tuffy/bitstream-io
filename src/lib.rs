@@ -716,43 +716,41 @@ pub trait Endianness: Sized {
         E: From<io::Error>,
     {
         if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            let mut value_bits = bits.min(queue.bits);
-            let mut value = U::from_u8(Self::pop_bits(
-                &mut queue.value,
-                &mut queue.bits,
-                value_bits,
-            ));
-            bits -= value_bits;
+            if bits <= queue.bits {
+                // all bits available in queue
+                Ok(U::from_u8(Self::pop_bits(
+                    &mut queue.value,
+                    &mut queue.bits,
+                    bits,
+                )))
+            } else {
+                // pop everything off the queue
+                let (value, mut value_bits) = Self::pop_value(&mut queue.value, &mut queue.bits);
+                let mut value = U::from_u8(value);
+                bits -= value_bits;
 
-            loop {
-                match bits {
-                    0 => break Ok(value),
-                    1..8 => {
-                        break Ok({
-                            // divide any remaining partial byte
-                            // between final value and queue
-
-                            let mut last = read_byte()?;
-                            let mut last_bits = 8;
-
-                            Self::push_value(
-                                &mut value,
-                                &mut value_bits,
-                                bits,
-                                U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
-                            );
-
-                            queue.value = last;
-                            queue.bits = last_bits;
-
-                            value
-                        });
-                    }
-                    8.. => {
-                        Self::push_value(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
-                        bits -= 8;
-                    }
+                // fill whole bytes
+                while bits >= 8 {
+                    Self::push_value(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+                    bits -= 8;
                 }
+
+                if bits > 0 {
+                    let mut last = read_byte()?;
+                    let mut last_bits = 8;
+
+                    Self::push_value(
+                        &mut value,
+                        &mut value_bits,
+                        bits,
+                        U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
+                    );
+
+                    queue.value = last;
+                    queue.bits = last_bits;
+                }
+
+                Ok(value)
             }
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
