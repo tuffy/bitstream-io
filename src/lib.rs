@@ -920,7 +920,20 @@ pub struct BitCount<const MAX: u32> {
 }
 
 impl<const MAX: u32> BitCount<MAX> {
-    fn checked_sub(self, bits: u32) -> Option<Self> {
+    /// Builds a new count with the given number of bits.
+    ///
+    /// The number of bits must be less than or equal to the maximum.
+    pub fn new<const BITS: u32>() -> Self {
+        const {
+            assert!(BITS <= MAX, "BITS must be <= MAX");
+        }
+
+        Self { bits: BITS }
+    }
+
+    /// Subtracts a number of bits from our count,
+    /// returning a new count.
+    pub fn checked_sub(self, bits: u32) -> Option<Self> {
         // it's okay for the number of bits to be smaller than MAX
         // so subtracting into a smaller number of bits is fine
         self.bits.checked_sub(bits).map(|bits| BitCount { bits })
