@@ -34,7 +34,7 @@ macro_rules! define_roundtrip {
                     let mut c = Cursor::new(&output);
                     let mut reader = BitReader::endian(&mut c, $endianness);
                     for value in 0..max {
-                        assert_eq!(reader.read::<u32>(bits).unwrap(), value as u32);
+                        assert_eq!(reader.read_var::<u32>(bits).unwrap(), value as u32);
                     }
                 }
             }
@@ -55,7 +55,7 @@ macro_rules! define_roundtrip {
                     let mut c = Cursor::new(&output);
                     let mut reader = BitReader::endian(&mut c, $endianness);
                     for value in min..max {
-                        assert_eq!(reader.read_signed::<i32>(bits).unwrap(), value as i32);
+                        assert_eq!(reader.read_signed_var::<i32>(bits).unwrap(), value as i32);
                     }
                 }
             }
@@ -174,19 +174,29 @@ fn test_auto_signedness() {
         };
     }
 
-    define_roundtrip!(test_writer_unsigned, UnsignedNumeric, write, read_unsigned);
+    define_roundtrip!(
+        test_writer_unsigned,
+        UnsignedNumeric,
+        write,
+        read_unsigned_var
+    );
     test_writer_unsigned::<_, BigEndian>(u8::MIN, u8::MAX, 8);
     test_writer_unsigned::<_, LittleEndian>(u8::MIN, u8::MAX, 8);
 
-    define_roundtrip!(test_writer_signed, SignedNumeric, write, read_signed);
+    define_roundtrip!(test_writer_signed, SignedNumeric, write, read_signed_var);
     test_writer_signed::<_, BigEndian>(i8::MIN, i8::MAX, 8);
     test_writer_signed::<_, LittleEndian>(i8::MIN, i8::MAX, 8);
 
-    define_roundtrip!(test_reader_unsigned, UnsignedNumeric, write_unsigned, read);
+    define_roundtrip!(
+        test_reader_unsigned,
+        UnsignedNumeric,
+        write_unsigned,
+        read_var
+    );
     test_reader_unsigned::<_, BigEndian>(u8::MIN, u8::MAX, 8);
     test_reader_unsigned::<_, LittleEndian>(u8::MIN, u8::MAX, 8);
 
-    define_roundtrip!(test_reader_signed, SignedNumeric, write_signed, read);
+    define_roundtrip!(test_reader_signed, SignedNumeric, write_signed, read_var);
     test_reader_signed::<_, BigEndian>(i8::MIN, i8::MAX, 8);
     test_reader_signed::<_, LittleEndian>(i8::MIN, i8::MAX, 8);
 }

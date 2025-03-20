@@ -287,56 +287,56 @@ fn test_reader_be() {
     /*reading unsigned values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
     assert!(r.byte_aligned());
-    assert_eq!(r.read::<u32>(2).unwrap(), 2);
+    assert_eq!(r.read_var::<u32>(2).unwrap(), 2);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read::<u32>(3).unwrap(), 6);
+    assert_eq!(r.read_var::<u32>(3).unwrap(), 6);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read::<u32>(5).unwrap(), 7);
+    assert_eq!(r.read_var::<u32>(5).unwrap(), 7);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read::<u32>(3).unwrap(), 5);
+    assert_eq!(r.read_var::<u32>(3).unwrap(), 5);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read::<u32>(19).unwrap(), 0x53BC1);
+    assert_eq!(r.read_var::<u32>(19).unwrap(), 0x53BC1);
     assert!(r.byte_aligned());
-    assert!(r.read::<u32>(1).is_err());
+    assert!(r.read_var::<u32>(1).is_err());
 
     /*reading const unsigned values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
     assert!(r.byte_aligned());
-    assert_eq!(r.read_in::<2, u32>().unwrap(), 2);
+    assert_eq!(r.read::<2, u32>().unwrap(), 2);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read_in::<3, u32>().unwrap(), 6);
+    assert_eq!(r.read::<3, u32>().unwrap(), 6);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read_in::<5, u32>().unwrap(), 7);
+    assert_eq!(r.read::<5, u32>().unwrap(), 7);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read_in::<3, u32>().unwrap(), 5);
+    assert_eq!(r.read::<3, u32>().unwrap(), 5);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read_in::<19, u32>().unwrap(), 0x53BC1);
+    assert_eq!(r.read::<19, u32>().unwrap(), 0x53BC1);
     assert!(r.byte_aligned());
-    assert!(r.read_in::<1, u32>().is_err());
+    assert!(r.read::<1, u32>().is_err());
 
     /*skipping bits*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert_eq!(r.read::<u32>(2).unwrap(), 2);
+    assert_eq!(r.read_var::<u32>(2).unwrap(), 2);
     assert!(r.skip(3).is_ok());
-    assert_eq!(r.read::<u32>(5).unwrap(), 7);
+    assert_eq!(r.read_var::<u32>(5).unwrap(), 7);
     assert!(r.skip(3).is_ok());
-    assert_eq!(r.read::<u32>(19).unwrap(), 0x53BC1);
+    assert_eq!(r.read_var::<u32>(19).unwrap(), 0x53BC1);
 
     /*reading signed values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert_eq!(r.read_signed::<i32>(2).unwrap(), -2);
-    assert_eq!(r.read_signed::<i32>(3).unwrap(), -2);
-    assert_eq!(r.read_signed::<i32>(5).unwrap(), 7);
-    assert_eq!(r.read_signed::<i32>(3).unwrap(), -3);
-    assert_eq!(r.read_signed::<i32>(19).unwrap(), -181311);
+    assert_eq!(r.read_signed_var::<i32>(2).unwrap(), -2);
+    assert_eq!(r.read_signed_var::<i32>(3).unwrap(), -2);
+    assert_eq!(r.read_signed_var::<i32>(5).unwrap(), 7);
+    assert_eq!(r.read_signed_var::<i32>(3).unwrap(), -3);
+    assert_eq!(r.read_signed_var::<i32>(19).unwrap(), -181311);
 
     /*reading const signed values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert_eq!(r.read_signed_in::<2, i32>().unwrap(), -2);
-    assert_eq!(r.read_signed_in::<3, i32>().unwrap(), -2);
-    assert_eq!(r.read_signed_in::<5, i32>().unwrap(), 7);
-    assert_eq!(r.read_signed_in::<3, i32>().unwrap(), -3);
-    assert_eq!(r.read_signed_in::<19, i32>().unwrap(), -181311);
+    assert_eq!(r.read_signed::<2, i32>().unwrap(), -2);
+    assert_eq!(r.read_signed::<3, i32>().unwrap(), -2);
+    assert_eq!(r.read_signed::<5, i32>().unwrap(), 7);
+    assert_eq!(r.read_signed::<3, i32>().unwrap(), -3);
+    assert_eq!(r.read_signed::<19, i32>().unwrap(), -181311);
 
     /*reading unary 0 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
@@ -356,14 +356,14 @@ fn test_reader_be() {
 
     /*byte aligning*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert_eq!(r.read::<u32>(3).unwrap(), 5);
+    assert_eq!(r.read_var::<u32>(3).unwrap(), 5);
     r.byte_align();
-    assert_eq!(r.read::<u32>(3).unwrap(), 7);
+    assert_eq!(r.read_var::<u32>(3).unwrap(), 7);
     r.byte_align();
     r.byte_align();
-    assert_eq!(r.read::<u32>(8).unwrap(), 59);
+    assert_eq!(r.read_var::<u32>(8).unwrap(), 59);
     r.byte_align();
-    assert_eq!(r.read::<u32>(4).unwrap(), 12);
+    assert_eq!(r.read_var::<u32>(4).unwrap(), 12);
 
     /*reading bytes, aligned*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
@@ -374,7 +374,7 @@ fn test_reader_be() {
     /*reading bytes, un-aligned*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
     let mut sub_data = [0; 2];
-    assert_eq!(r.read::<u32>(4).unwrap(), 11);
+    assert_eq!(r.read_var::<u32>(4).unwrap(), 11);
     assert!(r.read_bytes(&mut sub_data).is_ok());
     assert_eq!(&sub_data, b"\x1E\xD3");
 }
@@ -391,66 +391,66 @@ fn test_edge_cases_be() {
 
     /*0 bit reads*/
     let mut r = BitReader::endian(Cursor::new(vec![255]), BigEndian);
-    assert_eq!(r.read::<u8>(0).unwrap(), 0);
-    assert_eq!(r.read::<u16>(0).unwrap(), 0);
-    assert_eq!(r.read::<u32>(0).unwrap(), 0);
-    assert_eq!(r.read::<u64>(0).unwrap(), 0);
-    assert_eq!(r.read::<u8>(8).unwrap(), 255);
+    assert_eq!(r.read_var::<u8>(0).unwrap(), 0);
+    assert_eq!(r.read_var::<u16>(0).unwrap(), 0);
+    assert_eq!(r.read_var::<u32>(0).unwrap(), 0);
+    assert_eq!(r.read_var::<u64>(0).unwrap(), 0);
+    assert_eq!(r.read_var::<u8>(8).unwrap(), 255);
 
     let mut r = BitReader::endian(Cursor::new(vec![255]), BigEndian);
-    assert_eq!(r.read_in::<0, u8>().unwrap(), 0);
-    assert_eq!(r.read_in::<0, u16>().unwrap(), 0);
-    assert_eq!(r.read_in::<0, u32>().unwrap(), 0);
-    assert_eq!(r.read_in::<0, u64>().unwrap(), 0);
-    assert_eq!(r.read_in::<8, u8>().unwrap(), 255);
+    assert_eq!(r.read::<0, u8>().unwrap(), 0);
+    assert_eq!(r.read::<0, u16>().unwrap(), 0);
+    assert_eq!(r.read::<0, u32>().unwrap(), 0);
+    assert_eq!(r.read::<0, u64>().unwrap(), 0);
+    assert_eq!(r.read::<8, u8>().unwrap(), 255);
 
     let mut r = BitReader::endian(Cursor::new(vec![255]), BigEndian);
-    assert!(r.read_signed::<i8>(0).is_err());
-    assert!(r.read_signed::<i16>(0).is_err());
-    assert!(r.read_signed::<i32>(0).is_err());
-    assert!(r.read_signed::<i64>(0).is_err());
+    assert!(r.read_signed_var::<i8>(0).is_err());
+    assert!(r.read_signed_var::<i16>(0).is_err());
+    assert!(r.read_signed_var::<i32>(0).is_err());
+    assert!(r.read_signed_var::<i64>(0).is_err());
 
     /*unsigned 32 and 64-bit values*/
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read::<u32>(32).unwrap(), 0);
-    assert_eq!(r.read::<u32>(32).unwrap(), 4294967295);
-    assert_eq!(r.read::<u32>(32).unwrap(), 2147483648);
-    assert_eq!(r.read::<u32>(32).unwrap(), 2147483647);
-    assert_eq!(r.read::<u64>(64).unwrap(), 0);
-    assert_eq!(r.read::<u64>(64).unwrap(), 0xFFFFFFFFFFFFFFFF);
-    assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775808);
-    assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775807);
+    assert_eq!(r.read_var::<u32>(32).unwrap(), 0);
+    assert_eq!(r.read_var::<u32>(32).unwrap(), 4294967295);
+    assert_eq!(r.read_var::<u32>(32).unwrap(), 2147483648);
+    assert_eq!(r.read_var::<u32>(32).unwrap(), 2147483647);
+    assert_eq!(r.read_var::<u64>(64).unwrap(), 0);
+    assert_eq!(r.read_var::<u64>(64).unwrap(), 0xFFFFFFFFFFFFFFFF);
+    assert_eq!(r.read_var::<u64>(64).unwrap(), 9223372036854775808);
+    assert_eq!(r.read_var::<u64>(64).unwrap(), 9223372036854775807);
 
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read_in::<32, u32>().unwrap(), 0);
-    assert_eq!(r.read_in::<32, u32>().unwrap(), 4294967295);
-    assert_eq!(r.read_in::<32, u32>().unwrap(), 2147483648);
-    assert_eq!(r.read_in::<32, u32>().unwrap(), 2147483647);
-    assert_eq!(r.read_in::<64, u64>().unwrap(), 0);
-    assert_eq!(r.read_in::<64, u64>().unwrap(), 0xFFFFFFFFFFFFFFFF);
-    assert_eq!(r.read_in::<64, u64>().unwrap(), 9223372036854775808);
-    assert_eq!(r.read_in::<64, u64>().unwrap(), 9223372036854775807);
+    assert_eq!(r.read::<32, u32>().unwrap(), 0);
+    assert_eq!(r.read::<32, u32>().unwrap(), 4294967295);
+    assert_eq!(r.read::<32, u32>().unwrap(), 2147483648);
+    assert_eq!(r.read::<32, u32>().unwrap(), 2147483647);
+    assert_eq!(r.read::<64, u64>().unwrap(), 0);
+    assert_eq!(r.read::<64, u64>().unwrap(), 0xFFFFFFFFFFFFFFFF);
+    assert_eq!(r.read::<64, u64>().unwrap(), 9223372036854775808);
+    assert_eq!(r.read::<64, u64>().unwrap(), 9223372036854775807);
 
     /*signed 32 and 64-bit values*/
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read_signed::<i32>(32).unwrap(), 0);
-    assert_eq!(r.read_signed::<i32>(32).unwrap(), -1);
-    assert_eq!(r.read_signed::<i32>(32).unwrap(), -2147483648);
-    assert_eq!(r.read_signed::<i32>(32).unwrap(), 2147483647);
-    assert_eq!(r.read_signed::<i64>(64).unwrap(), 0);
-    assert_eq!(r.read_signed::<i64>(64).unwrap(), -1);
-    assert_eq!(r.read_signed::<i64>(64).unwrap(), -9223372036854775808);
-    assert_eq!(r.read_signed::<i64>(64).unwrap(), 9223372036854775807);
+    assert_eq!(r.read_signed_var::<i32>(32).unwrap(), 0);
+    assert_eq!(r.read_signed_var::<i32>(32).unwrap(), -1);
+    assert_eq!(r.read_signed_var::<i32>(32).unwrap(), -2147483648);
+    assert_eq!(r.read_signed_var::<i32>(32).unwrap(), 2147483647);
+    assert_eq!(r.read_signed_var::<i64>(64).unwrap(), 0);
+    assert_eq!(r.read_signed_var::<i64>(64).unwrap(), -1);
+    assert_eq!(r.read_signed_var::<i64>(64).unwrap(), -9223372036854775808);
+    assert_eq!(r.read_signed_var::<i64>(64).unwrap(), 9223372036854775807);
 
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), 0);
-    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), -1);
-    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), -2147483648);
-    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), 2147483647);
-    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), 0);
-    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), -1);
-    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), -9223372036854775808);
-    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), 9223372036854775807);
+    assert_eq!(r.read_signed::<32, i32>().unwrap(), 0);
+    assert_eq!(r.read_signed::<32, i32>().unwrap(), -1);
+    assert_eq!(r.read_signed::<32, i32>().unwrap(), -2147483648);
+    assert_eq!(r.read_signed::<32, i32>().unwrap(), 2147483647);
+    assert_eq!(r.read_signed::<64, i64>().unwrap(), 0);
+    assert_eq!(r.read_signed::<64, i64>().unwrap(), -1);
+    assert_eq!(r.read_signed::<64, i64>().unwrap(), -9223372036854775808);
+    assert_eq!(r.read_signed::<64, i64>().unwrap(), 9223372036854775807);
 }
 
 #[test]
@@ -515,56 +515,56 @@ fn test_reader_le() {
     /*reading unsigned values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
     assert!(r.byte_aligned());
-    assert_eq!(r.read::<u32>(2).unwrap(), 1);
+    assert_eq!(r.read_var::<u32>(2).unwrap(), 1);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read::<u32>(3).unwrap(), 4);
+    assert_eq!(r.read_var::<u32>(3).unwrap(), 4);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read::<u32>(5).unwrap(), 13);
+    assert_eq!(r.read_var::<u32>(5).unwrap(), 13);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read::<u32>(3).unwrap(), 3);
+    assert_eq!(r.read_var::<u32>(3).unwrap(), 3);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read::<u32>(19).unwrap(), 0x609DF);
+    assert_eq!(r.read_var::<u32>(19).unwrap(), 0x609DF);
     assert!(r.byte_aligned());
-    assert!(r.read::<u32>(1).is_err());
+    assert!(r.read_var::<u32>(1).is_err());
 
     /*reading const unsigned values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
     assert!(r.byte_aligned());
-    assert_eq!(r.read_in::<2, u32>().unwrap(), 1);
+    assert_eq!(r.read::<2, u32>().unwrap(), 1);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read_in::<3, u32>().unwrap(), 4);
+    assert_eq!(r.read::<3, u32>().unwrap(), 4);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read_in::<5, u32>().unwrap(), 13);
+    assert_eq!(r.read::<5, u32>().unwrap(), 13);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read_in::<3, u32>().unwrap(), 3);
+    assert_eq!(r.read::<3, u32>().unwrap(), 3);
     assert!(!r.byte_aligned());
-    assert_eq!(r.read_in::<19, u32>().unwrap(), 0x609DF);
+    assert_eq!(r.read::<19, u32>().unwrap(), 0x609DF);
     assert!(r.byte_aligned());
-    assert!(r.read_in::<1, u32>().is_err());
+    assert!(r.read::<1, u32>().is_err());
 
     /*skipping bits*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert_eq!(r.read::<u32>(2).unwrap(), 1);
+    assert_eq!(r.read_var::<u32>(2).unwrap(), 1);
     assert!(r.skip(3).is_ok());
-    assert_eq!(r.read::<u32>(5).unwrap(), 13);
+    assert_eq!(r.read_var::<u32>(5).unwrap(), 13);
     assert!(r.skip(3).is_ok());
-    assert_eq!(r.read::<u32>(19).unwrap(), 0x609DF);
+    assert_eq!(r.read_var::<u32>(19).unwrap(), 0x609DF);
 
     /*reading signed values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert_eq!(r.read_signed::<i32>(2).unwrap(), 1);
-    assert_eq!(r.read_signed::<i32>(3).unwrap(), -4);
-    assert_eq!(r.read_signed::<i32>(5).unwrap(), 13);
-    assert_eq!(r.read_signed::<i32>(3).unwrap(), 3);
-    assert_eq!(r.read_signed::<i32>(19).unwrap(), -128545);
+    assert_eq!(r.read_signed_var::<i32>(2).unwrap(), 1);
+    assert_eq!(r.read_signed_var::<i32>(3).unwrap(), -4);
+    assert_eq!(r.read_signed_var::<i32>(5).unwrap(), 13);
+    assert_eq!(r.read_signed_var::<i32>(3).unwrap(), 3);
+    assert_eq!(r.read_signed_var::<i32>(19).unwrap(), -128545);
 
     /*reading const signed values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert_eq!(r.read_signed_in::<2, i32>().unwrap(), 1);
-    assert_eq!(r.read_signed_in::<3, i32>().unwrap(), -4);
-    assert_eq!(r.read_signed_in::<5, i32>().unwrap(), 13);
-    assert_eq!(r.read_signed_in::<3, i32>().unwrap(), 3);
-    assert_eq!(r.read_signed_in::<19, i32>().unwrap(), -128545);
+    assert_eq!(r.read_signed::<2, i32>().unwrap(), 1);
+    assert_eq!(r.read_signed::<3, i32>().unwrap(), -4);
+    assert_eq!(r.read_signed::<5, i32>().unwrap(), 13);
+    assert_eq!(r.read_signed::<3, i32>().unwrap(), 3);
+    assert_eq!(r.read_signed::<19, i32>().unwrap(), -128545);
 
     /*reading unary 0 values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
@@ -584,14 +584,14 @@ fn test_reader_le() {
 
     /*byte aligning*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert_eq!(r.read::<u32>(3).unwrap(), 1);
+    assert_eq!(r.read_var::<u32>(3).unwrap(), 1);
     r.byte_align();
-    assert_eq!(r.read::<u32>(3).unwrap(), 5);
+    assert_eq!(r.read_var::<u32>(3).unwrap(), 5);
     r.byte_align();
     r.byte_align();
-    assert_eq!(r.read::<u32>(8).unwrap(), 59);
+    assert_eq!(r.read_var::<u32>(8).unwrap(), 59);
     r.byte_align();
-    assert_eq!(r.read::<u32>(4).unwrap(), 1);
+    assert_eq!(r.read_var::<u32>(4).unwrap(), 1);
 
     /*reading bytes, aligned*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
@@ -602,7 +602,7 @@ fn test_reader_le() {
     /*reading bytes, un-aligned*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
     let mut sub_data = [0; 2];
-    assert_eq!(r.read::<u32>(4).unwrap(), 1);
+    assert_eq!(r.read_var::<u32>(4).unwrap(), 1);
     assert!(r.read_bytes(&mut sub_data).is_ok());
     assert_eq!(&sub_data, b"\xDB\xBE");
 }
@@ -619,65 +619,65 @@ fn test_edge_cases_le() {
 
     /*0 bit reads*/
     let mut r = BitReader::endian(Cursor::new(vec![255]), LittleEndian);
-    assert_eq!(r.read::<u8>(0).unwrap(), 0);
-    assert_eq!(r.read::<u16>(0).unwrap(), 0);
-    assert_eq!(r.read::<u32>(0).unwrap(), 0);
-    assert_eq!(r.read::<u64>(0).unwrap(), 0);
-    assert_eq!(r.read::<u8>(8).unwrap(), 255);
+    assert_eq!(r.read_var::<u8>(0).unwrap(), 0);
+    assert_eq!(r.read_var::<u16>(0).unwrap(), 0);
+    assert_eq!(r.read_var::<u32>(0).unwrap(), 0);
+    assert_eq!(r.read_var::<u64>(0).unwrap(), 0);
+    assert_eq!(r.read_var::<u8>(8).unwrap(), 255);
 
     let mut r = BitReader::endian(Cursor::new(vec![255]), LittleEndian);
-    assert_eq!(r.read_in::<0, u8>().unwrap(), 0);
-    assert_eq!(r.read_in::<0, u16>().unwrap(), 0);
-    assert_eq!(r.read_in::<0, u32>().unwrap(), 0);
-    assert_eq!(r.read_in::<0, u64>().unwrap(), 0);
-    assert_eq!(r.read_in::<8, u8>().unwrap(), 255);
+    assert_eq!(r.read::<0, u8>().unwrap(), 0);
+    assert_eq!(r.read::<0, u16>().unwrap(), 0);
+    assert_eq!(r.read::<0, u32>().unwrap(), 0);
+    assert_eq!(r.read::<0, u64>().unwrap(), 0);
+    assert_eq!(r.read::<8, u8>().unwrap(), 255);
 
     let mut r = BitReader::endian(Cursor::new(vec![255]), LittleEndian);
-    assert!(r.read_signed::<i8>(0).is_err());
-    assert!(r.read_signed::<i16>(0).is_err());
-    assert!(r.read_signed::<i32>(0).is_err());
-    assert!(r.read_signed::<i64>(0).is_err());
+    assert!(r.read_signed_var::<i8>(0).is_err());
+    assert!(r.read_signed_var::<i16>(0).is_err());
+    assert!(r.read_signed_var::<i32>(0).is_err());
+    assert!(r.read_signed_var::<i64>(0).is_err());
 
     /*unsigned 32 and 64-bit values*/
     let mut r = BitReader::endian(Cursor::new(&data), LittleEndian);
-    assert_eq!(r.read::<u32>(32).unwrap(), 0);
-    assert_eq!(r.read::<u32>(32).unwrap(), 4294967295);
-    assert_eq!(r.read::<u32>(32).unwrap(), 2147483648);
-    assert_eq!(r.read::<u32>(32).unwrap(), 2147483647);
-    assert_eq!(r.read::<u64>(64).unwrap(), 0);
-    assert_eq!(r.read::<u64>(64).unwrap(), 0xFFFFFFFFFFFFFFFF);
-    assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775808);
-    assert_eq!(r.read::<u64>(64).unwrap(), 9223372036854775807);
+    assert_eq!(r.read_var::<u32>(32).unwrap(), 0);
+    assert_eq!(r.read_var::<u32>(32).unwrap(), 4294967295);
+    assert_eq!(r.read_var::<u32>(32).unwrap(), 2147483648);
+    assert_eq!(r.read_var::<u32>(32).unwrap(), 2147483647);
+    assert_eq!(r.read_var::<u64>(64).unwrap(), 0);
+    assert_eq!(r.read_var::<u64>(64).unwrap(), 0xFFFFFFFFFFFFFFFF);
+    assert_eq!(r.read_var::<u64>(64).unwrap(), 9223372036854775808);
+    assert_eq!(r.read_var::<u64>(64).unwrap(), 9223372036854775807);
 
     let mut r = BitReader::endian(Cursor::new(&data), LittleEndian);
-    assert_eq!(r.read_in::<32, u32>().unwrap(), 0);
-    assert_eq!(r.read_in::<32, u32>().unwrap(), 4294967295);
-    assert_eq!(r.read_in::<32, u32>().unwrap(), 2147483648);
-    assert_eq!(r.read_in::<32, u32>().unwrap(), 2147483647);
-    assert_eq!(r.read_in::<64, u64>().unwrap(), 0);
-    assert_eq!(r.read_in::<64, u64>().unwrap(), 0xFFFFFFFFFFFFFFFF);
-    assert_eq!(r.read_in::<64, u64>().unwrap(), 9223372036854775808);
-    assert_eq!(r.read_in::<64, u64>().unwrap(), 9223372036854775807);
+    assert_eq!(r.read::<32, u32>().unwrap(), 0);
+    assert_eq!(r.read::<32, u32>().unwrap(), 4294967295);
+    assert_eq!(r.read::<32, u32>().unwrap(), 2147483648);
+    assert_eq!(r.read::<32, u32>().unwrap(), 2147483647);
+    assert_eq!(r.read::<64, u64>().unwrap(), 0);
+    assert_eq!(r.read::<64, u64>().unwrap(), 0xFFFFFFFFFFFFFFFF);
+    assert_eq!(r.read::<64, u64>().unwrap(), 9223372036854775808);
+    assert_eq!(r.read::<64, u64>().unwrap(), 9223372036854775807);
 
     let mut r = BitReader::endian(Cursor::new(&data), LittleEndian);
-    assert_eq!(r.read_signed::<i32>(32).unwrap(), 0);
-    assert_eq!(r.read_signed::<i32>(32).unwrap(), -1);
-    assert_eq!(r.read_signed::<i32>(32).unwrap(), -2147483648);
-    assert_eq!(r.read_signed::<i32>(32).unwrap(), 2147483647);
-    assert_eq!(r.read_signed::<i64>(64).unwrap(), 0);
-    assert_eq!(r.read_signed::<i64>(64).unwrap(), -1);
-    assert_eq!(r.read_signed::<i64>(64).unwrap(), -9223372036854775808);
-    assert_eq!(r.read_signed::<i64>(64).unwrap(), 9223372036854775807);
+    assert_eq!(r.read_signed_var::<i32>(32).unwrap(), 0);
+    assert_eq!(r.read_signed_var::<i32>(32).unwrap(), -1);
+    assert_eq!(r.read_signed_var::<i32>(32).unwrap(), -2147483648);
+    assert_eq!(r.read_signed_var::<i32>(32).unwrap(), 2147483647);
+    assert_eq!(r.read_signed_var::<i64>(64).unwrap(), 0);
+    assert_eq!(r.read_signed_var::<i64>(64).unwrap(), -1);
+    assert_eq!(r.read_signed_var::<i64>(64).unwrap(), -9223372036854775808);
+    assert_eq!(r.read_signed_var::<i64>(64).unwrap(), 9223372036854775807);
 
     let mut r = BitReader::endian(Cursor::new(&data), LittleEndian);
-    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), 0);
-    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), -1);
-    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), -2147483648);
-    assert_eq!(r.read_signed_in::<32, i32>().unwrap(), 2147483647);
-    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), 0);
-    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), -1);
-    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), -9223372036854775808);
-    assert_eq!(r.read_signed_in::<64, i64>().unwrap(), 9223372036854775807);
+    assert_eq!(r.read_signed::<32, i32>().unwrap(), 0);
+    assert_eq!(r.read_signed::<32, i32>().unwrap(), -1);
+    assert_eq!(r.read_signed::<32, i32>().unwrap(), -2147483648);
+    assert_eq!(r.read_signed::<32, i32>().unwrap(), 2147483647);
+    assert_eq!(r.read_signed::<64, i64>().unwrap(), 0);
+    assert_eq!(r.read_signed::<64, i64>().unwrap(), -1);
+    assert_eq!(r.read_signed::<64, i64>().unwrap(), -9223372036854775808);
+    assert_eq!(r.read_signed::<64, i64>().unwrap(), 9223372036854775807);
 }
 
 #[test]
@@ -734,23 +734,23 @@ fn test_reader_io_errors_be() {
 
     /*skipping bits*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert!(r.read::<u32>(7).is_ok());
+    assert!(r.read_var::<u32>(7).is_ok());
     assert_eq!(r.skip(5).unwrap_err().kind(), ErrorKind::UnexpectedEof);
 
     /*signed values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert!(r.read_signed::<i32>(2).is_ok());
-    assert!(r.read_signed::<i32>(3).is_ok());
+    assert!(r.read_signed_var::<i32>(2).is_ok());
+    assert!(r.read_signed_var::<i32>(3).is_ok());
     assert_eq!(
-        r.read_signed::<i32>(5).unwrap_err().kind(),
+        r.read_signed_var::<i32>(5).unwrap_err().kind(),
         ErrorKind::UnexpectedEof
     );
 
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
-    assert!(r.read_signed_in::<2, i32>().is_ok());
-    assert!(r.read_signed_in::<3, i32>().is_ok());
+    assert!(r.read_signed::<2, i32>().is_ok());
+    assert!(r.read_signed::<3, i32>().is_ok());
     assert_eq!(
-        r.read_signed_in::<5, i32>().unwrap_err().kind(),
+        r.read_signed::<5, i32>().unwrap_err().kind(),
         ErrorKind::UnexpectedEof
     );
 
@@ -787,7 +787,7 @@ fn test_reader_io_errors_be() {
     /*reading bytes, un-aligned*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
     let mut sub_data = [0; 2];
-    assert!(r.read::<u32>(4).is_ok());
+    assert!(r.read_var::<u32>(4).is_ok());
     assert_eq!(
         r.read_bytes(&mut sub_data).unwrap_err().kind(),
         ErrorKind::UnexpectedEof
@@ -815,23 +815,23 @@ fn test_reader_io_errors_le() {
 
     /*skipping bits*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert!(r.read::<u32>(7).is_ok());
+    assert!(r.read_var::<u32>(7).is_ok());
     assert_eq!(r.skip(5).unwrap_err().kind(), ErrorKind::UnexpectedEof);
 
     /*signed values*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert!(r.read_signed::<i32>(2).is_ok());
-    assert!(r.read_signed::<i32>(3).is_ok());
+    assert!(r.read_signed_var::<i32>(2).is_ok());
+    assert!(r.read_signed_var::<i32>(3).is_ok());
     assert_eq!(
-        r.read_signed::<i32>(5).unwrap_err().kind(),
+        r.read_signed_var::<i32>(5).unwrap_err().kind(),
         ErrorKind::UnexpectedEof
     );
 
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
-    assert!(r.read_signed_in::<2, i32>().is_ok());
-    assert!(r.read_signed_in::<3, i32>().is_ok());
+    assert!(r.read_signed::<2, i32>().is_ok());
+    assert!(r.read_signed::<3, i32>().is_ok());
     assert_eq!(
-        r.read_signed_in::<5, i32>().unwrap_err().kind(),
+        r.read_signed::<5, i32>().unwrap_err().kind(),
         ErrorKind::UnexpectedEof
     );
 
@@ -868,7 +868,7 @@ fn test_reader_io_errors_le() {
     /*reading bytes, un-aligned*/
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
     let mut sub_data = [0; 2];
-    assert!(r.read::<u32>(4).is_ok());
+    assert!(r.read_var::<u32>(4).is_ok());
     assert_eq!(
         r.read_bytes(&mut sub_data).unwrap_err().kind(),
         ErrorKind::UnexpectedEof
@@ -883,67 +883,73 @@ fn test_reader_bits_errors() {
 
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
 
-    assert_eq!(r.read::<u8>(9).unwrap_err().kind(), ErrorKind::InvalidInput);
     assert_eq!(
-        r.read::<u16>(17).unwrap_err().kind(),
+        r.read_var::<u8>(9).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read::<u32>(33).unwrap_err().kind(),
+        r.read_var::<u16>(17).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read::<u64>(65).unwrap_err().kind(),
+        r.read_var::<u32>(33).unwrap_err().kind(),
+        ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        r.read_var::<u64>(65).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
 
     assert_eq!(
-        r.read_signed::<i8>(9).unwrap_err().kind(),
+        r.read_signed_var::<i8>(9).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read_signed::<i16>(17).unwrap_err().kind(),
+        r.read_signed_var::<i16>(17).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read_signed::<i32>(33).unwrap_err().kind(),
+        r.read_signed_var::<i32>(33).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read_signed::<i64>(65).unwrap_err().kind(),
+        r.read_signed_var::<i64>(65).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
 
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
 
-    assert_eq!(r.read::<u8>(9).unwrap_err().kind(), ErrorKind::InvalidInput);
     assert_eq!(
-        r.read::<u16>(17).unwrap_err().kind(),
+        r.read_var::<u8>(9).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read::<u32>(33).unwrap_err().kind(),
+        r.read_var::<u16>(17).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read::<u64>(65).unwrap_err().kind(),
+        r.read_var::<u32>(33).unwrap_err().kind(),
+        ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        r.read_var::<u64>(65).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
 
     assert_eq!(
-        r.read_signed::<i8>(9).unwrap_err().kind(),
+        r.read_signed_var::<i8>(9).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read_signed::<i16>(17).unwrap_err().kind(),
+        r.read_signed_var::<i16>(17).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read_signed::<i32>(33).unwrap_err().kind(),
+        r.read_signed_var::<i32>(33).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
     assert_eq!(
-        r.read_signed::<i64>(65).unwrap_err().kind(),
+        r.read_signed_var::<i64>(65).unwrap_err().kind(),
         ErrorKind::InvalidInput
     );
 }
@@ -956,14 +962,14 @@ fn test_clone() {
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
     assert!(r.byte_aligned());
-    assert_eq!(r.read::<u32>(4).unwrap(), 0xB);
+    assert_eq!(r.read_var::<u32>(4).unwrap(), 0xB);
     let mut r2 = r.clone();
     assert!(!r.byte_aligned());
-    assert_eq!(r.read::<u32>(4).unwrap(), 0x1);
-    assert_eq!(r.read::<u32>(8).unwrap(), 0xED);
+    assert_eq!(r.read_var::<u32>(4).unwrap(), 0x1);
+    assert_eq!(r.read_var::<u32>(8).unwrap(), 0xED);
     assert!(!r2.byte_aligned());
-    assert_eq!(r2.read::<u32>(4).unwrap(), 0x1);
-    assert_eq!(r2.read::<u32>(8).unwrap(), 0xED);
+    assert_eq!(r2.read_var::<u32>(4).unwrap(), 0x1);
+    assert_eq!(r2.read_var::<u32>(8).unwrap(), 0xED);
 
     // Can still instantiate a BitReader when the backing std::io::Read is
     // !Clone.

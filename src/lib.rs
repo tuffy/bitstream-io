@@ -42,7 +42,7 @@
 //! use bitstream_io::{BigEndian, BitReader, BitRead};
 //! let data = [0; 10];
 //! let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-//! let x: Result<u32, _> = r.read(64);  // reading 64 bits to u32 always fails at runtime
+//! let x: Result<u32, _> = r.read_var(64);  // reading 64 bits to u32 always fails at runtime
 //! assert!(x.is_err());
 //! ```
 //! but those errors will not be caught until the program runs,
@@ -113,8 +113,8 @@ pub mod huffman;
 pub mod read;
 pub mod write;
 pub use read::{
-    BitRead, BitReader, ByteRead, ByteReader, FromBitStream, FromBitStreamWith, FromByteStream,
-    FromByteStreamWith,
+    BitRead, BitRead2, BitReader, ByteRead, ByteReader, FromBitStream, FromBitStreamWith,
+    FromByteStream, FromByteStreamWith,
 };
 pub use write::{
     BitCounter, BitRecorder, BitWrite, BitWriter, ByteWrite, ByteWriter, ToBitStream,
@@ -470,7 +470,7 @@ macro_rules! define_unsigned_numeric {
             where
                 Self: Sized,
             {
-                reader.read_unsigned_in::<BITS, _>()
+                reader.read_unsigned::<BITS, _>()
             }
 
             #[inline(always)]
@@ -580,7 +580,7 @@ macro_rules! define_signed_numeric {
             where
                 Self: Sized,
             {
-                reader.read_signed_in::<BITS, _>()
+                reader.read_signed::<BITS, _>()
             }
 
             #[inline(always)]
@@ -1170,7 +1170,7 @@ impl Endianness for BigEndian {
             r.read_to()
         } else {
             let is_negative = r.read_bit()?;
-            let unsigned = r.read_unsigned::<S::Unsigned>(B - 1)?;
+            let unsigned = r.read_unsigned_var::<S::Unsigned>(B - 1)?;
             Ok(if is_negative {
                 unsigned.as_negative_fixed::<B>()
             } else {
@@ -1400,7 +1400,7 @@ impl Endianness for LittleEndian {
         if B == S::BITS_SIZE {
             r.read_to()
         } else {
-            let unsigned = r.read_unsigned::<S::Unsigned>(B - 1)?;
+            let unsigned = r.read_unsigned_var::<S::Unsigned>(B - 1)?;
             let is_negative = r.read_bit()?;
             Ok(if is_negative {
                 unsigned.as_negative_fixed::<B>()

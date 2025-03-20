@@ -31,9 +31,9 @@ fn test_reader_pos<E: Endianness>() -> io::Result<()> {
     r.read_bit()?;
     r.read_bit()?;
     assert_eq!(r.position_in_bits()?, 2);
-    let _: u32 = r.read(5)?;
+    let _: u32 = r.read_var(5)?;
     assert_eq!(r.position_in_bits()?, 7);
-    let _: u32 = r.read(4)?;
+    let _: u32 = r.read_var(4)?;
     assert_eq!(r.position_in_bits()?, 11);
     let mut buf = [0u8; 2];
     r.read_bytes(&mut buf)?;
@@ -45,9 +45,9 @@ fn test_reader_pos<E: Endianness>() -> io::Result<()> {
     r.read_bit()?;
     r.read_bit()?;
     r.read_bit()?;
-    let _: i32 = r.read_signed(9)?;
+    let _: i32 = r.read_signed_var(9)?;
     assert_eq!(r.position_in_bits()?, 43);
-    let _: i32 = r.read_signed(5)?;
+    let _: i32 = r.read_signed_var(5)?;
     assert_eq!(r.position_in_bits()?, 48);
 
     Ok(())
@@ -105,7 +105,7 @@ pub fn test_reader_seek_current() -> io::Result<()> {
     assert_eq!(r.read_bit()?, true);
     assert_eq!(r.read_bit()?, false);
     assert_eq!(r.read_bit()?, false);
-    let _: i32 = r.read_signed(11)?;
+    let _: i32 = r.read_signed_var(11)?;
     assert_eq!(r.position_in_bits()?, 17);
 
     r.seek_bits(SeekFrom::Current(-3))?;
