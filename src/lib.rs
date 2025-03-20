@@ -690,7 +690,7 @@ pub trait Endianness: Sized {
         U: UnsignedNumeric;
 
     /// For extracting all the values from a source into a final value
-    fn pop_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    fn pop_final_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
     where
         U: UnsignedNumeric;
 
@@ -700,7 +700,7 @@ pub trait Endianness: Sized {
         U: UnsignedNumeric;
 
     /// For pushing multiple bits into a final value
-    fn push_value<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
+    fn push_bits<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric;
 
@@ -725,13 +725,13 @@ pub trait Endianness: Sized {
                 )))
             } else {
                 // pop everything off the queue
-                let (value, mut value_bits) = Self::pop_value(&mut queue.value, &mut queue.bits);
+                let (value, mut value_bits) = Self::pop_final_value(&mut queue.value, &mut queue.bits);
                 let mut value = U::from_u8(value);
                 bits -= value_bits;
 
                 // fill whole bytes
                 while bits >= 8 {
-                    Self::push_value(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+                    Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
                     bits -= 8;
                 }
 
@@ -739,7 +739,7 @@ pub trait Endianness: Sized {
                     let mut last = read_byte()?;
                     let mut last_bits = 8;
 
-                    Self::push_value(
+                    Self::push_bits(
                         &mut value,
                         &mut value_bits,
                         bits,
@@ -779,13 +779,13 @@ pub trait Endianness: Sized {
             )))
         } else {
             // pop everything off the queue
-            let (value, mut value_bits) = Self::pop_value(&mut queue.value, &mut queue.bits);
+            let (value, mut value_bits) = Self::pop_final_value(&mut queue.value, &mut queue.bits);
             let mut value = U::from_u8(value);
             let mut bits = BITS - value_bits;
 
             // fill whole bytes
             while bits >= 8 {
-                Self::push_value(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+                Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
                 bits -= 8;
             }
 
@@ -793,7 +793,7 @@ pub trait Endianness: Sized {
                 let mut last = read_byte()?;
                 let mut last_bits = 8;
 
-                Self::push_value(
+                Self::push_bits(
                     &mut value,
                     &mut value_bits,
                     bits,
@@ -1074,13 +1074,13 @@ impl Endianness for BigEndian {
         queue.is_empty().then(|| mem::take(&mut queue.value))
     }
 
-    fn pop_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    fn pop_final_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
     where
         U: UnsignedNumeric,
     {
-        let bits = std::mem::take(source_bits);
+        let bits = core::mem::take(source_bits);
         (
-            std::mem::take(source)
+            core::mem::take(source)
                 .checked_shr(U::BITS_SIZE - bits)
                 .unwrap_or(U::ZERO),
             bits,
@@ -1099,7 +1099,7 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
-    fn push_value<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
+    fn push_bits<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric,
     {
@@ -1359,13 +1359,13 @@ impl Endianness for LittleEndian {
         queue.is_empty().then(|| mem::take(&mut queue.value))
     }
 
-    fn pop_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    fn pop_final_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
     where
         U: UnsignedNumeric,
     {
-        let bits = std::mem::take(source_bits);
+        let bits = core::mem::take(source_bits);
         (
-            std::mem::take(source) & (U::ALL.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO)),
+            core::mem::take(source) & (U::ALL.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO)),
             bits,
         )
     }
@@ -1382,7 +1382,7 @@ impl Endianness for LittleEndian {
     }
 
     #[inline]
-    fn push_value<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
+    fn push_bits<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
     where
         U: UnsignedNumeric,
     {
