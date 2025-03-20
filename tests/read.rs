@@ -16,7 +16,7 @@ use std::io::{self, Cursor};
 
 #[test]
 fn test_queue_pop_be() {
-    use bitstream_io::{BitCount, BitSourceOnce, BitSourceRefill, BE};
+    use bitstream_io::{BitSourceRefill, BE};
 
     let mut q: BitSourceRefill<BE, u8> = BitSourceRefill::default();
     assert_eq!(q.pop_bit(|| Ok::<_, ()>(0b10110001)), Ok(true));
@@ -28,66 +28,6 @@ fn test_queue_pop_be() {
     assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
     assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(true));
     assert_eq!(q.pop_bit(|| Err(())), Err(()));
-
-    let mut q: BitSourceOnce<BE, u8> =
-        BitSourceOnce::new(BitCount::unknown(8), 0b10110001).unwrap();
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<BE, u8> = BitSourceOnce::new_fixed::<8>(0b10110001).unwrap();
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<BE, u8> = BitSourceOnce::new(BitCount::unknown(7), 0b0110001).unwrap();
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<BE, u8> = BitSourceOnce::new_fixed::<7>(0b0110001).unwrap();
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<BE, u8> = BitSourceOnce::new(BitCount::unknown(2), 0b01).unwrap();
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<BE, u8> = BitSourceOnce::new_fixed::<2>(0b01).unwrap();
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), None);
-
-    // too many bits for a u8
-    assert!(BitSourceOnce::<BE, u8>::new(BitCount::unknown(9), 0).is_err());
-
-    // value too large for 2 bits
-    assert!(BitSourceOnce::<BE, u8>::new(BitCount::unknown(2), 0b111u8).is_err());
-    assert!(BitSourceOnce::<BE, u8>::new_fixed::<2>(0b111u8).is_err());
 }
 
 #[test]
@@ -198,7 +138,7 @@ fn test_queue_unary_be() {
 
 #[test]
 fn test_queue_pop_le() {
-    use bitstream_io::{BitCount, BitSourceOnce, BitSourceRefill, LE};
+    use bitstream_io::{BitSourceRefill, LE};
 
     let mut q: BitSourceRefill<LE, u8> = BitSourceRefill::default();
 
@@ -211,66 +151,6 @@ fn test_queue_pop_le() {
     assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(false));
     assert_eq!(q.pop_bit(|| panic!()), Ok::<bool, ()>(true));
     assert_eq!(q.pop_bit(|| Err(())), Err(()));
-
-    let mut q: BitSourceOnce<LE, u8> =
-        BitSourceOnce::new(BitCount::unknown(8), 0b10110001).unwrap();
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<LE, u8> = BitSourceOnce::new_fixed::<8>(0b10110001).unwrap();
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<LE, u8> = BitSourceOnce::new(BitCount::unknown(7), 0b0110001).unwrap();
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<LE, u8> = BitSourceOnce::new_fixed::<7>(0b0110001).unwrap();
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<LE, u8> = BitSourceOnce::new(BitCount::unknown(2), 0b01).unwrap();
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), None);
-
-    let mut q: BitSourceOnce<LE, u8> = BitSourceOnce::new_fixed::<2>(0b01).unwrap();
-    assert_eq!(q.pop_bit(), Some(true));
-    assert_eq!(q.pop_bit(), Some(false));
-    assert_eq!(q.pop_bit(), None);
-
-    // too many bits for a u8
-    assert!(BitSourceOnce::<LE, u8>::new(BitCount::unknown(9), 0).is_err());
-
-    // value too large for 2 bits
-    assert!(BitSourceOnce::<LE, u8>::new(BitCount::unknown(2), 0b111u8).is_err());
-    assert!(BitSourceOnce::<LE, u8>::new_fixed::<2>(0b111u8).is_err());
 }
 
 #[test]
