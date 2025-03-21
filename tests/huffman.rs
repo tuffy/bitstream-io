@@ -1,7 +1,6 @@
 extern crate alloc;
 extern crate bitstream_io;
 
-use bitstream_io::compile_read_tree;
 use bitstream_io::huffman::{compile_write_tree, HuffmanTreeError};
 #[cfg(not(feature = "std"))]
 use core2::io;
@@ -22,26 +21,25 @@ fn test_huffman_errors() {
 
 #[test]
 fn test_huffman_values() {
-    use bitstream_io::{BigEndian, BitRead, BitReader};
+    use bitstream_io::{define_huffman_tree, BigEndian, BitRead, BitReader};
     use io::Cursor;
 
     let data = [0b10110001, 0b11101101];
 
-    let tree = compile_read_tree!([0, [1, [2, 5]]]);
+    define_huffman_tree!(Tree1 : i32 , [0, [1, [2, 5]]]);
+    define_huffman_tree!(Tree2 : &'static str, ["foo", ["bar", ["baz", "kelp"]]]);
 
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 2);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 5);
-
-    let tree = compile_read_tree!(["foo", ["bar", ["baz", "kelp"]]]);
+    assert_eq!(r.read_huffman::<Tree1>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<Tree1>().unwrap(), 2);
+    assert_eq!(r.read_huffman::<Tree1>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<Tree1>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<Tree1>().unwrap(), 5);
 
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-    assert_eq!(r.read_huffman(&tree).unwrap(), &"bar");
-    assert_eq!(r.read_huffman(&tree).unwrap(), &"baz");
-    assert_eq!(r.read_huffman(&tree).unwrap(), &"foo");
-    assert_eq!(r.read_huffman(&tree).unwrap(), &"foo");
-    assert_eq!(r.read_huffman(&tree).unwrap(), &"kelp");
+    assert_eq!(r.read_huffman::<Tree2>().unwrap(), "bar");
+    assert_eq!(r.read_huffman::<Tree2>().unwrap(), "baz");
+    assert_eq!(r.read_huffman::<Tree2>().unwrap(), "foo");
+    assert_eq!(r.read_huffman::<Tree2>().unwrap(), "foo");
+    assert_eq!(r.read_huffman::<Tree2>().unwrap(), "kelp");
 }

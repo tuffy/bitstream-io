@@ -14,78 +14,70 @@
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::{error::Error, fmt};
 
-/// A trait for walking Huffman trees one bit at a time.
+/// A trait for building a final value from individual bits
 pub trait FromBits {
     /// Our final output type
     type Output;
 
-    /// Returns either ourself (if we're a leaf node)
-    /// or recursively calls the next item in the tree.
-    fn from_bits<F, E>(&self, next: F) -> Result<&Self::Output, E>
+    /// Given a fallable bit generator, return our output type
+    ///
+    /// # Errors
+    ///
+    /// Passes along any error from the bit generator
+    fn from_bits<F, E>(next: F) -> Result<Self::Output, E>
     where
         F: FnMut() -> Result<bool, E>;
 }
 
-/// A Huffman tree leaf node containing a final value
-#[derive(Debug)]
-pub struct HuffmanReadTreeLeaf<T>(T);
-
-impl<T> HuffmanReadTreeLeaf<T> {
-    /// Constructs a node from its final value
-    pub const fn new(value: T) -> Self {
-        Self(value)
-    }
-}
-
-impl<T> FromBits for HuffmanReadTreeLeaf<T> {
-    type Output = T;
-
-    #[inline(always)]
-    fn from_bits<F, E>(&self, _: F) -> Result<&Self::Output, E>
-    where
-        F: FnMut() -> Result<bool, E>,
-    {
-        Ok(&self.0)
-    }
-}
-
-/// A Huffman tree non-leaf node containing two sub-trees
-#[derive(Debug)]
-pub struct HuffmanReadTree<X, Y> {
-    bit_0: X,
-    bit_1: Y,
-}
-
-impl<X, Y> HuffmanReadTree<X, Y> {
-    /// Constructs a tree from the 0 bit sub-tree, and 1 bit sub-tree
-    pub const fn new(bit_0: X, bit_1: Y) -> Self {
-        Self { bit_0, bit_1 }
-    }
-}
-
-impl<X: FromBits, Y: FromBits<Output = X::Output>> FromBits for HuffmanReadTree<X, Y> {
-    type Output = X::Output;
-
-    #[inline(always)]
-    fn from_bits<F, E>(&self, mut next: F) -> Result<&Self::Output, E>
-    where
-        F: FnMut() -> Result<bool, E>,
-    {
-        match next()? {
-            false => self.bit_0.from_bits(next),
-            true => self.bit_1.from_bits(next),
-        }
-    }
-}
-
-/// Builds a new Huffman tree for reading
+/// Defines a new Huffman tree for reading
+///
+/// Its syntax is: `define_huffman_tree!(name : type , nodes)`
+/// where `name` is some identifier to identify the tree in the
+/// macro's current scope, `type` is the tree's output
+/// type (which should implement `Copy`), and `nodes` is either a
+/// final leaf value or a `[bit_0, bit_1]` pair where `bit_0` is
+/// the tree visited on a `0` bit, and `bit_1` is the tree visited
+/// on a `1` bit.
+///
+/// # Example
+///
+/// ```
+/// use bitstream_io::{define_huffman_tree, huffman::FromBits};
+/// define_huffman_tree!(TreeName : &'static str , ["bit 0", ["bit 1->0", "bit 1->1"]]);
+/// let mut bits = [true, false].iter().copied();
+/// assert_eq!(TreeName::from_bits(|| bits.next().ok_or(())).unwrap(), "bit 1->0");
+/// ```
 #[macro_export]
-macro_rules! compile_read_tree {
-    ([$left:tt, $right:tt]) => {
-        $crate::huffman::HuffmanReadTree::new(compile_read_tree!($left), compile_read_tree!($right))
+macro_rules! define_huffman_tree {
+    ($name:ident : $type:ty , $nodes:tt) => {
+        #[derive(Copy, Clone, Debug)]
+        struct $name;
+
+        impl $crate::huffman::FromBits for $name {
+            type Output = $type;
+
+            fn from_bits<F, E>(mut next: F) -> Result<Self::Output, E>
+            where
+                F: FnMut() -> Result<bool, E>,
+            {
+                $crate::compile_tree_nodes!(next, $nodes)
+            }
+        }
     };
-    ($final:tt) => {
-        $crate::huffman::HuffmanReadTreeLeaf::new($final)
+}
+
+/// A helper macro for compiling individual Huffman tree nodes
+#[macro_export]
+macro_rules! compile_tree_nodes {
+    ($next:ident , [$bit_0:tt, $bit_1:tt]) => {
+        if $next()? {
+            $crate::compile_tree_nodes!($next, $bit_1)
+        } else {
+            $crate::compile_tree_nodes!($next, $bit_0)
+        }
+    };
+    ($next:ident , $final:tt) => {
+        Ok($final)
     };
 }
 

@@ -455,29 +455,29 @@ fn test_edge_cases_be() {
 
 #[test]
 fn test_reader_huffman_be() {
-    use bitstream_io::compile_read_tree;
+    use bitstream_io::define_huffman_tree;
     use bitstream_io::{BigEndian, BitRead, BitReader};
 
-    let tree = compile_read_tree!([[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(SomeTree : i32 , [[[4, 3], 2], [1, 0]]);
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
 
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 4);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 2);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 2);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 2);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 4);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 2);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 4);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 2);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 2);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 2);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 4);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 2);
 }
 
 #[test]
@@ -675,28 +675,28 @@ fn test_edge_cases_le() {
 
 #[test]
 fn test_reader_huffman_le() {
-    use bitstream_io::compile_read_tree;
+    use bitstream_io::define_huffman_tree;
     use bitstream_io::{BitRead, BitReader, LittleEndian};
 
-    let tree = compile_read_tree!([[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(SomeTree : i32 , [[[4, 3], 2], [1, 0]]);
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
 
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 3);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 2);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 0);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 1);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 2);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 4);
-    assert_eq!(r.read_huffman(&tree).unwrap().clone(), 3);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 3);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 2);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 0);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 1);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 2);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 4);
+    assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 3);
 }
 
 #[test]

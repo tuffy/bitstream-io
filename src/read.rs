@@ -564,11 +564,11 @@ pub trait BitRead {
     ///
     /// Passes along any I/O error from the underlying stream.
     #[inline]
-    fn read_huffman<'h, T>(&mut self, tree: &'h T) -> io::Result<&'h T::Output>
+    fn read_huffman<T>(&mut self) -> io::Result<T::Output>
     where
         T: crate::huffman::FromBits,
     {
-        tree.from_bits(|| self.read_bit())
+        T::from_bits(|| self.read_bit())
     }
 }
 
