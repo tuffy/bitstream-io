@@ -117,7 +117,7 @@ pub use read::{
     FromByteStream, FromByteStreamWith,
 };
 pub use write::{
-    BitCounter, BitRecorder, BitWrite, BitWriter, ByteWrite, ByteWriter, ToBitStream,
+    BitCounter, BitRecorder, BitWrite, BitWrite2, BitWriter, ByteWrite, ByteWriter, ToBitStream,
     ToBitStreamWith, ToByteStream, ToByteStreamWith,
 };
 
@@ -487,7 +487,7 @@ macro_rules! define_unsigned_numeric {
                 self,
                 writer: &mut W,
             ) -> io::Result<()> {
-                writer.write_unsigned_out::<BITS, _>(self)
+                writer.write_unsigned::<BITS, _>(self)
             }
         }
     };
@@ -597,7 +597,7 @@ macro_rules! define_signed_numeric {
                 self,
                 writer: &mut W,
             ) -> io::Result<()> {
-                writer.write_signed_out::<BITS, _>(self)
+                writer.write_signed::<BITS, _>(self)
             }
         }
     };
@@ -1220,10 +1220,10 @@ impl Endianness for BigEndian {
             w.write_bytes(value.to_be_bytes().as_ref())
         } else if value.is_negative() {
             w.write_bit(true)
-                .and_then(|()| w.write_unsigned(B - 1, value.as_negative_fixed::<B>()))
+                .and_then(|()| w.write_unsigned_var(B - 1, value.as_negative_fixed::<B>()))
         } else {
             w.write_bit(false)
-                .and_then(|()| w.write_unsigned(B - 1, value.as_non_negative()))
+                .and_then(|()| w.write_unsigned_var(B - 1, value.as_non_negative()))
         }
     }
 
@@ -1450,10 +1450,10 @@ impl Endianness for LittleEndian {
         if B == S::BITS_SIZE {
             w.write_bytes(value.to_le_bytes().as_ref())
         } else if value.is_negative() {
-            w.write_unsigned(B - 1, value.as_negative_fixed::<B>())
+            w.write_unsigned_var(B - 1, value.as_negative_fixed::<B>())
                 .and_then(|()| w.write_bit(true))
         } else {
-            w.write_unsigned(B - 1, value.as_non_negative())
+            w.write_unsigned_var(B - 1, value.as_non_negative())
                 .and_then(|()| w.write_bit(false))
         }
     }

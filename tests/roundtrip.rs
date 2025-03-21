@@ -26,7 +26,7 @@ macro_rules! define_roundtrip {
                 {
                     let mut writer = BitWriter::endian(&mut output, $endianness);
                     for value in 0..max {
-                        writer.write(bits, value as u32).unwrap();
+                        writer.write_var(bits, value as u32).unwrap();
                     }
                     writer.byte_align().unwrap();
                 }
@@ -47,7 +47,7 @@ macro_rules! define_roundtrip {
                 {
                     let mut writer = BitWriter::endian(&mut output, $endianness);
                     for value in min..max {
-                        writer.write_signed(bits, value as i32).unwrap();
+                        writer.write_signed_var(bits, value as i32).unwrap();
                     }
                     writer.byte_align().unwrap();
                 }
@@ -177,26 +177,36 @@ fn test_auto_signedness() {
     define_roundtrip!(
         test_writer_unsigned,
         UnsignedNumeric,
-        write,
+        write_var,
         read_unsigned_var
     );
     test_writer_unsigned::<_, BigEndian>(u8::MIN, u8::MAX, 8);
     test_writer_unsigned::<_, LittleEndian>(u8::MIN, u8::MAX, 8);
 
-    define_roundtrip!(test_writer_signed, SignedNumeric, write, read_signed_var);
+    define_roundtrip!(
+        test_writer_signed,
+        SignedNumeric,
+        write_var,
+        read_signed_var
+    );
     test_writer_signed::<_, BigEndian>(i8::MIN, i8::MAX, 8);
     test_writer_signed::<_, LittleEndian>(i8::MIN, i8::MAX, 8);
 
     define_roundtrip!(
         test_reader_unsigned,
         UnsignedNumeric,
-        write_unsigned,
+        write_unsigned_var,
         read_var
     );
     test_reader_unsigned::<_, BigEndian>(u8::MIN, u8::MAX, 8);
     test_reader_unsigned::<_, LittleEndian>(u8::MIN, u8::MAX, 8);
 
-    define_roundtrip!(test_reader_signed, SignedNumeric, write_signed, read_var);
+    define_roundtrip!(
+        test_reader_signed,
+        SignedNumeric,
+        write_signed_var,
+        read_var
+    );
     test_reader_signed::<_, BigEndian>(i8::MIN, i8::MAX, 8);
     test_reader_signed::<_, LittleEndian>(i8::MIN, i8::MAX, 8);
 }
