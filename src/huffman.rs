@@ -14,215 +14,79 @@
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::{error::Error, fmt};
 
-/// Given a vector of symbol/code pairs, compiles a Huffman tree
-/// for reading.
-///
-/// Code must be 0 or 1 bits and are always read from the stream
-/// from least-significant in the list to most signficant
-/// (which makes them easier to read for humans).
-///
-/// All possible codes must be assigned some symbol,
-/// and it is acceptable for the same symbol to occur multiple times.
-///
-/// ## Examples
-/// ```
-/// use bitstream_io::huffman::compile_read_tree;
-/// use bitstream_io::BigEndian;
-/// assert!(compile_read_tree::<i32>(
-///     vec![(1, vec![0]),
-///          (2, vec![1, 0]),
-///          (3, vec![1, 1])]).is_ok());
-/// ```
-///
-/// ```
-/// use std::io::{Read, Cursor};
-/// use bitstream_io::{BigEndian, BitReader, BitRead};
-/// use bitstream_io::huffman::compile_read_tree;
-/// let tree = compile_read_tree(
-///     vec![('a', vec![0]),
-///          ('b', vec![1, 0]),
-///          ('c', vec![1, 1, 0]),
-///          ('d', vec![1, 1, 1])]).unwrap();
-/// let data = [0b10110111];
-/// let mut cursor = Cursor::new(&data);
-/// let mut reader = BitReader::endian(&mut cursor, BigEndian);
-/// assert_eq!(reader.read_huffman(&tree).unwrap().clone(), 'b');
-/// assert_eq!(reader.read_huffman(&tree).unwrap().clone(), 'c');
-/// assert_eq!(reader.read_huffman(&tree).unwrap().clone(), 'd');
-/// ```
-// pub fn compile_read_tree<E, T>(
-//     values: Vec<(T, Vec<u8>)>,
-// ) -> Result<Box<[ReadHuffmanTree<E, T>]>, HuffmanTreeError>
-// where
-//     E: Endianness,
-//     T: Clone,
-// {
-pub fn compile_read_tree<T>(
-    values: Vec<(T, Vec<u8>)>,
-) -> Result<HuffmanReadTree<T>, HuffmanTreeError> {
-    FinalHuffmanTree::new(values).map(|t| t.into())
+/// A trait for walking Huffman trees one bit at a time.
+pub trait FromBits {
+    /// Our final output type
+    type Output;
+
+    /// Returns either ourself (if we're a leaf node)
+    /// or recursively calls the next item in the tree.
+    fn from_bits<F, E>(&self, next: F) -> Result<&Self::Output, E>
+    where
+        F: FnMut() -> Result<bool, E>;
 }
 
-///usr A complete Huffman tree with no empty nodes
-enum FinalHuffmanTree<T> {
-    /// A Huffman tree leaf node
-    Leaf(T),
-    /// A Huffman tree non-leaf node
-    Tree(Box<FinalHuffmanTree<T>>, Box<FinalHuffmanTree<T>>),
-}
+/// A Huffman tree leaf node containing a final value
+#[derive(Debug)]
+pub struct HuffmanReadTreeLeaf<T>(T);
 
-impl<T> FinalHuffmanTree<T> {
-    fn new(values: Vec<(T, Vec<u8>)>) -> Result<FinalHuffmanTree<T>, HuffmanTreeError> {
-        let mut tree = WipHuffmanTree::new_empty();
-
-        for (symbol, code) in values {
-            tree.add(code.as_slice(), symbol)?;
-        }
-
-        tree.into_read_tree()
+impl<T> HuffmanReadTreeLeaf<T> {
+    /// Constructs a node from its final value
+    pub const fn new(value: T) -> Self {
+        Self(value)
     }
 }
 
-#[derive(Default)]
-enum PackedNode<T> {
-    #[default]
-    Undefined,
-    Tree,
-    SubTree([HuffmanReadTree<T>; 2]),
-    Leaf(T),
+impl<T> FromBits for HuffmanReadTreeLeaf<T> {
+    type Output = T;
+
+    #[inline(always)]
+    fn from_bits<F, E>(&self, _: F) -> Result<&Self::Output, E>
+    where
+        F: FnMut() -> Result<bool, E>,
+    {
+        Ok(&self.0)
+    }
 }
 
-/// A compiled Huffman tree for reading values from a stream
-pub struct HuffmanReadTree<T> {
-    nodes: Box<[PackedNode<T>]>,
+/// A Huffman tree non-leaf node containing two sub-trees
+#[derive(Debug)]
+pub struct HuffmanReadTree<X, Y> {
+    bit_0: X,
+    bit_1: Y,
 }
 
-impl<T> HuffmanReadTree<T> {
-    /// Reads a value from the compiled Huffman tree
-    ///
-    /// # Errors
-    ///
-    /// Passes along any I/O error from the underlying stream.
-    pub fn read<R: crate::BitRead + ?Sized>(&self, reader: &mut R) -> crate::io::Result<&T> {
-        let mut node: &Self = self;
-        let mut index = 0;
-        loop {
-            match &node.nodes[index] {
-                PackedNode::Tree => {
-                    index = (index << 1) + 1 + usize::from(reader.read_bit()?);
-                }
-                PackedNode::SubTree(sub_tree) => {
-                    node = &sub_tree[usize::from(reader.read_bit()?)];
-                    index = 0;
-                }
-                PackedNode::Leaf(t) => break Ok(t),
-                PackedNode::Undefined => panic!("undefined packed node"),
-            }
+impl<X, Y> HuffmanReadTree<X, Y> {
+    /// Constructs a tree from the 0 bit sub-tree, and 1 bit sub-tree
+    pub const fn new(bit_0: X, bit_1: Y) -> Self {
+        Self { bit_0, bit_1 }
+    }
+}
+
+impl<X: FromBits, Y: FromBits<Output = X::Output>> FromBits for HuffmanReadTree<X, Y> {
+    type Output = X::Output;
+
+    #[inline(always)]
+    fn from_bits<F, E>(&self, mut next: F) -> Result<&Self::Output, E>
+    where
+        F: FnMut() -> Result<bool, E>,
+    {
+        match next()? {
+            false => self.bit_0.from_bits(next),
+            true => self.bit_1.from_bits(next),
         }
     }
 }
 
-impl<T> From<FinalHuffmanTree<T>> for HuffmanReadTree<T> {
-    fn from(tree: FinalHuffmanTree<T>) -> Self {
-        fn insert_at<T: Default>(v: &mut Vec<T>, index: usize, val: T) {
-            if index >= v.len() {
-                v.resize_with(index + 1, || T::default());
-            }
-            v[index] = val;
-        }
-
-        fn insert_tree<T>(nodes: &mut Vec<PackedNode<T>>, index: usize, tree: FinalHuffmanTree<T>) {
-            match tree {
-                FinalHuffmanTree::Leaf(t) => {
-                    insert_at(nodes, index, PackedNode::Leaf(t));
-                }
-                FinalHuffmanTree::Tree(bit_0, bit_1) => match index {
-                    index @ 0..4096 => {
-                        insert_at(nodes, index, PackedNode::Tree);
-                        insert_tree(nodes, (index << 1) + 1, *bit_0);
-                        insert_tree(nodes, (index << 1) + 2, *bit_1);
-                    }
-                    index => insert_at(
-                        nodes,
-                        index,
-                        PackedNode::SubTree([(*bit_0).into(), (*bit_1).into()]),
-                    ),
-                },
-            }
-        }
-
-        let mut nodes = Vec::default();
-        insert_tree(&mut nodes, 0, tree);
-        Self {
-            nodes: nodes.into_boxed_slice(),
-        }
-    }
-}
-
-// Work-in-progress trees may have empty nodes during construction
-// but those are not allowed in a finalized tree.
-// If the user wants some codes to be None or an error symbol of some sort,
-// those will need to be specified explicitly.
-enum WipHuffmanTree<T> {
-    Empty,
-    Leaf(T),
-    Tree(Box<WipHuffmanTree<T>>, Box<WipHuffmanTree<T>>),
-}
-
-impl<T> WipHuffmanTree<T> {
-    fn new_empty() -> WipHuffmanTree<T> {
-        WipHuffmanTree::Empty
-    }
-
-    fn new_leaf(value: T) -> WipHuffmanTree<T> {
-        WipHuffmanTree::Leaf(value)
-    }
-
-    fn new_tree() -> WipHuffmanTree<T> {
-        WipHuffmanTree::Tree(Box::new(Self::new_empty()), Box::new(Self::new_empty()))
-    }
-
-    fn into_read_tree(self) -> Result<FinalHuffmanTree<T>, HuffmanTreeError> {
-        match self {
-            WipHuffmanTree::Empty => Err(HuffmanTreeError::MissingLeaf),
-            WipHuffmanTree::Leaf(v) => Ok(FinalHuffmanTree::Leaf(v)),
-            WipHuffmanTree::Tree(zero, one) => {
-                let zero = zero.into_read_tree()?;
-                let one = one.into_read_tree()?;
-                Ok(FinalHuffmanTree::Tree(Box::new(zero), Box::new(one)))
-            }
-        }
-    }
-
-    fn add(&mut self, code: &[u8], symbol: T) -> Result<(), HuffmanTreeError> {
-        match self {
-            WipHuffmanTree::Empty => {
-                if code.is_empty() {
-                    *self = WipHuffmanTree::new_leaf(symbol);
-                    Ok(())
-                } else {
-                    *self = WipHuffmanTree::new_tree();
-                    self.add(code, symbol)
-                }
-            }
-            WipHuffmanTree::Leaf(_) => Err(if code.is_empty() {
-                HuffmanTreeError::DuplicateLeaf
-            } else {
-                HuffmanTreeError::OrphanedLeaf
-            }),
-            WipHuffmanTree::Tree(ref mut zero, ref mut one) => {
-                if code.is_empty() {
-                    Err(HuffmanTreeError::DuplicateLeaf)
-                } else {
-                    match code {
-                        [0, rest @ ..] => zero.add(rest, symbol),
-                        [1, rest @ ..] => one.add(rest, symbol),
-                        _ => Err(HuffmanTreeError::InvalidBit),
-                    }
-                }
-            }
-        }
-    }
+/// Builds a new Huffman tree for reading
+#[macro_export]
+macro_rules! compile_read_tree {
+    ([$left:tt, $right:tt]) => {
+        $crate::huffman::HuffmanReadTree::new(compile_read_tree!($left), compile_read_tree!($right))
+    };
+    ($final:tt) => {
+        $crate::huffman::HuffmanReadTreeLeaf::new($final)
+    };
 }
 
 /// An error type during Huffman tree compilation.

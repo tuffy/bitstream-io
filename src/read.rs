@@ -179,8 +179,8 @@ use alloc::{vec, vec::Vec};
 use std::io;
 
 use super::{
-    huffman::HuffmanReadTree, BitCount, BitSourceRefill, Endianness, Integer, PhantomData,
-    Primitive, SignedNumeric, UnsignedNumeric,
+    BitCount, BitSourceRefill, Endianness, Integer, PhantomData, Primitive, SignedNumeric,
+    UnsignedNumeric,
 };
 
 /// A trait for anything that can read a variable number of
@@ -563,8 +563,12 @@ pub trait BitRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    fn read_huffman<'h, T>(&mut self, tree: &'h HuffmanReadTree<T>) -> io::Result<&'h T> {
-        tree.read(self)
+    #[inline]
+    fn read_huffman<'h, T>(&mut self, tree: &'h T) -> io::Result<&'h T::Output>
+    where
+        T: crate::huffman::FromBits,
+    {
+        tree.from_bits(|| self.read_bit())
     }
 }
 

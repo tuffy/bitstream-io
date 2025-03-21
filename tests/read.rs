@@ -455,17 +455,10 @@ fn test_edge_cases_be() {
 
 #[test]
 fn test_reader_huffman_be() {
-    use bitstream_io::huffman::compile_read_tree;
+    use bitstream_io::compile_read_tree;
     use bitstream_io::{BigEndian, BitRead, BitReader};
 
-    let tree = compile_read_tree(vec![
-        (0, vec![1, 1]),
-        (1, vec![1, 0]),
-        (2, vec![0, 1]),
-        (3, vec![0, 0, 1]),
-        (4, vec![0, 0, 0]),
-    ])
-    .unwrap();
+    let tree = compile_read_tree!([[[4, 3], 2], [1, 0]]);
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
@@ -682,17 +675,10 @@ fn test_edge_cases_le() {
 
 #[test]
 fn test_reader_huffman_le() {
-    use bitstream_io::huffman::compile_read_tree;
+    use bitstream_io::compile_read_tree;
     use bitstream_io::{BitRead, BitReader, LittleEndian};
 
-    let tree = compile_read_tree(vec![
-        (0, vec![1, 1]),
-        (1, vec![1, 0]),
-        (2, vec![0, 1]),
-        (3, vec![0, 0, 1]),
-        (4, vec![0, 0, 0]),
-    ])
-    .unwrap();
+    let tree = compile_read_tree!([[[4, 3], 2], [1, 0]]);
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);
