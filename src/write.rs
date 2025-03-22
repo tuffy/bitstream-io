@@ -2017,7 +2017,7 @@ impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
 ///
 /// # Example
 /// ```
-/// use std::io::{Cursor, Read};
+/// use std::io::Read;
 /// use bitstream_io::{BigEndian, BitWrite, BitWriter, ToBitStream};
 ///
 /// #[derive(Debug, PartialEq, Eq)]

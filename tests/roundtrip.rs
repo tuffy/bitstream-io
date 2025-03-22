@@ -9,11 +9,6 @@
 extern crate bitstream_io;
 
 use bitstream_io::{BigEndian, BitRead, BitReader, BitWrite, BitWriter, LittleEndian};
-#[cfg(not(feature = "std"))]
-use core2::io::Cursor;
-
-#[cfg(feature = "std")]
-use std::io::Cursor;
 
 macro_rules! define_roundtrip {
     ($func_name:ident, $endianness:ident) => {
@@ -31,8 +26,7 @@ macro_rules! define_roundtrip {
                     writer.byte_align().unwrap();
                 }
                 {
-                    let mut c = Cursor::new(&output);
-                    let mut reader = BitReader::endian(&mut c, $endianness);
+                    let mut reader = BitReader::endian(output.as_slice(), $endianness);
                     for value in 0..max {
                         assert_eq!(reader.read_var::<u32>(bits).unwrap(), value as u32);
                     }
@@ -52,8 +46,7 @@ macro_rules! define_roundtrip {
                     writer.byte_align().unwrap();
                 }
                 {
-                    let mut c = Cursor::new(&output);
-                    let mut reader = BitReader::endian(&mut c, $endianness);
+                    let mut reader = BitReader::endian(output.as_slice(), $endianness);
                     for value in min..max {
                         assert_eq!(reader.read_signed_var::<i32>(bits).unwrap(), value as i32);
                     }
@@ -79,7 +72,7 @@ macro_rules! define_unary_roundtrip {
                 writer.byte_align().unwrap();
             }
             {
-                let mut c = Cursor::new(&output);
+                let mut c = output.as_slice();
                 let mut reader = BitReader::endian(&mut c, $endianness);
                 for value in 0..1024 {
                     assert_eq!(reader.read_unary::<0>().unwrap(), value);
@@ -95,7 +88,7 @@ macro_rules! define_unary_roundtrip {
                 writer.byte_align().unwrap();
             }
             {
-                let mut c = Cursor::new(&output);
+                let mut c = output.as_slice();
                 let mut reader = BitReader::endian(&mut c, $endianness);
                 for value in 0..1024 {
                     assert_eq!(reader.read_unary::<1>().unwrap(), value);
@@ -122,7 +115,7 @@ macro_rules! define_float_roundtrip {
                 writer.byte_align().unwrap();
             }
             {
-                let mut c = Cursor::new(&output);
+                let mut c = output.as_slice();
                 let mut reader = BitReader::endian(&mut c, $endianness);
                 for value in 0..1024 {
                     assert_eq!(reader.read_to::<$t>().unwrap(), value as $t);
@@ -151,7 +144,7 @@ fn test_auto_signedness() {
                 end: I,
                 bits: u32,
             ) {
-                let mut w: BitWriter<_, E> = BitWriter::new(Cursor::new(Vec::new()));
+                let mut w: BitWriter<_, E> = BitWriter::new(Vec::new());
                 w.write_bit(true).unwrap();
                 let mut i = start;
                 while i < end {
@@ -162,8 +155,8 @@ fn test_auto_signedness() {
 
                 w.byte_align().unwrap();
 
-                let mut r: BitReader<_, E> =
-                    BitReader::new(Cursor::new(w.into_writer().into_inner()));
+                let v = w.into_writer();
+                let mut r: BitReader<_, E> = BitReader::new(v.as_slice());
                 assert_eq!(r.read_bit().unwrap(), true);
                 while start < end {
                     assert_eq!(r.$r::<I>(bits).unwrap(), start);

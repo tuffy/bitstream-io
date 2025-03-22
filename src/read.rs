@@ -15,7 +15,7 @@
 //! [specification](https://xiph.org/flac/format.html#stream).
 //!
 //! ```
-//! use std::io::{Cursor, Read};
+//! use std::io::Read;
 //! use bitstream_io::{BitRead, BitReader, BigEndian, FromBitStream};
 //!
 //! #[derive(Debug, PartialEq, Eq)]
@@ -120,9 +120,7 @@
 //!                          0x00,0x00,0x00,0x74,0x72,0x61,0x63,0x6b,
 //!                          0x6e,0x75,0x6d,0x62,0x65,0x72,0x3d,0x31];
 //!
-//! let mut cursor = Cursor::new(&flac);
-//!
-//! let mut reader = BitReader::endian(&mut cursor, BigEndian);
+//! let mut reader = BitReader::endian(flac.as_slice(), BigEndian);
 //!
 //! // stream marker
 //! assert_eq!(&reader.read_to::<[u8; 4]>().unwrap(), b"fLaC");
@@ -302,30 +300,30 @@ pub trait BitRead {
     ///
     /// # Examples
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert_eq!(reader.read_unsigned::<1, u8>().unwrap(), 0b1);
     /// assert_eq!(reader.read_unsigned::<2, u8>().unwrap(), 0b01);
     /// assert_eq!(reader.read_unsigned::<5, u8>().unwrap(), 0b10111);
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), LittleEndian);
     /// assert_eq!(reader.read_unsigned::<1, u8>().unwrap(), 0b1);
     /// assert_eq!(reader.read_unsigned::<2, u8>().unwrap(), 0b11);
     /// assert_eq!(reader.read_unsigned::<5, u8>().unwrap(), 0b10110);
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0;10];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert!(reader.read_unsigned_var::<u8>(9).is_err());    // can't read  9 bits to u8
     /// assert!(reader.read_unsigned_var::<u16>(17).is_err());  // can't read 17 bits to u16
     /// assert!(reader.read_unsigned_var::<u32>(33).is_err());  // can't read 33 bits to u32
@@ -402,28 +400,28 @@ pub trait BitRead {
     ///
     /// # Examples
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert_eq!(reader.read_signed::<4, i8>().unwrap(), -5);
     /// assert_eq!(reader.read_signed::<4, i8>().unwrap(), 7);
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), LittleEndian);
     /// assert_eq!(reader.read_signed::<4, i8>().unwrap(), 7);
     /// assert_eq!(reader.read_signed::<4, i8>().unwrap(), -5);
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0;10];
-    /// let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut r = BitReader::endian(data.as_slice(), BigEndian);
     /// assert!(r.read_signed_var::<i8>(9).is_err());   // can't read 9 bits to i8
     /// assert!(r.read_signed_var::<i16>(17).is_err()); // can't read 17 bits to i16
     /// assert!(r.read_signed_var::<i32>(33).is_err()); // can't read 33 bits to i32
@@ -967,10 +965,10 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// # Examples
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert_eq!(reader.read_bit().unwrap(), true);
     /// assert_eq!(reader.read_bit().unwrap(), false);
     /// assert_eq!(reader.read_bit().unwrap(), true);
@@ -982,10 +980,10 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), LittleEndian);
     /// assert_eq!(reader.read_bit().unwrap(), true);
     /// assert_eq!(reader.read_bit().unwrap(), true);
     /// assert_eq!(reader.read_bit().unwrap(), true);
@@ -1012,20 +1010,20 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
 
     /// # Examples
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert_eq!(reader.read_unsigned::<1, u8>().unwrap(), 0b1);
     /// assert_eq!(reader.read_unsigned::<2, u8>().unwrap(), 0b01);
     /// assert_eq!(reader.read_unsigned::<5, u8>().unwrap(), 0b10111);
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), LittleEndian);
     /// assert_eq!(reader.read_unsigned::<1, u8>().unwrap(), 0b1);
     /// assert_eq!(reader.read_unsigned::<2, u8>().unwrap(), 0b11);
     /// assert_eq!(reader.read_unsigned::<5, u8>().unwrap(), 0b10110);
@@ -1049,19 +1047,19 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
 
     /// # Examples
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert_eq!(reader.read_signed::<4, i8>().unwrap(), -5);
     /// assert_eq!(reader.read_signed::<4, i8>().unwrap(), 7);
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), LittleEndian);
     /// assert_eq!(reader.read_signed::<4, i8>().unwrap(), 7);
     /// assert_eq!(reader.read_signed::<4, i8>().unwrap(), -5);
     /// ```
@@ -1096,19 +1094,19 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
 
     /// # Examples
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert!(reader.skip(3).is_ok());
     /// assert_eq!(reader.read::<5, u8>().unwrap(), 0b10111);
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{LittleEndian, BitReader, BitRead};
     /// let data = [0b10110111];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), LittleEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), LittleEndian);
     /// assert!(reader.skip(3).is_ok());
     /// assert_eq!(reader.read::<5, u8>().unwrap(), 0b10110);
     /// ```
@@ -1122,10 +1120,10 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
 
     /// # Example
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = b"foobar";
-    /// let mut reader = BitReader::endian(Cursor::new(data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert!(reader.skip(24).is_ok());
     /// let mut buf = [0;3];
     /// assert!(reader.read_bytes(&mut buf).is_ok());
@@ -1152,10 +1150,10 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
 
     /// # Example
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert_eq!(reader.byte_aligned(), true);
     /// assert!(reader.skip(1).is_ok());
     /// assert_eq!(reader.byte_aligned(), false);
@@ -1169,10 +1167,10 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
 
     /// # Example
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     /// let data = [0x00, 0xFF];
-    /// let mut reader = BitReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = BitReader::endian(data.as_slice(), BigEndian);
     /// assert_eq!(reader.read::<4, u8>().unwrap(), 0);
     /// reader.byte_align();
     /// assert_eq!(reader.read::<8, u8>().unwrap(), 0xFF);
@@ -1200,7 +1198,7 @@ where
     /// assert!(pos == 5 && 5 == reader.position_in_bits().unwrap());
     ///
     /// let pos = reader.seek_bits(SeekFrom::Current(-2)).unwrap();
-    /// assert!(pos == 3 && 3 == reader.position_in_bits().unwrap());    ///
+    /// assert!(pos == 3 && 3 == reader.position_in_bits().unwrap());
     ///
     /// let pos = reader.seek_bits(SeekFrom::End(5)).unwrap();
     /// assert!(pos == 11 && 11 == reader.position_in_bits().unwrap());
@@ -1296,18 +1294,18 @@ pub trait ByteRead {
     ///
     /// # Examples
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, ByteReader, ByteRead};
     /// let data = [0b00000000, 0b11111111];
-    /// let mut reader = ByteReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = ByteReader::endian(data.as_slice(), BigEndian);
     /// assert_eq!(reader.read::<u16>().unwrap(), 0b0000000011111111);
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{LittleEndian, ByteReader, ByteRead};
     /// let data = [0b00000000, 0b11111111];
-    /// let mut reader = ByteReader::endian(Cursor::new(&data), LittleEndian);
+    /// let mut reader = ByteReader::endian(data.as_slice(), LittleEndian);
     /// assert_eq!(reader.read::<u16>().unwrap(), 0b1111111100000000);
     /// ```
     fn read<V>(&mut self) -> Result<V, io::Error>
@@ -1322,18 +1320,18 @@ pub trait ByteRead {
     ///
     /// # Examples
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, ByteReader, ByteRead, LittleEndian};
     /// let data = [0b00000000, 0b11111111];
-    /// let mut reader = ByteReader::endian(Cursor::new(&data), BigEndian);
+    /// let mut reader = ByteReader::endian(data.as_slice(), BigEndian);
     /// assert_eq!(reader.read_as::<LittleEndian, u16>().unwrap(), 0b1111111100000000);
     /// ```
     ///
     /// ```
-    /// use std::io::{Read, Cursor};
+    /// use std::io::Read;
     /// use bitstream_io::{BigEndian, ByteReader, ByteRead, LittleEndian};
     /// let data = [0b00000000, 0b11111111];
-    /// let mut reader = ByteReader::endian(Cursor::new(&data), LittleEndian);
+    /// let mut reader = ByteReader::endian(data.as_slice(), LittleEndian);
     /// assert_eq!(reader.read_as::<BigEndian, u16>().unwrap(), 0b0000000011111111);
     /// ```
     fn read_as<F, V>(&mut self) -> Result<V, io::Error>
@@ -1492,7 +1490,7 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
 ///
 /// # Example
 /// ```
-/// use std::io::{Cursor, Read};
+/// use std::io::Read;
 /// use bitstream_io::{BigEndian, BitRead, BitReader, FromBitStream};
 ///
 /// #[derive(Debug, PartialEq, Eq)]
@@ -1514,7 +1512,7 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
 ///     }
 /// }
 ///
-/// let mut reader = BitReader::endian(Cursor::new(b"\x04\x00\x00\x7A"), BigEndian);
+/// let mut reader = BitReader::endian(b"\x04\x00\x00\x7A".as_slice(), BigEndian);
 /// assert_eq!(
 ///     reader.parse::<BlockHeader>().unwrap(),
 ///     BlockHeader { last_block: false, block_type: 4, block_size: 122 }
@@ -1535,7 +1533,7 @@ pub trait FromBitStream {
 ///
 /// # Example
 /// ```
-/// use std::io::{Cursor, Read};
+/// use std::io::Read;
 /// use bitstream_io::{BigEndian, BitRead, BitReader, FromBitStreamWith};
 ///
 /// #[derive(Default)]
@@ -1663,7 +1661,7 @@ pub trait FromBitStream {
 ///     r.read::<8, _>()  // left unimplimented in this example
 /// }
 ///
-/// let mut reader = BitReader::endian(Cursor::new(b"\xFF\xF8\xC9\x18\x00\xC2"), BigEndian);
+/// let mut reader = BitReader::endian(b"\xFF\xF8\xC9\x18\x00\xC2".as_slice(), BigEndian);
 /// assert_eq!(
 ///     reader.parse_with::<FrameHeader>(&Streaminfo::default()).unwrap(),
 ///     FrameHeader {
@@ -1683,7 +1681,7 @@ pub trait FromBitStream {
 /// In some cases, the `Context` can depend on a reference to another `struct`.
 ///
 /// ```
-/// use std::io::{Cursor, Read};
+/// use std::io::Read;
 /// use bitstream_io::{BigEndian, BitRead, BitReader, FromBitStreamWith};
 ///
 /// #[derive(Default)]
@@ -1744,7 +1742,7 @@ pub trait FromBitStream {
 ///     }
 /// }
 ///
-/// let mut reader = BitReader::endian(Cursor::new(b"\xFF\xEA\xFF\x10"), BigEndian);
+/// let mut reader = BitReader::endian(b"\xFF\xEA\xFF\x10".as_slice(), BigEndian);
 ///
 /// let mode_params = ModeParameters {
 ///     size_len: 10,
