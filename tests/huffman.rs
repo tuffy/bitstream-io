@@ -1,23 +1,11 @@
 extern crate alloc;
 extern crate bitstream_io;
 
-use bitstream_io::huffman::{compile_write_tree, HuffmanTreeError};
 #[cfg(not(feature = "std"))]
 use core2::io;
 
 #[cfg(feature = "std")]
 use std::io;
-
-#[test]
-fn test_huffman_errors() {
-    assert!(
-        if let Err(err) = compile_write_tree::<u32>(vec![(0, vec![1, 1, 2])]) {
-            err == HuffmanTreeError::InvalidBit
-        } else {
-            false
-        }
-    );
-}
 
 #[test]
 fn test_huffman_values() {

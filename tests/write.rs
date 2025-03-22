@@ -342,34 +342,28 @@ fn test_writer_edge_cases_be() {
 
 #[test]
 fn test_writer_huffman_be() {
-    use bitstream_io::huffman::compile_write_tree;
+    use bitstream_io::define_huffman_tree;
     use bitstream_io::{BigEndian, BitWrite, BitWriter};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let tree = compile_write_tree(vec![
-        (0, vec![1, 1]),
-        (1, vec![1, 0]),
-        (2, vec![0, 1]),
-        (3, vec![0, 0, 1]),
-        (4, vec![0, 0, 0]),
-    ])
-    .unwrap();
+    define_huffman_tree!(TreeName : i32, [[[4, 3], 2], [1, 0]]);
+
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 4).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 4).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(4).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(4).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
     w.byte_align().unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 }
@@ -670,33 +664,27 @@ fn test_writer_edge_cases_le() {
 
 #[test]
 fn test_writer_huffman_le() {
-    use bitstream_io::huffman::compile_write_tree;
+    use bitstream_io::define_huffman_tree;
     use bitstream_io::{BitWrite, BitWriter, LittleEndian};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let tree = compile_write_tree(vec![
-        (0, vec![1, 1]),
-        (1, vec![1, 0]),
-        (2, vec![0, 1]),
-        (3, vec![0, 0, 1]),
-        (4, vec![0, 0, 0]),
-    ])
-    .unwrap();
+    define_huffman_tree!(TreeName : i32, [[[4, 3], 2], [1, 0]]);
+
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 3).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 4).unwrap();
-    w.write_huffman(&tree, 3).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(3).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(4).unwrap();
+    w.write_huffman::<TreeName>(3).unwrap();
     w.write_var(1, 1u8).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 }
@@ -1194,33 +1182,27 @@ fn test_counter_be() {
 
 #[test]
 fn test_counter_huffman_be() {
-    use bitstream_io::huffman::compile_write_tree;
+    use bitstream_io::define_huffman_tree;
     use bitstream_io::{BigEndian, BitCounter, BitWrite};
 
-    let tree = compile_write_tree(vec![
-        (0, vec![1, 1]),
-        (1, vec![1, 0]),
-        (2, vec![0, 1]),
-        (3, vec![0, 0, 1]),
-        (4, vec![0, 0, 0]),
-    ])
-    .unwrap();
+    define_huffman_tree!(TreeName : i32, [[[4, 3], 2], [1, 0]]);
+
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 4).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 4).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(4).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(4).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
     w.byte_align().unwrap();
     assert_eq!(w.written(), 32);
 }
@@ -1342,33 +1324,27 @@ fn test_counter_le() {
 
 #[test]
 fn test_counter_huffman_le() {
-    use bitstream_io::huffman::compile_write_tree;
+    use bitstream_io::define_huffman_tree;
     use bitstream_io::{BitCounter, BitWrite, LittleEndian};
 
-    let tree = compile_write_tree(vec![
-        (0, vec![1, 1]),
-        (1, vec![1, 0]),
-        (2, vec![0, 1]),
-        (3, vec![0, 0, 1]),
-        (4, vec![0, 0, 0]),
-    ])
-    .unwrap();
+    define_huffman_tree!(TreeName : i32, [[[4, 3], 2], [1, 0]]);
+
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 3).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 4).unwrap();
-    w.write_huffman(&tree, 3).unwrap();
-    w.write_var(1, 1u8).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(3).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(4).unwrap();
+    w.write_huffman::<TreeName>(3).unwrap();
+    w.write::<1, u8>(1).unwrap();
     assert_eq!(w.written(), 32);
 }
 
@@ -1517,34 +1493,28 @@ fn test_recorder_be() {
 
 #[test]
 fn test_recorder_huffman_be() {
-    use bitstream_io::huffman::compile_write_tree;
+    use bitstream_io::define_huffman_tree;
     use bitstream_io::{BigEndian, BitRecorder, BitWrite, BitWriter};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let tree = compile_write_tree(vec![
-        (0, vec![1, 1]),
-        (1, vec![1, 0]),
-        (2, vec![0, 1]),
-        (3, vec![0, 0, 1]),
-        (4, vec![0, 0, 0]),
-    ])
-    .unwrap();
+    define_huffman_tree!(TreeName : i32 , [[[4, 3], 2], [1, 0]]);
+
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 4).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 4).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(4).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(4).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
     w.byte_align().unwrap();
     let mut w2 = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     w.playback(&mut w2).unwrap();
@@ -1697,34 +1667,29 @@ fn test_recorder_le() {
 
 #[test]
 fn test_recorder_huffman_le() {
-    use bitstream_io::huffman::compile_write_tree;
+    use bitstream_io::define_huffman_tree;
     use bitstream_io::{BitRecorder, BitWrite, BitWriter, LittleEndian};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
-    let tree = compile_write_tree(vec![
-        (0, vec![1, 1]),
-        (1, vec![1, 0]),
-        (2, vec![0, 1]),
-        (3, vec![0, 0, 1]),
-        (4, vec![0, 0, 0]),
-    ])
-    .unwrap();
+
+    define_huffman_tree!(TreeName : i32 , [[[4, 3], 2], [1, 0]]);
+
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 3).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 0).unwrap();
-    w.write_huffman(&tree, 1).unwrap();
-    w.write_huffman(&tree, 2).unwrap();
-    w.write_huffman(&tree, 4).unwrap();
-    w.write_huffman(&tree, 3).unwrap();
-    w.write_var(1, 1u8).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(3).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(0).unwrap();
+    w.write_huffman::<TreeName>(1).unwrap();
+    w.write_huffman::<TreeName>(2).unwrap();
+    w.write_huffman::<TreeName>(4).unwrap();
+    w.write_huffman::<TreeName>(3).unwrap();
+    w.write::<1, u8>(1).unwrap();
     let mut w2 = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);

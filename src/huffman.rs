@@ -11,9 +11,6 @@
 
 #![warn(missing_docs)]
 
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
-use core::{error::Error, fmt};
-
 /// A trait for building a final value from individual bits
 pub trait FromBits {
     /// Our final output type
@@ -27,6 +24,21 @@ pub trait FromBits {
     fn from_bits<F, E>(next: F) -> Result<Self::Output, E>
     where
         F: FnMut() -> Result<bool, E>;
+}
+
+/// For building individual bits from a final value
+pub trait ToBits {
+    /// The type we accept to output
+    type Input;
+
+    /// Given a value to generate, write out bits as needed
+    ///
+    /// # Errors
+    ///
+    /// Passes along any error from the bit generator
+    fn to_bits<F, E>(value: Self::Input, write: F) -> Result<(), E>
+    where
+        F: FnMut(bool) -> Result<(), E>;
 }
 
 /// Defines a new Huffman tree for reading
@@ -60,7 +72,19 @@ macro_rules! define_huffman_tree {
             where
                 F: FnMut() -> Result<bool, E>,
             {
-                $crate::compile_tree_nodes!(next, $nodes)
+                $crate::compile_read_tree_nodes!(next, $nodes)
+            }
+        }
+
+        impl $crate::huffman::ToBits for $name {
+            type Input = $type;
+
+            fn to_bits<F, E>(value: Self::Input, mut write: F) -> Result<(), E>
+            where
+                F: FnMut(bool) -> Result<(), E>
+            {
+                $crate::compile_write_tree_nodes!(value ; write ; $nodes ; );
+                Ok(())
             }
         }
     };
@@ -68,12 +92,12 @@ macro_rules! define_huffman_tree {
 
 /// A helper macro for compiling individual Huffman tree nodes
 #[macro_export]
-macro_rules! compile_tree_nodes {
+macro_rules! compile_read_tree_nodes {
     ($next:ident , [$bit_0:tt, $bit_1:tt]) => {
         if $next()? {
-            $crate::compile_tree_nodes!($next, $bit_1)
+            $crate::compile_read_tree_nodes!($next, $bit_1)
         } else {
-            $crate::compile_tree_nodes!($next, $bit_0)
+            $crate::compile_read_tree_nodes!($next, $bit_0)
         }
     };
     ($next:ident , $final:tt) => {
@@ -81,110 +105,21 @@ macro_rules! compile_tree_nodes {
     };
 }
 
-/// An error type during Huffman tree compilation.
-#[derive(PartialEq, Eq, Copy, Clone, Debug)]
-pub enum HuffmanTreeError {
-    /// One of the bits in a Huffman code is not 0 or 1
-    InvalidBit,
-    /// A Huffman code in the specification has no defined symbol
-    MissingLeaf,
-    /// The same Huffman code specifies multiple symbols
-    DuplicateLeaf,
-    /// A Huffman code is the prefix of some longer code
-    OrphanedLeaf,
-}
-
-impl fmt::Display for HuffmanTreeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            HuffmanTreeError::InvalidBit => write!(f, "invalid bit in code"),
-            HuffmanTreeError::MissingLeaf => write!(f, "missing leaf node in specification"),
-            HuffmanTreeError::DuplicateLeaf => write!(f, "duplicate leaf node in specification"),
-            HuffmanTreeError::OrphanedLeaf => write!(f, "orphaned leaf node in specification"),
+/// A helper macro for compiling individual Huffman tree nodes
+#[macro_export]
+macro_rules! compile_write_tree_nodes {
+    ($value:ident ; $write:ident ; [$bit_0:tt, $bit_1:tt] ; ) => {
+        $crate::compile_write_tree_nodes!($value ; $write ; $bit_0 ; false);
+        $crate::compile_write_tree_nodes!($value ; $write ; $bit_1 ; true);
+    };
+    ($value:ident ; $write:ident ; [$bit_0:tt, $bit_1:tt] ; $($bits:tt),*) => {
+        $crate::compile_write_tree_nodes!($value ; $write ; $bit_0 ; $($bits),* , false);
+        $crate::compile_write_tree_nodes!($value ; $write ; $bit_1 ; $($bits),* , true);
+    };
+    ($value:ident ; $write:ident ; $final:literal ; $( $bits:tt),* ) => {
+        if $value == $final {
+            $( $write($bits)?; )*
+            return Ok(());
         }
-    }
-}
-
-impl Error for HuffmanTreeError {}
-
-/// Given a vector of symbol/code pairs, compiles a Huffman tree
-/// for writing.
-///
-/// Code must be 0 or 1 bits and are always written to the stream
-/// from least-significant in the list to most signficant
-/// (which makes them easier to read for humans).
-///
-/// If the same symbol occurs multiple times, the first code is used.
-/// Unlike in read trees, not all possible codes need to be
-/// assigned a symbol.
-///
-/// ## Examples
-/// ```
-/// use bitstream_io::huffman::compile_write_tree;
-/// assert!(compile_write_tree::<i32>(
-///     vec![(1, vec![0]),
-///          (2, vec![1, 0]),
-///          (3, vec![1, 1])]).is_ok());
-/// ```
-///
-/// ```
-/// use std::io::Write;
-/// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-/// use bitstream_io::huffman::compile_write_tree;
-/// let tree = compile_write_tree(
-///     vec![('a', vec![0]),
-///          ('b', vec![1, 0]),
-///          ('c', vec![1, 1, 0]),
-///          ('d', vec![1, 1, 1])]).unwrap();
-/// let mut data = Vec::new();
-/// {
-///     let mut writer = BitWriter::endian(&mut data, BigEndian);
-///     writer.write_huffman(&tree, 'b').unwrap();
-///     writer.write_huffman(&tree, 'c').unwrap();
-///     writer.write_huffman(&tree, 'd').unwrap();
-/// }
-/// assert_eq!(data, [0b10110111]);
-/// ```
-pub fn compile_write_tree<T>(
-    values: Vec<(T, Vec<u8>)>,
-) -> Result<WriteHuffmanTree<T>, HuffmanTreeError>
-where
-    T: Ord,
-{
-    values
-        .into_iter()
-        .map(|(symbol, bits)| {
-            bits.into_iter()
-                .map(|bit| match bit {
-                    0 => Ok(false),
-                    1 => Ok(true),
-                    _ => Err(HuffmanTreeError::InvalidBit),
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map(|bits| (symbol, bits.into_boxed_slice()))
-        })
-        .collect::<Result<BTreeMap<_, _>, _>>()
-        .map(|map| WriteHuffmanTree { map })
-}
-
-/// A compiled Huffman tree for use with the `write_huffman` method.
-/// Returned by `compiled_write_tree`.
-pub struct WriteHuffmanTree<T: Ord> {
-    map: BTreeMap<T, Box<[bool]>>,
-}
-
-impl<T: Ord> WriteHuffmanTree<T> {
-    /// Returns true if symbol is in tree.
-    #[inline]
-    pub fn has_symbol(&self, symbol: &T) -> bool {
-        self.map.contains_key(symbol)
-    }
-
-    /// Given symbol, returns iterator of bits for writing code.
-    ///
-    /// # Panics
-    /// Panics if symbol is not found.
-    pub fn get(&self, symbol: &T) -> impl Iterator<Item = bool> + use<'_, T> {
-        self.map[symbol].iter().copied()
-    }
+    };
 }

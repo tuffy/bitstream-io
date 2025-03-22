@@ -175,8 +175,8 @@ use core::{
 use std::io;
 
 use super::{
-    huffman::WriteHuffmanTree, BitCount, BitSinkFlush, Endianness, Integer, Numeric, PhantomData,
-    Primitive, SignedNumeric, UnsignedNumeric,
+    BitCount, BitSinkFlush, Endianness, Integer, Numeric, PhantomData, Primitive, SignedNumeric,
+    UnsignedNumeric,
 };
 
 /// For writing bit values to an underlying stream in a given endianness.
@@ -678,20 +678,19 @@ pub trait BitWrite {
     /// ```
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// use bitstream_io::huffman::compile_write_tree;
-    /// let tree = compile_write_tree(
-    ///     vec![('a', vec![0]),
-    ///          ('b', vec![1, 0]),
-    ///          ('c', vec![1, 1, 0]),
-    ///          ('d', vec![1, 1, 1])]).unwrap();
+    /// use bitstream_io::define_huffman_tree;
+    /// define_huffman_tree!(TreeName : char , ['a', ['b', ['c', 'd']]]);
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_huffman(&tree, 'b').unwrap();
-    /// writer.write_huffman(&tree, 'c').unwrap();
-    /// writer.write_huffman(&tree, 'd').unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
+    /// writer.write_huffman::<TreeName>('b').unwrap();
+    /// writer.write_huffman::<TreeName>('c').unwrap();
+    /// writer.write_huffman::<TreeName>('d').unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10_110_111]);
     /// ```
-    fn write_huffman<T: Ord>(&mut self, tree: &WriteHuffmanTree<T>, symbol: T) -> io::Result<()> {
-        tree.get(&symbol).try_for_each(|bit| self.write_bit(bit))
+    fn write_huffman<T>(&mut self, value: T::Input) -> io::Result<()>
+    where
+        T: crate::huffman::ToBits,
+    {
+        T::to_bits(value, |b| self.write_bit(b))
     }
 }
 
