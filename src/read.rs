@@ -228,17 +228,25 @@ pub trait BitRead {
         I::read(self, BitCount::unknown(bits))
     }
 
-    /// Reads an unsigned bit count with the given number of bits.
+    /// Given a desired maximum value for a bit count,
+    /// reads the necessary bits to fill up to that amount.
     ///
-    /// By using this in conjunction with the `read_counted` methods,
-    /// the compiler can eliminate the need to check whether
-    /// the amount of bits is larger than the output type at runtime.
+    /// For example, if the maximum bit count is 15 - or `0b1111` -
+    /// reads a 4-bit unsigned value from the stream and returns a `BitCount`
+    /// which can be used in subsequent reads.
     ///
-    /// The number of bits must not exceed 32.
+    /// Note that `MAX` must be greater than 0, and `MAX + 1` must be
+    /// an exact power of two.
+    ///
+    /// # Errors
+    ///
+    /// Passes along an I/O error from the underlying stream.
     ///
     /// # Examples
+    ///
     /// ```
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
+    ///
     /// let bytes: &[u8] = &[0b10011110];
     /// let mut r = BitReader::endian(bytes, BigEndian);
     /// let count = r.read::<3, u32>().unwrap();
@@ -249,20 +257,26 @@ pub trait BitRead {
     ///
     /// ```
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
+    ///
     /// let bytes: &[u8] = &[0b10011110];
     /// let mut r = BitReader::endian(bytes, BigEndian);
-    /// let count = r.read_count::<3>().unwrap();
+    /// let count = r.read_count::<0b111>().unwrap();
     /// // size of count is known at compile-time, so no runtime check needed
-    /// assert_eq!(r.read_counted::<3, u8>(count).unwrap(), 0b1111);
+    /// assert_eq!(r.read_counted::<0b111, u8>(count).unwrap(), 0b1111);
     /// ```
-    ///
-    /// # Errors
-    ///
-    /// Passes along any I/O error from the underlying stream.
-    /// A compile-time error occurs if the given number of bits
-    /// is larger than 32.
-    fn read_count<const BITS: u32>(&mut self) -> io::Result<BitCount<BITS>> {
-        self.read_unsigned::<BITS, _>()
+    fn read_count<const MAX: u32>(&mut self) -> io::Result<BitCount<MAX>> {
+        const {
+            assert!(MAX > 0, "MAX value must be > 0");
+        }
+
+        const {
+            assert!(
+                (MAX + 1).is_power_of_two(),
+                "MAX should fill some whole number of bits ('0b111', '0b1111', etc.)"
+            )
+        }
+
+        self.read_unsigned_var((MAX + 1).ilog2())
             .map(|bits| BitCount { bits })
     }
 
@@ -275,7 +289,7 @@ pub trait BitRead {
     /// Also returns an error if the output type is too small
     /// to hold the requested number of bits.
     #[inline(always)]
-    fn read_counted<const BITS: u32, I>(&mut self, bits: BitCount<BITS>) -> io::Result<I>
+    fn read_counted<const MAX: u32, I>(&mut self, bits: BitCount<MAX>) -> io::Result<I>
     where
         I: Integer + Sized,
     {
@@ -353,7 +367,7 @@ pub trait BitRead {
     /// Passes along any I/O error from the underlying stream.
     /// Also returns an error if the output type is too small
     /// to hold the requested number of bits.
-    fn read_unsigned_counted<const BITS: u32, U>(&mut self, bits: BitCount<BITS>) -> io::Result<U>
+    fn read_unsigned_counted<const MAX: u32, U>(&mut self, bits: BitCount<MAX>) -> io::Result<U>
     where
         U: UnsignedNumeric;
 
@@ -431,7 +445,7 @@ pub trait BitRead {
     /// since one bit is always needed for the sign.
     /// Also returns an error if the output type is too small
     /// to hold the requested number of bits.
-    fn read_signed_counted<const BITS: u32, S>(&mut self, bits: BitCount<BITS>) -> io::Result<S>
+    fn read_signed_counted<const MAX: u32, S>(&mut self, bits: BitCount<MAX>) -> io::Result<S>
     where
         S: SignedNumeric;
 

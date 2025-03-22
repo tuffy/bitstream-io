@@ -440,16 +440,59 @@ pub trait BitWrite {
         self.write_signed_counted(BitCount::unknown(bits), value)
     }
 
-    /// Writes the given bit count to th stream.
+    /// Writes the given bit count to the stream
+    /// with the necessary maximum number of bits.
+    ///
+    /// For example, if the maximum bit count is 15 - or `0b1111` -
+    /// writes the bit count to the stream as a 4-bit unsigned value
+    /// which can be used in subsequent writes.
+    ///
+    /// Note that `MAX` must be greater than 0, and `MAX + 1` must be
+    /// an exact power of two.
     ///
     /// # Errors
     ///
-    /// Passes along any I/O error from the underlying stream.
-    fn write_count<const BITS: u32>(
-        &mut self,
-        BitCount { bits }: BitCount<BITS>,
-    ) -> io::Result<()> {
-        self.write_unsigned::<BITS, u32>(bits)
+    /// Passes along an I/O error from the underlying stream.
+    ///
+    /// ```
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    ///
+    /// let mut bytes = Vec::new();
+    /// let mut w = BitWriter::endian(bytes, BigEndian);
+    /// let count = 4;
+    /// w.write::<3, u32>(count).unwrap();
+    /// // need to verify count is not larger than u8 at runtime
+    /// w.write_var::<u8>(count, 0b1111).unwrap();
+    /// w.byte_align().unwrap();
+    /// assert_eq!(w.into_writer(), &[0b10011110]);
+    /// ```
+    ///
+    /// ```
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite, BitCount};
+    ///
+    /// use std::convert::TryInto;
+    /// let mut bytes = Vec::new();
+    /// let mut w = BitWriter::endian(bytes, BigEndian);
+    /// let count: BitCount<0b111> = 4u32.try_into().unwrap();
+    /// w.write_count::<0b111>(count).unwrap();
+    /// // size of count is known at compile-time, so no runtime check needed
+    /// w.write_counted::<0b111, u8>(count, 0b1111).unwrap();
+    /// w.byte_align().unwrap();
+    /// assert_eq!(w.into_writer(), &[0b10011110]);
+    /// ```
+    fn write_count<const MAX: u32>(&mut self, BitCount { bits }: BitCount<MAX>) -> io::Result<()> {
+        const {
+            assert!(MAX > 0, "MAX value must be > 0");
+        }
+
+        const {
+            assert!(
+                (MAX + 1).is_power_of_two(),
+                "MAX should fill some whole number of bits ('0b111', '0b1111', etc.)"
+            )
+        }
+
+        self.write_unsigned_var((MAX + 1).ilog2(), bits)
     }
 
     /// Writes a signed or unsigned value to the stream with
@@ -460,15 +503,11 @@ pub trait BitWrite {
     /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
-    fn write_counted<const BITS: u32, I>(
-        &mut self,
-        bits: BitCount<BITS>,
-        value: I,
-    ) -> io::Result<()>
+    fn write_counted<const MAX: u32, I>(&mut self, bits: BitCount<MAX>, value: I) -> io::Result<()>
     where
         I: Integer + Sized,
     {
-        I::write::<BITS, _>(value, self, bits)
+        I::write::<MAX, _>(value, self, bits)
     }
 
     /// Writes a signed value to the stream with
@@ -495,9 +534,9 @@ pub trait BitWrite {
     /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
-    fn write_signed_counted<const BITS: u32, S>(
+    fn write_signed_counted<const MAX: u32, S>(
         &mut self,
-        bits: BitCount<BITS>,
+        bits: BitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where
