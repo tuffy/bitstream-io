@@ -1000,6 +1000,21 @@ pub struct BitCount<const MAX: u32> {
 }
 
 impl<const MAX: u32> BitCount<MAX> {
+    /// Builds a bit count from a constant number
+    /// of bits, which must not be greater than `MAX`.
+    ///
+    /// Intended to be used for defining constants.
+    ///
+    /// Use `TryFrom` to conditionally build
+    /// counts from values at runtime.
+    pub const fn new<const BITS: u32>() -> Self {
+        const {
+            assert!(BITS <= MAX, "BITS must be <= MAX");
+        }
+
+        Self { bits: BITS }
+    }
+
     /// Subtracts a number of bits from our count,
     /// returning a new count.
     pub const fn checked_sub(self, bits: u32) -> Option<Self> {

@@ -256,11 +256,12 @@ pub trait BitRead {
     /// ```
     ///
     /// ```
-    /// use bitstream_io::{BigEndian, BitReader, BitRead};
+    /// use bitstream_io::{BigEndian, BitReader, BitRead, BitCount};
     ///
     /// let bytes: &[u8] = &[0b10011110];
     /// let mut r = BitReader::endian(bytes, BigEndian);
     /// let count = r.read_count::<0b111>().unwrap();
+    /// assert_eq!(count, BitCount::new::<4>());
     /// // size of count is known at compile-time, so no runtime check needed
     /// assert_eq!(r.read_counted::<0b111, u8>(count).unwrap(), 0b1111);
     /// ```

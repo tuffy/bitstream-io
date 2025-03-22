@@ -473,7 +473,7 @@ pub trait BitWrite {
     /// use std::convert::TryInto;
     /// let mut bytes = Vec::new();
     /// let mut w = BitWriter::endian(bytes, BigEndian);
-    /// let count: BitCount<0b111> = 4u32.try_into().unwrap();
+    /// let count: BitCount<0b111> = BitCount::new::<4>();
     /// w.write_count::<0b111>(count).unwrap();
     /// // size of count is known at compile-time, so no runtime check needed
     /// w.write_counted::<0b111, u8>(count, 0b1111).unwrap();
