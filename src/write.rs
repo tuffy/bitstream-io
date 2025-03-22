@@ -718,7 +718,7 @@ pub trait BitWrite {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// use bitstream_io::define_huffman_tree;
-    /// define_huffman_tree!(TreeName : char , ['a', ['b', ['c', 'd']]]);
+    /// define_huffman_tree!(TreeName : char = ['a', ['b', ['c', 'd']]]);
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write_huffman::<TreeName>('b').unwrap();
     /// writer.write_huffman::<TreeName>('c').unwrap();

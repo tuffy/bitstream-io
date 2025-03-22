@@ -55,13 +55,13 @@ pub trait ToBits {
 ///
 /// ```
 /// use bitstream_io::{define_huffman_tree, huffman::FromBits};
-/// define_huffman_tree!(TreeName : &'static str , ["bit 0", ["bit 1->0", "bit 1->1"]]);
+/// define_huffman_tree!(TreeName : &'static str = ["bit 0", ["bit 1->0", "bit 1->1"]]);
 /// let mut bits = [true, false].iter().copied();
 /// assert_eq!(TreeName::from_bits(|| bits.next().ok_or(())).unwrap(), "bit 1->0");
 /// ```
 #[macro_export]
 macro_rules! define_huffman_tree {
-    ($name:ident : $type:ty , $nodes:tt) => {
+    ($name:ident : $type:ty = $nodes:tt) => {
         #[derive(Copy, Clone, Debug)]
         struct $name;
 

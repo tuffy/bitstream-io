@@ -14,8 +14,8 @@ fn test_huffman_values() {
 
     let data = [0b10110001, 0b11101101];
 
-    define_huffman_tree!(Tree1 : i32 , [0, [1, [2, 5]]]);
-    define_huffman_tree!(Tree2 : &'static str, ["foo", ["bar", ["baz", "kelp"]]]);
+    define_huffman_tree!(Tree1 : i32 = [0, [1, [2, 5]]]);
+    define_huffman_tree!(Tree2 : &'static str = ["foo", ["bar", ["baz", "kelp"]]]);
 
     let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
     assert_eq!(r.read_huffman::<Tree1>().unwrap(), 1);

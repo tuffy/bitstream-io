@@ -458,7 +458,7 @@ fn test_reader_huffman_be() {
     use bitstream_io::define_huffman_tree;
     use bitstream_io::{BigEndian, BitRead, BitReader};
 
-    define_huffman_tree!(SomeTree : i32 , [[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(SomeTree : i32 = [[[4, 3], 2], [1, 0]]);
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut r = BitReader::endian(Cursor::new(&actual_data), BigEndian);
@@ -678,7 +678,7 @@ fn test_reader_huffman_le() {
     use bitstream_io::define_huffman_tree;
     use bitstream_io::{BitRead, BitReader, LittleEndian};
 
-    define_huffman_tree!(SomeTree : i32 , [[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(SomeTree : i32 = [[[4, 3], 2], [1, 0]]);
 
     let actual_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
     let mut r = BitReader::endian(Cursor::new(&actual_data), LittleEndian);

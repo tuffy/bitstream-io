@@ -346,7 +346,7 @@ fn test_writer_huffman_be() {
     use bitstream_io::{BigEndian, BitWrite, BitWriter};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
-    define_huffman_tree!(TreeName : i32, [[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(TreeName : i32 = [[[4, 3], 2], [1, 0]]);
 
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     w.write_huffman::<TreeName>(1).unwrap();
@@ -668,7 +668,7 @@ fn test_writer_huffman_le() {
     use bitstream_io::{BitWrite, BitWriter, LittleEndian};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
-    define_huffman_tree!(TreeName : i32, [[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(TreeName : i32= [[[4, 3], 2], [1, 0]]);
 
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.write_huffman::<TreeName>(1).unwrap();
@@ -1185,7 +1185,7 @@ fn test_counter_huffman_be() {
     use bitstream_io::define_huffman_tree;
     use bitstream_io::{BigEndian, BitCounter, BitWrite};
 
-    define_huffman_tree!(TreeName : i32, [[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(TreeName : i32 = [[[4, 3], 2], [1, 0]]);
 
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
     w.write_huffman::<TreeName>(1).unwrap();
@@ -1327,7 +1327,7 @@ fn test_counter_huffman_le() {
     use bitstream_io::define_huffman_tree;
     use bitstream_io::{BitCounter, BitWrite, LittleEndian};
 
-    define_huffman_tree!(TreeName : i32, [[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(TreeName : i32= [[[4, 3], 2], [1, 0]]);
 
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
     w.write_huffman::<TreeName>(1).unwrap();
@@ -1497,7 +1497,7 @@ fn test_recorder_huffman_be() {
     use bitstream_io::{BigEndian, BitRecorder, BitWrite, BitWriter};
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
-    define_huffman_tree!(TreeName : i32 , [[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(TreeName : i32 = [[[4, 3], 2], [1, 0]]);
 
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
     w.write_huffman::<TreeName>(1).unwrap();
@@ -1672,7 +1672,7 @@ fn test_recorder_huffman_le() {
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
-    define_huffman_tree!(TreeName : i32 , [[[4, 3], 2], [1, 0]]);
+    define_huffman_tree!(TreeName : i32 = [[[4, 3], 2], [1, 0]]);
 
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
     w.write_huffman::<TreeName>(1).unwrap();
