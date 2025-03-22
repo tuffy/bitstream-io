@@ -271,7 +271,7 @@ pub trait BitRead {
 
         const {
             assert!(
-                (MAX + 1).is_power_of_two(),
+                MAX == u32::MAX || (MAX + 1).is_power_of_two(),
                 "MAX should fill some whole number of bits ('0b111', '0b1111', etc.)"
             )
         }

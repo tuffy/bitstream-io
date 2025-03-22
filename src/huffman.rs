@@ -41,12 +41,12 @@ pub trait ToBits {
         F: FnMut(bool) -> Result<(), E>;
 }
 
-/// Defines a new Huffman tree for reading
+/// Defines a new Huffman tree for reading and writing
 ///
 /// Its syntax is: `define_huffman_tree!(name : type , nodes)`
 /// where `name` is some identifier to identify the tree in the
 /// macro's current scope, `type` is the tree's output
-/// type (which should implement `Copy`), and `nodes` is either a
+/// type (which should implement `Copy` and `Eq`), and `nodes` is either a
 /// final leaf value or a `[bit_0, bit_1]` pair where `bit_0` is
 /// the tree visited on a `0` bit, and `bit_1` is the tree visited
 /// on a `1` bit.
