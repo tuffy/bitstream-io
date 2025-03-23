@@ -720,6 +720,13 @@ pub trait BitWrite {
         Ok(())
     }
 
+    /// Given a symbol, writes its representation to the output stream as bits.
+    /// Generates no output if the symbol isn't defined in the Huffman tree.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// 
     /// # Example
     /// ```
     /// use std::io::Write;
@@ -752,6 +759,12 @@ pub trait BitWrite {
 /// # Example
 /// ```
 /// use bitstream_io::BitWrite2 as BitWrite;
+/// use bitstream_io::{BitWriter, BigEndian};
+/// let mut byte = vec![];
+/// let mut writer = BitWriter::endian(byte, BigEndian);
+/// writer.write::<u8>(4, 0b1111).unwrap();
+/// writer.write_out::<4, u8>(0b0000).unwrap();
+/// assert_eq!(writer.into_writer(), [0b1111_0000]);
 /// ```
 pub trait BitWrite2 {
     /// Writes a single bit to the stream.
@@ -984,6 +997,32 @@ pub trait BitWrite2 {
             self.write_bit(false)?;
         }
         Ok(())
+    }
+
+    /// Given a symbol, writes its representation to the output stream as bits.
+    /// Generates no output if the symbol isn't defined in the Huffman tree.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// 
+    /// # Example
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite2};
+    /// use bitstream_io::define_huffman_tree;
+    /// define_huffman_tree!(TreeName : char = ['a', ['b', ['c', 'd']]]);
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+    /// writer.write_huffman::<TreeName>('b').unwrap();
+    /// writer.write_huffman::<TreeName>('c').unwrap();
+    /// writer.write_huffman::<TreeName>('d').unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10_110_111]);
+    /// ```
+    fn write_huffman<T>(&mut self, value: T::Input) -> io::Result<()>
+    where
+        T: crate::huffman::ToBits,
+    {
+        T::to_bits(value, |b| self.write_bit(b))
     }
 }
 

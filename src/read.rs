@@ -601,6 +601,11 @@ pub trait BitRead {
 /// # Example
 /// ```
 /// use bitstream_io::BitRead2 as BitRead;
+/// use bitstream_io::{BitReader, BigEndian};
+/// let byte = &[0b1111_0000];
+/// let mut reader = BitReader::endian(byte.as_slice(), BigEndian);
+/// assert_eq!(reader.read::<u8>(4).unwrap(), 0b1111);
+/// assert_eq!(reader.read_in::<4, u8>().unwrap(), 0b0000);
 /// ```
 pub trait BitRead2 {
     /// Reads a single bit from the stream.
@@ -803,6 +808,20 @@ pub trait BitRead2 {
     /// Throws away all unread bit values until the next whole byte.
     /// Does nothing if the stream is already aligned.
     fn byte_align(&mut self);
+
+    /// Given a compiled Huffman tree, reads bits from the stream
+    /// until the next symbol is encountered.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    #[inline]
+    fn read_huffman<T>(&mut self) -> io::Result<T::Output>
+    where
+        T: crate::huffman::FromBits,
+    {
+        T::from_bits(|| self.read_bit())
+    }
 }
 
 impl<R: BitRead> BitRead2 for R {
