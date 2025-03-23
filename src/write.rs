@@ -726,7 +726,7 @@ pub trait BitWrite {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    /// 
+    ///
     /// # Example
     /// ```
     /// use std::io::Write;
@@ -1005,7 +1005,7 @@ pub trait BitWrite2 {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    /// 
+    ///
     /// # Example
     /// ```
     /// use std::io::Write;
