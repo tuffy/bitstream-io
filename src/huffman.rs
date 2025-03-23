@@ -43,7 +43,7 @@ pub trait ToBits {
 
 /// Defines a new Huffman tree for reading and writing
 ///
-/// Its syntax is: `define_huffman_tree!(name : type , nodes)`
+/// Its syntax is: `define_huffman_tree!(name : type = nodes)`
 /// where `name` is some identifier to identify the tree in the
 /// macro's current scope, `type` is the tree's output
 /// type (which should implement `Copy` and `Eq`), and `nodes` is either a
@@ -116,7 +116,7 @@ macro_rules! compile_write_tree_nodes {
         $crate::compile_write_tree_nodes!($value ; $write ; $bit_0 ; $($bits),* , false);
         $crate::compile_write_tree_nodes!($value ; $write ; $bit_1 ; $($bits),* , true);
     };
-    ($value:ident ; $write:ident ; $final:literal ; $( $bits:tt),* ) => {
+    ($value:ident ; $write:ident ; $final:tt ; $( $bits:tt),* ) => {
         if $value == $final {
             $( $write($bits)?; )*
             return Ok(());

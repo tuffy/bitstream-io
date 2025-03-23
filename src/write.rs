@@ -492,7 +492,14 @@ pub trait BitWrite {
             )
         }
 
-        self.write_unsigned_var((MAX + 1).ilog2(), bits)
+        self.write_unsigned_var(
+            if MAX < u32::MAX {
+                (MAX + 1).ilog2()
+            } else {
+                32
+            },
+            bits,
+        )
     }
 
     /// Writes a signed or unsigned value to the stream with

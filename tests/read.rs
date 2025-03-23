@@ -1022,3 +1022,101 @@ fn test_large_reads() {
     let mut r = ByteReader::endian(input.as_slice(), LittleEndian);
     assert!(r.read_to_vec(usize::MAX).is_err());
 }
+
+#[test]
+fn test_bitcount_read() {
+    use bitstream_io::{BigEndian, BitCount, BitRead, BitReader};
+
+    // 1 bit count - reading 1 bit
+    let bytes = &[0b1_1_000000];
+    let mut reader = BitReader::endian(bytes.as_slice(), BigEndian);
+    let count = reader.read_count::<0b1>().unwrap();
+    assert_eq!(count, BitCount::new::<1>());
+    assert_eq!(reader.read_counted::<1, u8>(count).unwrap(), 0b1);
+
+    // 2 bits count - reading 3 bits
+    let bytes = &[0b11_111_000];
+    let mut reader = BitReader::endian(bytes.as_slice(), BigEndian);
+    let count = reader.read_count::<0b11>().unwrap();
+    assert_eq!(count, BitCount::new::<0b11>());
+    assert_eq!(reader.read_counted::<0b11, u8>(count).unwrap(), 0b111);
+
+    // 3 bits count - reading 7 bits
+    let bytes = &[0b111_11111, 0b11_000000];
+    let mut reader = BitReader::endian(bytes.as_slice(), BigEndian);
+    let count = reader.read_count::<0b111>().unwrap();
+    assert_eq!(count, BitCount::new::<0b111>());
+    assert_eq!(reader.read_counted::<0b111, u8>(count).unwrap(), 0b11111_11);
+
+    // 4 bits count - reading 15 bits
+    let bytes = &[0b1111_1111, 0b11111111, 0b111_00000];
+    let mut reader = BitReader::endian(bytes.as_slice(), BigEndian);
+    let count = reader.read_count::<0b1111>().unwrap();
+    assert_eq!(count, BitCount::new::<0b1111>());
+    assert_eq!(
+        reader.read_counted::<0b1111, u16>(count).unwrap(),
+        0b1111_11111111_111
+    );
+
+    // 5 bits count - reading 31 bits
+    let bytes = &[0b11111_111, 0b11111111, 0b11111111, 0b11111111, 0b1111_0000];
+    let mut reader = BitReader::endian(bytes.as_slice(), BigEndian);
+    let count = reader.read_count::<0b11111>().unwrap();
+    assert_eq!(count, BitCount::new::<0b11111>());
+    assert_eq!(
+        reader.read_counted::<0b11111, u32>(count).unwrap(),
+        0b111_11111111_11111111_11111111_1111,
+    );
+
+    // 6 bits count - reading 63 bits
+    let bytes = &[
+        0b111111_11,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111_000,
+    ];
+    let mut reader = BitReader::endian(bytes.as_slice(), BigEndian);
+    let count = reader.read_count::<0b111111>().unwrap();
+    assert_eq!(count, BitCount::new::<0b111111>());
+    assert_eq!(
+        reader.read_counted::<0b111111, u64>(count).unwrap(),
+        0b11_11111111_11111111_11111111_11111111_11111111_11111111_11111111_11111,
+    );
+
+    // 7 bits count - reading 127 bits
+    let bytes = &[
+        0b1111111_1,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b111111_00,
+    ];
+    let mut reader = BitReader::endian(bytes.as_slice(), BigEndian);
+    let count = reader.read_count::<0b1111111>().unwrap();
+    assert_eq!(count, BitCount::new::<0b1111111>());
+    assert_eq!(
+        reader.read_counted::<0b1111111, u128>(count).unwrap(),
+        0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
+    );
+
+    // We have to stop here because no primitive type gets any larger.
+    // So while BitCount technically extends out to 32 bits,
+    // it's not practical to get anywhere near that.
+}

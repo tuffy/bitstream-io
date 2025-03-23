@@ -1759,3 +1759,124 @@ fn test_negative_write() {
         panic!("writer() returned None");
     }
 }
+
+#[test]
+fn test_bitcount_write() {
+    use bitstream_io::{BigEndian, BitCount, BitWrite, BitWriter};
+
+    // 1 bit count - writing 1 bit
+    let bytes = vec![];
+    let mut writer = BitWriter::endian(bytes, BigEndian);
+    let count = BitCount::<0b1>::new::<1>();
+    writer.write_count(count).unwrap();
+    writer.write_counted::<1, u8>(count, 0b1).unwrap();
+    writer.byte_align().unwrap();
+    assert_eq!(writer.into_writer(), &[0b1_1_000000]);
+
+    // 2 bit count - writing 3 bits
+    let bytes = vec![];
+    let mut writer = BitWriter::endian(bytes, BigEndian);
+    let count = BitCount::<0b11>::new::<0b11>();
+    writer.write_count(count).unwrap();
+    writer.write_counted::<0b11, u8>(count, 0b111).unwrap();
+    writer.byte_align().unwrap();
+    assert_eq!(writer.into_writer(), &[0b11_111_000]);
+
+    // 3 bit count - writing 7 bits
+    let bytes = vec![];
+    let mut writer = BitWriter::endian(bytes, BigEndian);
+    let count = BitCount::<0b111>::new::<0b111>();
+    writer.write_count(count).unwrap();
+    writer
+        .write_counted::<0b111, u8>(count, 0b11111_11)
+        .unwrap();
+    writer.byte_align().unwrap();
+    assert_eq!(writer.into_writer(), &[0b111_11111, 0b11_000000]);
+
+    // 4 bit count - writing 15 bits
+    let bytes = vec![];
+    let mut writer = BitWriter::endian(bytes, BigEndian);
+    let count = BitCount::<0b1111>::new::<0b1111>();
+    writer.write_count(count).unwrap();
+    writer
+        .write_counted::<0b1111, u16>(count, 0b1111_11111111_111)
+        .unwrap();
+    writer.byte_align().unwrap();
+    assert_eq!(
+        writer.into_writer(),
+        &[0b1111_1111, 0b11111111, 0b111_00000]
+    );
+
+    // 5 bits count - writing 31 bits
+    let bytes = vec![];
+    let mut writer = BitWriter::endian(bytes, BigEndian);
+    let count = BitCount::<0b11111>::new::<0b11111>();
+    writer.write_count(count).unwrap();
+    writer
+        .write_counted::<0b11111, u32>(count, 0b111_11111111_11111111_11111111_1111)
+        .unwrap();
+    writer.byte_align().unwrap();
+    assert_eq!(
+        writer.into_writer(),
+        &[0b11111_111, 0b11111111, 0b11111111, 0b11111111, 0b1111_0000]
+    );
+
+    // 6 bits count - writing 63 bits
+    let bytes = vec![];
+    let mut writer = BitWriter::endian(bytes, BigEndian);
+    let count = BitCount::<0b111111>::new::<0b111111>();
+    writer.write_count(count).unwrap();
+    writer
+        .write_counted::<0b111111, u64>(
+            count,
+            0b11_11111111_11111111_11111111_11111111_11111111_11111111_11111111_11111,
+        )
+        .unwrap();
+    writer.byte_align().unwrap();
+    assert_eq!(
+        writer.into_writer(),
+        &[
+            0b111111_11,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111_000
+        ]
+    );
+
+    // 7 bits count - writing 127 bits
+    let bytes = vec![];
+    let mut writer = BitWriter::endian(bytes, BigEndian);
+    let count = BitCount::<0b1111111>::new::<0b1111111>();
+    writer.write_count(count).unwrap();
+    writer
+        .write_counted::<0b1111111, u128>(count, 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+        .unwrap();
+    writer.byte_align().unwrap();
+    assert_eq!(
+        writer.into_writer(),
+        &[
+            0b1111111_1,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b111111_00,
+        ]
+    );
+}

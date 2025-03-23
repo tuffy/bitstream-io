@@ -275,8 +275,12 @@ pub trait BitRead {
             )
         }
 
-        self.read_unsigned_var((MAX + 1).ilog2())
-            .map(|bits| BitCount { bits })
+        self.read_unsigned_var(if MAX < u32::MAX {
+            (MAX + 1).ilog2()
+        } else {
+            32
+        })
+        .map(|bits| BitCount { bits })
     }
 
     /// Reads a signed or unsigned value from the stream with
