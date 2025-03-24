@@ -16,37 +16,6 @@ use core2::io;
 use std::io;
 
 #[test]
-fn test_queue_push_be() {
-    use bitstream_io::{BitSinkFlush, BE};
-
-    let mut q: BitSinkFlush<BE, u8> = BitSinkFlush::default();
-
-    assert_eq!(q.push_bit(true), None);
-    assert_eq!(q.push_bit(false), None);
-    assert_eq!(q.push_bit(true), None);
-    assert_eq!(q.push_bit(true), None);
-    assert_eq!(q.push_bit(false), None);
-    assert_eq!(q.push_bit(false), None);
-    assert_eq!(q.push_bit(false), None);
-    assert_eq!(q.push_bit(true), Some(0b10110001));
-}
-
-#[test]
-fn test_queue_push_le() {
-    use bitstream_io::{BitSinkFlush, LE};
-
-    let mut q: BitSinkFlush<LE, u8> = BitSinkFlush::default();
-    assert_eq!(q.push_bit(true), None);
-    assert_eq!(q.push_bit(false), None);
-    assert_eq!(q.push_bit(false), None);
-    assert_eq!(q.push_bit(false), None);
-    assert_eq!(q.push_bit(true), None);
-    assert_eq!(q.push_bit(true), None);
-    assert_eq!(q.push_bit(false), None);
-    assert_eq!(q.push_bit(true), Some(0b10110001));
-}
-
-#[test]
 fn test_writer_be() {
     use bitstream_io::{BigEndian, BitWrite, BitWriter};
 

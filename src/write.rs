@@ -175,8 +175,7 @@ use core::{
 use std::io;
 
 use super::{
-    BitCount, BitSinkFlush, Endianness, Integer, Numeric, PhantomData, Primitive, SignedNumeric,
-    UnsignedNumeric,
+    BitCount, Endianness, Integer, Numeric, PhantomData, Primitive, SignedNumeric, UnsignedNumeric,
 };
 
 /// For writing bit values to an underlying stream in a given endianness.
@@ -187,8 +186,14 @@ use super::{
 /// **Partial bytes will be lost** if the writer is disposed of
 /// before they can be written.
 pub struct BitWriter<W: io::Write, E: Endianness> {
+    // our underlying writer
     writer: W,
-    bitqueue: BitSinkFlush<E, u8>,
+    // our partial byte
+    value: u8,
+    // the number of bits in our partial byte
+    bits: u32,
+    // a container for our endianness
+    phantom: PhantomData<E>,
 }
 
 impl<W: io::Write, E: Endianness> BitWriter<W, E> {
@@ -196,7 +201,9 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     pub fn new(writer: W) -> BitWriter<W, E> {
         BitWriter {
             writer,
-            bitqueue: BitSinkFlush::default(),
+            value: 0,
+            bits: 0,
+            phantom: PhantomData,
         }
     }
 
@@ -205,7 +212,9 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
     pub fn endian(writer: W, _endian: E) -> BitWriter<W, E> {
         BitWriter {
             writer,
-            bitqueue: BitSinkFlush::default(),
+            value: 0,
+            bits: 0,
+            phantom: PhantomData,
         }
     }
 
@@ -1160,7 +1169,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
-        match self.bitqueue.push_bit(bit) {
+        match E::push_bit_flush(&mut self.value, &mut self.bits, bit) {
             None => Ok(()),
             Some(byte) => write_byte(&mut self.writer, byte),
         }
@@ -1201,8 +1210,15 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     where
         U: UnsignedNumeric,
     {
-        let Self { bitqueue, writer } = self;
-        E::write_bits_fixed::<BITS, U, _, _>(bitqueue, value, |b| write_byte(writer.by_ref(), b))
+        let Self {
+            value: queue_value,
+            bits: queue_bits,
+            writer,
+            ..
+        } = self;
+        E::write_bits_fixed::<BITS, U, _, _>(queue_value, queue_bits, value, |b| {
+            write_byte(writer.by_ref(), b)
+        })
     }
 
     fn write_unsigned_counted<const BITS: u32, U>(
@@ -1213,8 +1229,15 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     where
         U: UnsignedNumeric,
     {
-        let Self { bitqueue, writer } = self;
-        E::write_bits::<BITS, U, _, _>(bitqueue, bits, value, |b| write_byte(writer.by_ref(), b))
+        let Self {
+            value: queue_value,
+            bits: queue_bits,
+            writer,
+            ..
+        } = self;
+        E::write_bits::<BITS, U, _, _>(queue_value, queue_bits, bits, value, |b| {
+            write_byte(writer.by_ref(), b)
+        })
     }
 
     #[inline(always)]
@@ -1334,7 +1357,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     /// ```
     #[inline(always)]
     fn byte_aligned(&self) -> bool {
-        self.bitqueue.is_empty()
+        self.bits == 0
     }
 }
 

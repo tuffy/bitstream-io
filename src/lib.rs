@@ -652,18 +652,10 @@ pub trait Endianness: Sized {
     /// Pushes the next bit into the queue,
     /// and returns `Some` value if the queue is full.
     #[inline]
-    fn push_bit_flush<U>(queue: &mut BitSinkFlush<Self, U>, bit: bool) -> Option<U>
-    where
-        U: UnsignedNumeric,
-    {
-        Self::push_bits(
-            &mut queue.value,
-            &mut queue.bits,
-            1,
-            if bit { U::ONE } else { U::ZERO },
-        );
-        queue.bits = queue.bits % U::BITS_SIZE;
-        queue.is_empty().then(|| mem::take(&mut queue.value))
+    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
+        Self::push_bits(queue_value, queue_bits, 1, u8::from(bit));
+        *queue_bits = *queue_bits % u8::BITS_SIZE;
+        (*queue_bits == 0).then(|| mem::take(queue_value))
     }
 
     /// For extracting all the values from a source into a final value
@@ -786,7 +778,8 @@ pub trait Endianness: Sized {
 
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits<const BITS: u32, U, F, E>(
-        queue: &mut BitSinkFlush<Self, u8>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         BitCount { mut bits }: BitCount<BITS>,
         value: U,
         mut write_byte: F,
@@ -803,12 +796,12 @@ pub trait Endianness: Sized {
 
             if value <= U::ALL >> (U::BITS_SIZE - bits) {
                 let mut value = Self::source_align(value, bits);
-                let available = queue.available();
+                let available = u8::BITS_SIZE - *queue_bits;
                 if bits < available {
                     // all bits fit in queue, so populate it and we're done
                     Self::push_bits(
-                        &mut queue.value,
-                        &mut queue.bits,
+                        queue_value,
+                        queue_bits,
                         bits,
                         Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
                     );
@@ -817,13 +810,13 @@ pub trait Endianness: Sized {
                     // push as many bits into queue as possible
                     // and write it to disk
                     Self::push_bits(
-                        &mut queue.value,
-                        &mut queue.bits,
+                        queue_value,
+                        queue_bits,
                         available,
                         Self::pop_bits(&mut value, &mut bits, available).to_u8(),
                     );
-                    write_byte(core::mem::take(&mut queue.value))?;
-                    queue.bits = 0;
+                    write_byte(core::mem::take(queue_value))?;
+                    *queue_bits = 0;
 
                     // write any further bytes in 8-bit increments
                     while bits >= 8 {
@@ -833,8 +826,8 @@ pub trait Endianness: Sized {
                     // finally repopulate queue with any leftover bits
                     if bits > 0 {
                         Self::push_bits(
-                            &mut queue.value,
-                            &mut queue.bits,
+                            queue_value,
+                            queue_bits,
                             bits,
                             Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
                         );
@@ -861,7 +854,8 @@ pub trait Endianness: Sized {
 
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits_fixed<const BITS: u32, U, F, E>(
-        queue: &mut BitSinkFlush<Self, u8>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         value: U,
         mut write_byte: F,
     ) -> Result<(), E>
@@ -880,12 +874,12 @@ pub trait Endianness: Sized {
 
         if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
             let mut value = Self::source_align(value, BITS);
-            let available = queue.available();
+            let available = u8::BITS_SIZE - *queue_bits;
             if BITS < available {
                 // all bits fit in queue, so populate it and we're done
                 Self::push_bits(
-                    &mut queue.value,
-                    &mut queue.bits,
+                    queue_value,
+                    queue_bits,
                     BITS,
                     Self::pop_bits(&mut value, &mut BITS.clone(), BITS).to_u8(),
                 );
@@ -896,13 +890,13 @@ pub trait Endianness: Sized {
                 let mut bits = BITS;
 
                 Self::push_bits(
-                    &mut queue.value,
-                    &mut queue.bits,
+                    queue_value,
+                    queue_bits,
                     available,
                     Self::pop_bits(&mut value, &mut bits, available).to_u8(),
                 );
-                write_byte(core::mem::take(&mut queue.value))?;
-                queue.bits = 0;
+                write_byte(core::mem::take(queue_value))?;
+                *queue_bits = 0;
 
                 // write any further bytes in 8-bit increments
                 while bits >= 8 {
@@ -912,8 +906,8 @@ pub trait Endianness: Sized {
                 // finally repopulate queue with any leftover bits
                 if bits > 0 {
                     Self::push_bits(
-                        &mut queue.value,
-                        &mut queue.bits,
+                        queue_value,
+                        queue_bits,
                         bits,
                         Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
                     );
@@ -1555,47 +1549,5 @@ fn find_unary<E>(
                 }
             },
         }
-    }
-}
-
-/// A target for bits to be written into and flushed when full
-///
-/// This is useful to for bitstream writers so that
-/// whole bytes can be flushed to the stream when full.
-#[derive(Clone, Debug)]
-pub struct BitSinkFlush<E: Endianness, U: UnsignedNumeric> {
-    phantom: PhantomData<E>,
-    value: U,
-    bits: u32,
-}
-
-impl<E: Endianness, U: UnsignedNumeric> Default for BitSinkFlush<E, U> {
-    fn default() -> Self {
-        Self {
-            phantom: PhantomData,
-            value: U::default(),
-            bits: 0,
-        }
-    }
-}
-
-impl<E: Endianness, U: UnsignedNumeric> BitSinkFlush<E, U> {
-    /// Returns true if sink is empty.
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {
-        self.bits == 0
-    }
-
-    /// Returns amount of bits the queue can hold
-    #[inline(always)]
-    pub fn available(&self) -> u32 {
-        U::BITS_SIZE - self.bits
-    }
-
-    /// Pushes the next bit into the sink,
-    /// returning a whole value once the sink is full.
-    #[inline(always)]
-    pub fn push_bit(&mut self, bit: bool) -> Option<U> {
-        E::push_bit_flush(self, bit)
     }
 }
