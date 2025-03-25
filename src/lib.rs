@@ -789,36 +789,42 @@ pub trait Endianness: Sized {
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             if bits <= *queue_bits {
-                // all bits available in queue
                 Ok(U::from_u8(Self::pop_bits(queue_value, queue_bits, bits)))
             } else {
-                // pop everything off the queue
                 let (value, mut value_bits) = Self::pop_final_value(queue_value, queue_bits);
                 let mut value = U::from_u8(value);
                 bits -= value_bits;
 
-                // fill whole bytes
-                while bits >= 8 {
-                    Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
-                    bits -= 8;
+                loop {
+                    match bits {
+                        0 => break Ok(value),
+                        1..8 => {
+                            let mut last = read_byte()?;
+                            let mut last_bits = 8;
+
+                            Self::push_bits(
+                                &mut value,
+                                &mut value_bits,
+                                bits,
+                                U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
+                            );
+
+                            *queue_value = last;
+                            *queue_bits = last_bits;
+
+                            break Ok(value);
+                        }
+                        _ => {
+                            Self::push_bits(
+                                &mut value,
+                                &mut value_bits,
+                                8,
+                                U::from_u8(read_byte()?),
+                            );
+                            bits -= 8;
+                        }
+                    }
                 }
-
-                if bits > 0 {
-                    let mut last = read_byte()?;
-                    let mut last_bits = 8;
-
-                    Self::push_bits(
-                        &mut value,
-                        &mut value_bits,
-                        bits,
-                        U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
-                    );
-
-                    *queue_value = last;
-                    *queue_bits = last_bits;
-                }
-
-                Ok(value)
             }
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
@@ -840,36 +846,37 @@ pub trait Endianness: Sized {
         }
 
         if BITS <= *queue_bits {
-            // all bits available in queue
             Ok(U::from_u8(Self::pop_bits(queue_value, queue_bits, BITS)))
         } else {
-            // pop everything off the queue
             let (value, mut value_bits) = Self::pop_final_value(queue_value, queue_bits);
             let mut value = U::from_u8(value);
             let mut bits = BITS - value_bits;
 
-            // fill whole bytes
-            while bits >= 8 {
-                Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
-                bits -= 8;
+            loop {
+                match bits {
+                    0 => break Ok(value),
+                    1..8 => {
+                        let mut last = read_byte()?;
+                        let mut last_bits = 8;
+
+                        Self::push_bits(
+                            &mut value,
+                            &mut value_bits,
+                            bits,
+                            U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
+                        );
+
+                        *queue_value = last;
+                        *queue_bits = last_bits;
+
+                        break Ok(value);
+                    }
+                    _ => {
+                        Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+                        bits -= 8;
+                    }
+                }
             }
-
-            if bits > 0 {
-                let mut last = read_byte()?;
-                let mut last_bits = 8;
-
-                Self::push_bits(
-                    &mut value,
-                    &mut value_bits,
-                    bits,
-                    U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
-                );
-
-                *queue_value = last;
-                *queue_bits = last_bits;
-            }
-
-            Ok(value)
         }
     }
 
