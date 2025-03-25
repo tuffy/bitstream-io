@@ -471,10 +471,10 @@ pub trait BitWrite {
     /// let mut w = BitWriter::endian(bytes, BigEndian);
     /// let count = 4;
     /// w.write::<3, u32>(count).unwrap();
-    /// // need to verify count is not larger than u8 at runtime
+    /// // may need to verify count is not larger than u8 at runtime
     /// w.write_var::<u8>(count, 0b1111).unwrap();
     /// w.byte_align().unwrap();
-    /// assert_eq!(w.into_writer(), &[0b10011110]);
+    /// assert_eq!(w.into_writer(), &[0b100_11110]);
     /// ```
     ///
     /// ```
@@ -488,7 +488,7 @@ pub trait BitWrite {
     /// // size of count is known at compile-time, so no runtime check needed
     /// w.write_counted::<0b111, u8>(count, 0b1111).unwrap();
     /// w.byte_align().unwrap();
-    /// assert_eq!(w.into_writer(), &[0b10011110]);
+    /// assert_eq!(w.into_writer(), &[0b100_11110]);
     /// ```
     fn write_count<const MAX: u32>(&mut self, BitCount { bits }: BitCount<MAX>) -> io::Result<()> {
         const {
@@ -757,14 +757,14 @@ pub trait BitWrite {
     }
 }
 
-/// A trait for anything that can write a variable number of
+/// An older trait for anything that can write a variable number of
 /// potentially un-aligned values to an output stream
 ///
 /// This is a trait largely compatible with older code
-/// from the 2.X.X version and earlier,
+/// from the 2.X.X version,
 /// which one can use with a named import as needed.
 ///
-/// New code should prefer the regular `BitRead` trait.
+/// New code should prefer the regular [`BitWrite`] trait.
 ///
 /// # Example
 /// ```

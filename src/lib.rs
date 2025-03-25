@@ -16,8 +16,8 @@
 //! Both big-endian and little-endian streams are supported.
 //!
 //! The only requirement for wrapped reader streams is that they must
-//! implement the `Read` trait, and the only requirement
-//! for writer streams is that they must implement the `Write` trait.
+//! implement the [`io::Read`] trait, and the only requirement
+//! for writer streams is that they must implement the [`io::Write`] trait.
 //!
 //! In addition, reader streams do not consume any more bytes
 //! from the underlying reader than necessary, buffering only a
@@ -57,7 +57,7 @@
 //! use bitstream_io::{BigEndian, BitReader, BitRead};
 //! let data = [0; 10];
 //! let mut r = BitReader::endian(Cursor::new(&data), BigEndian);
-//! let x: Result<u32, _> = r.read_in::<64, _>();  // doesn't compile at all
+//! let x: Result<u32, _> = r.read::<64, _>();  // doesn't compile at all
 //! ```
 //! Since catching potential bugs at compile-time is preferable
 //! to encountering errors at runtime, this will hopefully be
@@ -65,25 +65,59 @@
 
 //! # Changes From 2.X.X
 //!
-//! `BitRead` and `BitWrite` traits previously used their
-//! `read` and `write` methods as the base upon which the
-//! the rest of the trait was implemented.
-//! Starting with version 3, the new `read_unsigned` and
-//! `write_unsigned` methods are the base,
-//! which take only unsigned integer types.
-//! `read_signed` and `write_signed` are implemented
-//! in terms of `read_unsigned` and `write_signed`
-//! based on the stream's endianness.
-//! The updated `read` and `write` methods take either
-//! signed or unsigned integer types (as they did before)
-//! and simply call `read|write_unsigned` or `read|write_signed`
-//! as needed.
-//! This change makes the interface both more symmetical
-//! and harder to accidentally misuse.
+//! Version 3.X.X has made many breaking changes to the [`BitRead`] and
+//! [`BitWrite`] traits.
+//!
+//! The [`BitRead::read`] method takes a constant number of bits,
+//! and the [`BitRead::read_var`] method takes a variable number of bits
+//! (reversing the older [`BitRead2::read_in`] and [`BitRead2::read`]
+//! calling methods to emphasize using the constant-based one,
+//! which can do more validation at compile-time).
+//! A new [`BitRead2`] trait uses the older calling convention
+//! for compatibility with existing code and is available
+//! for anything implementing [`BitRead`].
+//!
+//! In addition, the main reading methods return primitive types which
+//! implement a new [`Integer`] trait,
+//! which delegates to [`BitRead::read_unsigned`]
+//! or [`BitRead::read_signed`] depending on whether the output
+//! is an unsigned or signed type.
+//!
+//! [`BitWrite::write`] and [`BitWrite::write_var`] work
+//! similarly to the reader's `read` methods, taking anything
+//! that implements [`Integer`] and writing an unsigned or
+//! signed value to [`BitWrite::write_unsigned`] or
+//! [`BitWrite::write_signed`] as appropriate.
+//!
+//! And as with reading, a [`BitWrite2`] trait is offered
+//! for compatibility.
+//!
+//! In addition, the Huffman code handling has been rewritten
+//! to use a small amount of macro magic to write
+//! code to read and write symbols at compile-time.
+//! This is significantly faster than the older version
+//! and can no longer fail to compile at runtime.
+//!
+//! Lastly, there's a new [`BitCount`] struct which wraps a humble
+//! `u32` but encodes the maximum possible number of bits
+//! at the type level.
+//! This is intended for file formats which encode the number
+//! of bits to be read in the format itself.
+//! For example, FLAC's predictor coefficient precision
+//! is a 4 bit value which indicates how large each predictor
+//! coefficient is in bits
+//! (each coefficient might be an `i32` type).
+//! By keeping track of the maximum value at compile time
+//! (4 bits' worth, in this case), we can eliminate
+//! any need to check that coefficients aren't too large
+//! for an `i32` at runtime.
+//! This is accomplished by using [`BitRead::read_count`] to
+//! read a [`BitCount`] and then reading final values with
+//! that number of bits using [`BitRead::read_counted`].
 
 //! # Migrating From Pre 1.0.0
 //!
-//! There are now `BitRead` and `BitWrite` traits for bitstream
+//! There are now [`BitRead`] and [`BitWrite`] traits for bitstream
 //! reading and writing (analogous to the standard library's
 //! `Read` and `Write` traits) which you will also need to import.
 //! The upside to this approach is that library consumers
@@ -1082,7 +1116,7 @@ pub trait Endianness: Sized {
         V: Primitive;
 }
 
-/// A number of bits to be consumed with a known maximum
+/// A number of bits to be consumed or written, with a known maximum
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct BitCount<const MAX: u32> {
     // The amount of bits may be less than or equal to the maximum,
@@ -1132,12 +1166,12 @@ impl<const MAX: u32> BitCount<MAX> {
     /// let count2 = count.try_map::<17, _>(|i| i + 1).unwrap();
     /// assert_eq!(u32::from(count2), 6);
     /// ```
-    pub fn try_map<const NEWMAX: u32, F>(self, f: F) -> Option<BitCount<NEWMAX>>
+    pub fn try_map<const NEW_MAX: u32, F>(self, f: F) -> Option<BitCount<NEW_MAX>>
     where
         F: FnOnce(u32) -> u32,
     {
         let bits = f(self.bits);
-        (bits <= NEWMAX).then_some(BitCount { bits })
+        (bits <= NEW_MAX).then_some(BitCount { bits })
     }
 }
 

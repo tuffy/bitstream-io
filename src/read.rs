@@ -230,7 +230,7 @@ pub trait BitRead {
     /// reads the necessary bits to fill up to that amount.
     ///
     /// For example, if the maximum bit count is 15 - or `0b1111` -
-    /// reads a 4-bit unsigned value from the stream and returns a `BitCount`
+    /// reads a 4-bit unsigned value from the stream and returns a [`BitCount`]
     /// which can be used in subsequent reads.
     ///
     /// Note that `MAX` must be greater than 0, and `MAX + 1` must be
@@ -245,22 +245,23 @@ pub trait BitRead {
     /// ```
     /// use bitstream_io::{BigEndian, BitReader, BitRead};
     ///
-    /// let bytes: &[u8] = &[0b10011110];
+    /// let bytes: &[u8] = &[0b100_11110];
     /// let mut r = BitReader::endian(bytes, BigEndian);
     /// let count = r.read::<3, u32>().unwrap();
-    /// assert_eq!(count, 0b100);
-    /// // need to verify count is not larger than u8 at runtime
+    /// assert_eq!(count, 4);  // reads 0b100 - or 4
+    /// // may need to verify count is not larger than u8 at runtime
     /// assert_eq!(r.read_var::<u8>(count).unwrap(), 0b1111);
     /// ```
     ///
     /// ```
     /// use bitstream_io::{BigEndian, BitReader, BitRead, BitCount};
     ///
-    /// let bytes: &[u8] = &[0b10011110];
+    /// let bytes: &[u8] = &[0b100_11110];
     /// let mut r = BitReader::endian(bytes, BigEndian);
     /// let count = r.read_count::<0b111>().unwrap();
-    /// assert_eq!(count, BitCount::new::<4>());
-    /// // size of count is known at compile-time, so no runtime check needed
+    /// assert_eq!(count, BitCount::new::<4>());  // reads 0b100 - or 4
+    /// // maximum size of count is known at compile-time,
+    /// // so no runtime check needed to know it's not larger than a u8
     /// assert_eq!(r.read_counted::<0b111, u8>(count).unwrap(), 0b1111);
     /// ```
     fn read_count<const MAX: u32>(&mut self) -> io::Result<BitCount<MAX>> {
@@ -589,14 +590,14 @@ pub trait BitRead {
     }
 }
 
-/// A trait for anything that can read a variable number of
+/// An older trait for anything that can read a variable number of
 /// potentially un-aligned values from an input stream.
 ///
 /// This is a trait largely compatible with older code
-/// from the 2.X.X version and earlier,
+/// from the 2.X.X version,
 /// which one can use with a named import as needed.
 ///
-/// New code should prefer the regular `BitRead` trait.
+/// New code should prefer the regular [`BitRead`] trait.
 ///
 /// # Example
 /// ```
