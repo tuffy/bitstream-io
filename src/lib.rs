@@ -1163,15 +1163,16 @@ impl<const MAX: u32> BitCount<MAX> {
     /// use bitstream_io::BitCount;
     /// let count = BitCount::<16>::new::<5>();
     /// assert_eq!(u32::from(count), 5);
-    /// let count2 = count.try_map::<17, _>(|i| i + 1).unwrap();
+    /// let count2 = count.try_map::<17, _>(|i| i.checked_add(1)).unwrap();
     /// assert_eq!(u32::from(count2), 6);
     /// ```
     pub fn try_map<const NEW_MAX: u32, F>(self, f: F) -> Option<BitCount<NEW_MAX>>
     where
-        F: FnOnce(u32) -> u32,
+        F: FnOnce(u32) -> Option<u32>,
     {
-        let bits = f(self.bits);
-        (bits <= NEW_MAX).then_some(BitCount { bits })
+        f(self.bits)
+            .filter(|bits| *bits <= NEW_MAX)
+            .map(|bits| BitCount { bits })
     }
 }
 

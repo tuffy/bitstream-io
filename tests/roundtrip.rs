@@ -217,11 +217,11 @@ fn test_bit_count() {
     assert_eq!(u32::from(count), 0b1111);
 
     // increment it by 1
-    let count = count.try_map::<16, _>(|i| i + 1).unwrap();
+    let count = count.try_map::<16, _>(|i| i.checked_add(1)).unwrap();
     assert_eq!(u32::from(count), 0b1111 + 1);
 
     // decrement it by 1
-    let count = count.try_map::<0b1111, _>(|i| i - 1).unwrap();
+    let count = count.try_map::<0b1111, _>(|i| i.checked_sub(1)).unwrap();
     assert_eq!(u32::from(count), 0b1111);
 
     // write the count back to disk
