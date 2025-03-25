@@ -102,6 +102,7 @@ extern crate std;
 #[cfg(not(feature = "std"))]
 use core2::io;
 
+use core::num::NonZero;
 use core::ops::{
     BitAnd, BitOr, BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub,
 };
@@ -228,7 +229,7 @@ pub trait Integer {
     /// Passes along any I/O error from the underlying stream.
     /// Also returns an error if our type is too small
     /// to hold the requested number of bits.
-    fn read_var<const BITS: u32, R>(reader: &mut R, bits: BitCount<BITS>) -> io::Result<Self>
+    fn read_var<const MAX: u32, R>(reader: &mut R, bits: BitCount<MAX>) -> io::Result<Self>
     where
         R: BitRead + ?Sized,
         Self: Sized;
@@ -253,10 +254,10 @@ pub trait Integer {
     /// to hold the given number of bits.
     /// Returns an error if our value is too large
     /// to fit the given number of bits.
-    fn write_var<const BITS: u32, W: BitWrite + ?Sized>(
+    fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
         self,
         writer: &mut W,
-        bits: BitCount<BITS>,
+        bits: BitCount<MAX>,
     ) -> io::Result<()>;
 }
 
@@ -465,15 +466,12 @@ macro_rules! define_unsigned_numeric {
             }
 
             #[inline(always)]
-            fn read_var<const BITS: u32, R>(
-                reader: &mut R,
-                bits: BitCount<BITS>,
-            ) -> io::Result<Self>
+            fn read_var<const MAX: u32, R>(reader: &mut R, bits: BitCount<MAX>) -> io::Result<Self>
             where
                 R: BitRead + ?Sized,
                 Self: Sized,
             {
-                reader.read_unsigned_counted::<BITS, _>(bits)
+                reader.read_unsigned_counted::<MAX, _>(bits)
             }
 
             #[inline(always)]
@@ -485,10 +483,10 @@ macro_rules! define_unsigned_numeric {
             }
 
             #[inline(always)]
-            fn write_var<const BITS: u32, W: BitWrite + ?Sized>(
+            fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
-                bits: BitCount<BITS>,
+                bits: BitCount<MAX>,
             ) -> io::Result<()> {
                 writer.write_unsigned_counted(bits, self)
             }
@@ -526,7 +524,7 @@ macro_rules! define_unsigned_numeric {
         /// w.byte_align();
         /// assert_eq!(w.into_writer(), &[0b000_00000]);
         /// ```
-        impl Integer for core::num::NonZero<$t> {
+        impl Integer for NonZero<$t> {
             fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
             where
                 Self: Sized,
@@ -538,21 +536,20 @@ macro_rules! define_unsigned_numeric {
                     );
                 }
 
-                <$t as Integer>::read::<BITS, R>(reader)
-                    .map(|u| core::num::NonZero::new(u + 1).unwrap())
+                <$t as Integer>::read::<BITS, R>(reader).map(|u| NonZero::new(u + 1).unwrap())
             }
 
-            fn read_var<const BITS: u32, R>(
+            fn read_var<const MAX: u32, R>(
                 reader: &mut R,
-                count @ BitCount { bits }: BitCount<BITS>,
+                count @ BitCount { bits }: BitCount<MAX>,
             ) -> io::Result<Self>
             where
                 R: BitRead + ?Sized,
                 Self: Sized,
             {
-                if BITS < <$t>::BITS_SIZE || bits < <$t>::BITS_SIZE {
-                    <$t as Integer>::read_var::<BITS, R>(reader, count)
-                        .map(|u| core::num::NonZero::new(u + 1).unwrap())
+                if MAX < <$t>::BITS_SIZE || bits < <$t>::BITS_SIZE {
+                    <$t as Integer>::read_var::<MAX, R>(reader, count)
+                        .map(|u| NonZero::new(u + 1).unwrap())
                 } else {
                     Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -575,13 +572,13 @@ macro_rules! define_unsigned_numeric {
                 <$t as Integer>::write::<BITS, W>(self.get() - 1, writer)
             }
 
-            fn write_var<const BITS: u32, W: BitWrite + ?Sized>(
+            fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
-                count @ BitCount { bits }: BitCount<BITS>,
+                count @ BitCount { bits }: BitCount<MAX>,
             ) -> io::Result<()> {
-                if BITS < <$t>::BITS_SIZE || bits < <$t>::BITS_SIZE {
-                    <$t as Integer>::write_var::<BITS, W>(self.get() - 1, writer, count)
+                if MAX < <$t>::BITS_SIZE || bits < <$t>::BITS_SIZE {
+                    <$t as Integer>::write_var::<MAX, W>(self.get() - 1, writer, count)
                 } else {
                     Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -675,15 +672,12 @@ macro_rules! define_signed_numeric {
             }
 
             #[inline(always)]
-            fn read_var<const BITS: u32, R>(
-                reader: &mut R,
-                bits: BitCount<BITS>,
-            ) -> io::Result<Self>
+            fn read_var<const MAX: u32, R>(reader: &mut R, bits: BitCount<MAX>) -> io::Result<Self>
             where
                 R: BitRead + ?Sized,
                 Self: Sized,
             {
-                reader.read_signed_counted::<BITS, _>(bits)
+                reader.read_signed_counted::<MAX, _>(bits)
             }
 
             #[inline(always)]
@@ -695,12 +689,12 @@ macro_rules! define_signed_numeric {
             }
 
             #[inline(always)]
-            fn write_var<const BITS: u32, W: BitWrite + ?Sized>(
+            fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
-                bits: BitCount<BITS>,
+                bits: BitCount<MAX>,
             ) -> io::Result<()> {
-                writer.write_signed_counted::<BITS, _>(bits, self)
+                writer.write_signed_counted::<MAX, _>(bits, self)
             }
         }
     };
@@ -757,7 +751,7 @@ pub trait Endianness: Sized {
     #[inline]
     fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
         Self::push_bits(queue_value, queue_bits, 1, u8::from(bit));
-        *queue_bits = *queue_bits % u8::BITS_SIZE;
+        *queue_bits %= u8::BITS_SIZE;
         (*queue_bits == 0).then(|| mem::take(queue_value))
     }
 
@@ -782,10 +776,10 @@ pub trait Endianness: Sized {
         U: UnsignedNumeric;
 
     /// For performing bulk reads from a bit source to an output type.
-    fn read_bits<const BITS: u32, U, F, E>(
+    fn read_bits<const MAX: u32, U, F, E>(
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        BitCount { mut bits }: BitCount<BITS>,
+        BitCount { mut bits }: BitCount<MAX>,
         mut read_byte: F,
     ) -> Result<U, E>
     where
@@ -793,7 +787,7 @@ pub trait Endianness: Sized {
         F: FnMut() -> Result<u8, E>,
         E: From<io::Error>,
     {
-        if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             if bits <= *queue_bits {
                 // all bits available in queue
                 Ok(U::from_u8(Self::pop_bits(queue_value, queue_bits, bits)))
@@ -880,10 +874,10 @@ pub trait Endianness: Sized {
     }
 
     /// For performing bulk writes of a type to a bit sink.
-    fn write_bits<const BITS: u32, U, F, E>(
+    fn write_bits<const MAX: u32, U, F, E>(
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        BitCount { mut bits }: BitCount<BITS>,
+        BitCount { mut bits }: BitCount<MAX>,
         value: U,
         mut write_byte: F,
     ) -> Result<(), E>
@@ -892,7 +886,7 @@ pub trait Endianness: Sized {
         F: FnMut(u8) -> Result<(), E>,
         E: From<io::Error>,
     {
-        if BITS <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             if bits == 0 {
                 return Ok(());
             }
@@ -1029,7 +1023,7 @@ pub trait Endianness: Sized {
     }
 
     /// Reads signed value from reader in this endianness
-    fn read_signed<const BITS: u32, R, S>(r: &mut R, bits: BitCount<BITS>) -> io::Result<S>
+    fn read_signed<const MAX: u32, R, S>(r: &mut R, bits: BitCount<MAX>) -> io::Result<S>
     where
         R: BitRead,
         S: SignedNumeric;
@@ -1041,9 +1035,9 @@ pub trait Endianness: Sized {
         S: SignedNumeric;
 
     /// Writes signed value to writer in this endianness
-    fn write_signed<const BITS: u32, W, S>(
+    fn write_signed<const MAX: u32, W, S>(
         w: &mut W,
-        bits: BitCount<BITS>,
+        bits: BitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where
@@ -1114,6 +1108,29 @@ impl<const MAX: u32> BitCount<MAX> {
             Some(bits) => Some(Self { bits }),
             None => None,
         }
+    }
+
+    /// Attempt to convert our count to a count with a new
+    /// bit count and new maximum.
+    ///
+    /// Returns `Some(count)` if the updated number of bits
+    /// is less than or equal to the new maximum.
+    /// Returns `None` if not.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::BitCount;
+    /// let count = BitCount::<16>::new::<5>();
+    /// assert_eq!(u32::from(count), 5);
+    /// let count2 = count.try_map::<17, _>(|i| i + 1).unwrap();
+    /// assert_eq!(u32::from(count2), 6);
+    /// ```
+    pub fn try_map<const NEWMAX: u32, F>(self, f: F) -> Option<BitCount<NEWMAX>>
+    where
+        F: FnOnce(u32) -> u32,
+    {
+        let bits = f(self.bits);
+        (bits <= NEWMAX).then_some(BitCount { bits })
     }
 }
 
@@ -1245,7 +1262,7 @@ impl Endianness for BigEndian {
         *target_bits += bits;
     }
 
-    fn read_signed<const BITS: u32, R, S>(r: &mut R, bits: BitCount<BITS>) -> io::Result<S>
+    fn read_signed<const MAX: u32, R, S>(r: &mut R, bits: BitCount<MAX>) -> io::Result<S>
     where
         R: BitRead,
         S: SignedNumeric,
@@ -1253,7 +1270,7 @@ impl Endianness for BigEndian {
         match bits.bits {
             count if count < S::BITS_SIZE => {
                 let is_negative = r.read_bit()?;
-                let unsigned = r.read_unsigned_counted::<BITS, S::Unsigned>(
+                let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(
                     bits.checked_sub(1).ok_or(io::Error::new(
                         io::ErrorKind::InvalidInput,
                         "signed reads need at least 1 bit for sign",
@@ -1291,9 +1308,9 @@ impl Endianness for BigEndian {
         }
     }
 
-    fn write_signed<const BITS: u32, W, S>(
+    fn write_signed<const MAX: u32, W, S>(
         w: &mut W,
-        bits: BitCount<BITS>,
+        bits: BitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where
@@ -1483,14 +1500,14 @@ impl Endianness for LittleEndian {
         *target_bits += bits;
     }
 
-    fn read_signed<const BITS: u32, R, S>(r: &mut R, bits: BitCount<BITS>) -> io::Result<S>
+    fn read_signed<const MAX: u32, R, S>(r: &mut R, bits: BitCount<MAX>) -> io::Result<S>
     where
         R: BitRead,
         S: SignedNumeric,
     {
         match bits.bits {
             count if count < S::BITS_SIZE => {
-                let unsigned = r.read_unsigned_counted::<BITS, S::Unsigned>(
+                let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(
                     bits.checked_sub(1).ok_or(io::Error::new(
                         io::ErrorKind::InvalidInput,
                         "signed reads need at least 1 bit for sign",
@@ -1529,9 +1546,9 @@ impl Endianness for LittleEndian {
         }
     }
 
-    fn write_signed<const BITS: u32, W, S>(
+    fn write_signed<const MAX: u32, W, S>(
         w: &mut W,
-        bits: BitCount<BITS>,
+        bits: BitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where

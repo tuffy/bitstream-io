@@ -203,3 +203,30 @@ fn test_auto_signedness() {
     test_reader_signed::<_, BigEndian>(i8::MIN, i8::MAX, 8);
     test_reader_signed::<_, LittleEndian>(i8::MIN, i8::MAX, 8);
 }
+
+#[test]
+fn test_bit_count() {
+    use bitstream_io::{BigEndian, BitRead, BitReader, BitWrite, BitWriter};
+
+    let data: &[u8] = &[0b1111_0000];
+
+    // read a count from a 4-bit field
+    let count = BitReader::endian(data, BigEndian)
+        .read_count::<0b1111>()
+        .unwrap();
+    assert_eq!(u32::from(count), 0b1111);
+
+    // increment it by 1
+    let count = count.try_map::<16, _>(|i| i + 1).unwrap();
+    assert_eq!(u32::from(count), 0b1111 + 1);
+
+    // decrement it by 1
+    let count = count.try_map::<0b1111, _>(|i| i - 1).unwrap();
+    assert_eq!(u32::from(count), 0b1111);
+
+    // write the count back to disk
+    let mut w = BitWriter::endian(vec![], BigEndian);
+    w.write_count::<0b1111>(count).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.into_writer(), data);
+}
