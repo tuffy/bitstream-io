@@ -1849,3 +1849,51 @@ fn test_bitcount_write() {
         ]
     );
 }
+
+#[test]
+fn test_nonzero_writes() {
+    use bitstream_io::{BigEndian, BitWrite, BitWriter, LittleEndian};
+    use core::num::NonZero;
+
+    let mut w = BitWriter::endian(vec![], BigEndian);
+    w.write::<3, u8>(1).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.into_writer(), &[0b001_00000]);
+
+    let mut w = BitWriter::endian(vec![], BigEndian);
+    w.write::<3, NonZero<u8>>(NonZero::new(2).unwrap()).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.into_writer(), &[0b001_00000]);
+
+    let mut w = BitWriter::endian(vec![], BigEndian);
+    w.write_var::<u8>(3, 1).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.into_writer(), &[0b001_00000]);
+
+    let mut w = BitWriter::endian(vec![], BigEndian);
+    w.write_var::<NonZero<u8>>(3, NonZero::new(2).unwrap())
+        .unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.into_writer(), &[0b001_00000]);
+
+    let mut w = BitWriter::endian(vec![], LittleEndian);
+    w.write::<3, u8>(1).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.into_writer(), &[0b00000_001]);
+
+    let mut w = BitWriter::endian(vec![], LittleEndian);
+    w.write::<3, NonZero<u8>>(NonZero::new(2).unwrap()).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.into_writer(), &[0b00000_001]);
+
+    let mut w = BitWriter::endian(vec![], LittleEndian);
+    w.write_var::<u8>(3, 1).unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.into_writer(), &[0b00000_001]);
+
+    let mut w = BitWriter::endian(vec![], LittleEndian);
+    w.write_var::<NonZero<u8>>(3, NonZero::new(2).unwrap())
+        .unwrap();
+    w.byte_align().unwrap();
+    assert_eq!(w.into_writer(), &[0b00000_001]);
+}

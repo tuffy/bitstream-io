@@ -16,6 +16,7 @@
 //!
 //! ```
 //! use std::io::Read;
+//! use std::num::NonZero;
 //! use bitstream_io::{BitRead, BitReader, BigEndian, FromBitStream};
 //!
 //! #[derive(Debug, PartialEq, Eq)]
@@ -39,15 +40,15 @@
 //!
 //! #[derive(Debug, PartialEq, Eq)]
 //! struct Streaminfo {
-//!     minimum_block_size: u16,  // 16 bits
-//!     maximum_block_size: u16,  // 16 bits
-//!     minimum_frame_size: u32,  // 24 bits
-//!     maximum_frame_size: u32,  // 24 bits
-//!     sample_rate: u32,         // 20 bits
-//!     channels: u8,             // 3 bits
-//!     bits_per_sample: u8,      // 5 bits
-//!     total_samples: u64,       // 36 bits
-//!     md5: [u8; 16],            // 16 bytes
+//!     minimum_block_size: u16,      // 16 bits
+//!     maximum_block_size: u16,      // 16 bits
+//!     minimum_frame_size: u32,      // 24 bits
+//!     maximum_frame_size: u32,      // 24 bits
+//!     sample_rate: u32,             // 20 bits
+//!     channels: NonZero<u8>,        // 3 bits
+//!     bits_per_sample: NonZero<u8>, // 5 bits
+//!     total_samples: u64,           // 36 bits
+//!     md5: [u8; 16],                // 16 bytes
 //! }
 //!
 //! impl FromBitStream for Streaminfo {
@@ -60,8 +61,8 @@
 //!             minimum_frame_size: r.read::<24, _>()?,
 //!             maximum_frame_size: r.read::<24, _>()?,
 //!             sample_rate:        r.read::<20, _>()?,
-//!             channels:           r.read::<3, u8>()? + 1,
-//!             bits_per_sample:    r.read::<5, u8>()? + 1,
+//!             channels:           r.read::<3, _>()?,
+//!             bits_per_sample:    r.read::<5, _>()?,
 //!             total_samples:      r.read::<36, _>()?,
 //!             md5:                r.read_to()?,
 //!         })
@@ -140,8 +141,8 @@
 //!         minimum_frame_size: 1542,
 //!         maximum_frame_size: 8546,
 //!         sample_rate: 44100,
-//!         channels: 2,
-//!         bits_per_sample: 16,
+//!         channels: NonZero::new(2).unwrap(),
+//!         bits_per_sample: NonZero::new(16).unwrap(),
 //!         total_samples: 304844,
 //!         md5: *b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92",
 //!     }

@@ -17,6 +17,7 @@
 //! ```
 //! use std::convert::TryInto;
 //! use std::io::Write;
+//! use std::num::NonZero;
 //! use bitstream_io::{BigEndian, BitWriter, BitWrite, ByteWriter, ByteWrite, LittleEndian, ToBitStream};
 //!
 //! #[derive(Debug, PartialEq, Eq)]
@@ -38,15 +39,15 @@
 //!
 //! #[derive(Debug, PartialEq, Eq)]
 //! struct Streaminfo {
-//!     minimum_block_size: u16,  // 16 bits
-//!     maximum_block_size: u16,  // 16 bits
-//!     minimum_frame_size: u32,  // 24 bits
-//!     maximum_frame_size: u32,  // 24 bits
-//!     sample_rate: u32,         // 20 bits
-//!     channels: u8,             // 3 bits
-//!     bits_per_sample: u8,      // 5 bits
-//!     total_samples: u64,       // 36 bits
-//!     md5: [u8; 16],            // 16 bytes
+//!     minimum_block_size: u16,      // 16 bits
+//!     maximum_block_size: u16,      // 16 bits
+//!     minimum_frame_size: u32,      // 24 bits
+//!     maximum_frame_size: u32,      // 24 bits
+//!     sample_rate: u32,             // 20 bits
+//!     channels: NonZero<u8>,        // 3 bits
+//!     bits_per_sample: NonZero<u8>, // 5 bits
+//!     total_samples: u64,           // 36 bits
+//!     md5: [u8; 16],                // 16 bytes
 //! }
 //!
 //! impl ToBitStream for Streaminfo {
@@ -58,8 +59,8 @@
 //!         w.write::<24, _>(self.minimum_frame_size)?;
 //!         w.write::<24, _>(self.maximum_frame_size)?;
 //!         w.write::<20, _>(self.sample_rate)?;
-//!         w.write::<3,  _>(self.channels - 1)?;
-//!         w.write::<5,  _>(self.bits_per_sample - 1)?;
+//!         w.write::<3,  _>(self.channels)?;
+//!         w.write::<5,  _>(self.bits_per_sample)?;
 //!         w.write::<36, _>(self.total_samples)?;
 //!         w.write_bytes(&self.md5)
 //!     }
@@ -110,8 +111,8 @@
 //!     minimum_frame_size: 1542,
 //!     maximum_frame_size: 8546,
 //!     sample_rate: 44100,
-//!     channels: 2,
-//!     bits_per_sample: 16,
+//!     channels: NonZero::new(2).unwrap(),
+//!     bits_per_sample: NonZero::new(16).unwrap(),
 //!     total_samples: 304844,
 //!     md5: *b"\xFA\xF2\x69\x2F\xFD\xEC\x2D\x5B\x30\x01\x76\xB4\x62\x88\x7D\x92",
 //! }).unwrap();

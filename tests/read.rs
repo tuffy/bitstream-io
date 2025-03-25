@@ -875,3 +875,71 @@ fn test_bitcount_read() {
     // So while BitCount technically extends out to 32 bits,
     // it's not practical to get anywhere near that.
 }
+
+#[test]
+fn test_nonzero_reads() {
+    use bitstream_io::{BigEndian, BitRead, BitReader, LittleEndian};
+    use core::num::NonZero;
+
+    let data: &[u8] = &[0b001_00000, 0];
+
+    assert_eq!(
+        BitReader::endian(data, BigEndian).read::<3, u8>().unwrap(),
+        1,
+    );
+    assert_eq!(
+        BitReader::endian(data, BigEndian)
+            .read::<3, NonZero<u8>>()
+            .unwrap()
+            .get(),
+        2,
+    );
+    assert_eq!(
+        BitReader::endian(data, BigEndian)
+            .read_var::<u8>(3)
+            .unwrap(),
+        1,
+    );
+    assert_eq!(
+        BitReader::endian(data, BigEndian)
+            .read_var::<NonZero<u8>>(3)
+            .unwrap()
+            .get(),
+        2,
+    );
+    assert!(BitReader::endian(data, BigEndian)
+        .read_var::<NonZero<u8>>(8)
+        .is_err());
+
+    let data: &[u8] = &[0b00000_001, 0];
+
+    assert_eq!(
+        BitReader::endian(data, LittleEndian)
+            .read::<3, u8>()
+            .unwrap(),
+        1,
+    );
+    assert_eq!(
+        BitReader::endian(data, LittleEndian)
+            .read::<3, NonZero<u8>>()
+            .unwrap()
+            .get(),
+        2,
+    );
+    assert_eq!(
+        BitReader::endian(data, LittleEndian)
+            .read_var::<u8>(3)
+            .unwrap(),
+        1,
+    );
+    assert_eq!(
+        BitReader::endian(data, LittleEndian)
+            .read_var::<NonZero<u8>>(3)
+            .unwrap()
+            .get(),
+        2,
+    );
+    assert!(BitReader::endian(data, LittleEndian)
+        .read_var::<NonZero<u8>>(8)
+        .is_err());
+}

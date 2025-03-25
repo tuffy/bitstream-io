@@ -493,6 +493,103 @@ macro_rules! define_unsigned_numeric {
                 writer.write_unsigned_counted(bits, self)
             }
         }
+
+        /// Unsigned NonZero types increment their value by 1
+        /// when being read and decrement it by 1
+        /// when being written.
+        ///
+        /// # Examples
+        /// ```
+        /// use bitstream_io::{BitReader, BitRead, BigEndian};
+        /// use core::num::NonZero;
+        ///
+        /// let data: &[u8] = &[0b001_00000];
+        /// // reading a regular u8 in 3 bits yields 1
+        /// assert_eq!(BitReader::endian(data, BigEndian).read::<3, u8>().unwrap(), 1);
+        /// // reading a NonZero<u8> in 3 bits of the same data yields 2
+        /// assert_eq!(BitReader::endian(data, BigEndian).read::<3, NonZero<u8>>().unwrap().get(), 2);
+        /// ```
+        ///
+        /// ```
+        /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+        /// use core::num::NonZero;
+        ///
+        /// let mut w = BitWriter::endian(vec![], BigEndian);
+        /// // writing 1 as a regular u8 in 3 bits
+        /// w.write::<3, u8>(1).unwrap();
+        /// w.byte_align();
+        /// assert_eq!(w.into_writer(), &[0b001_00000]);
+        ///
+        /// let mut w = BitWriter::endian(vec![], BigEndian);
+        /// // writing 1 as a NonZero<u8> in 3 bits
+        /// w.write::<3, NonZero<u8>>(NonZero::new(1).unwrap()).unwrap();
+        /// w.byte_align();
+        /// assert_eq!(w.into_writer(), &[0b000_00000]);
+        /// ```
+        impl Integer for core::num::NonZero<$t> {
+            fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+            where
+                Self: Sized,
+            {
+                const {
+                    assert!(
+                        BITS < <$t>::BITS_SIZE,
+                        "BITS must be less than the type's size in bits"
+                    );
+                }
+
+                <$t as Integer>::read::<BITS, R>(reader)
+                    .map(|u| core::num::NonZero::new(u + 1).unwrap())
+            }
+
+            fn read_var<const BITS: u32, R>(
+                reader: &mut R,
+                count @ BitCount { bits }: BitCount<BITS>,
+            ) -> io::Result<Self>
+            where
+                R: BitRead + ?Sized,
+                Self: Sized,
+            {
+                if BITS < <$t>::BITS_SIZE || bits < <$t>::BITS_SIZE {
+                    <$t as Integer>::read_var::<BITS, R>(reader, count)
+                        .map(|u| core::num::NonZero::new(u + 1).unwrap())
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "bit count must be less than the type's size in bits",
+                    ))
+                }
+            }
+
+            fn write<const BITS: u32, W: BitWrite + ?Sized>(
+                self,
+                writer: &mut W,
+            ) -> io::Result<()> {
+                const {
+                    assert!(
+                        BITS < <$t>::BITS_SIZE,
+                        "BITS must be less than the type's size in bits"
+                    );
+                }
+
+                <$t as Integer>::write::<BITS, W>(self.get() - 1, writer)
+            }
+
+            fn write_var<const BITS: u32, W: BitWrite + ?Sized>(
+                self,
+                writer: &mut W,
+                count @ BitCount { bits }: BitCount<BITS>,
+            ) -> io::Result<()> {
+                if BITS < <$t>::BITS_SIZE || bits < <$t>::BITS_SIZE {
+                    <$t as Integer>::write_var::<BITS, W>(self.get() - 1, writer, count)
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "bit count must be less than the type's size in bits",
+                    ))
+                }
+            }
+        }
     };
 }
 
