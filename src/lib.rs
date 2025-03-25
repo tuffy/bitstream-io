@@ -214,11 +214,10 @@ pub trait Integer {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    /// Also returns an error if our type is too small
-    /// to hold the requested number of bits.
-    fn read<const BITS: u32, R>(reader: &mut R, bits: BitCount<BITS>) -> io::Result<Self>
+    /// A compile-time error occurs if the given number of bits
+    /// is larger than our type.
+    fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
     where
-        R: BitRead + ?Sized,
         Self: Sized;
 
     /// Reads a value of ourself from the stream
@@ -227,26 +226,12 @@ pub trait Integer {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
-    /// A compile-time error occurs if the given number of bits
-    /// is larger than our type.
-    fn read_in<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+    /// Also returns an error if our type is too small
+    /// to hold the requested number of bits.
+    fn read_var<const BITS: u32, R>(reader: &mut R, bits: BitCount<BITS>) -> io::Result<Self>
     where
+        R: BitRead + ?Sized,
         Self: Sized;
-
-    /// Writes ourself to the stream using the given number of bits.
-    ///
-    /// # Errors
-    ///
-    /// Passes along any I/O error from the underlying stream.
-    /// Returns an error if our value is too small
-    /// to hold the given number of bits.
-    /// Returns an error if our value is too large
-    /// to fit the given number of bits.
-    fn write<const BITS: u32, W: BitWrite + ?Sized>(
-        self,
-        writer: &mut W,
-        bits: BitCount<BITS>,
-    ) -> io::Result<()>;
 
     /// Writes ourself to the stream using the given const number of bits.
     ///
@@ -257,7 +242,22 @@ pub trait Integer {
     /// to fit the given number of bits.
     /// A compile-time error occurs if the given number of bits
     /// is larger than our type.
-    fn write_out<const BITS: u32, W: BitWrite + ?Sized>(self, writer: &mut W) -> io::Result<()>;
+    fn write<const BITS: u32, W: BitWrite + ?Sized>(self, writer: &mut W) -> io::Result<()>;
+
+    /// Writes ourself to the stream using the given number of bits.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if our value is too small
+    /// to hold the given number of bits.
+    /// Returns an error if our value is too large
+    /// to fit the given number of bits.
+    fn write_var<const BITS: u32, W: BitWrite + ?Sized>(
+        self,
+        writer: &mut W,
+        bits: BitCount<BITS>,
+    ) -> io::Result<()>;
 }
 
 /// This trait extends many common integer types (both unsigned and signed)
@@ -457,7 +457,18 @@ macro_rules! define_unsigned_numeric {
 
         impl Integer for $t {
             #[inline(always)]
-            fn read<const BITS: u32, R>(reader: &mut R, bits: BitCount<BITS>) -> io::Result<Self>
+            fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+            where
+                Self: Sized,
+            {
+                reader.read_unsigned::<BITS, _>()
+            }
+
+            #[inline(always)]
+            fn read_var<const BITS: u32, R>(
+                reader: &mut R,
+                bits: BitCount<BITS>,
+            ) -> io::Result<Self>
             where
                 R: BitRead + ?Sized,
                 Self: Sized,
@@ -466,28 +477,20 @@ macro_rules! define_unsigned_numeric {
             }
 
             #[inline(always)]
-            fn read_in<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
-            where
-                Self: Sized,
-            {
-                reader.read_unsigned::<BITS, _>()
+            fn write<const BITS: u32, W: BitWrite + ?Sized>(
+                self,
+                writer: &mut W,
+            ) -> io::Result<()> {
+                writer.write_unsigned::<BITS, _>(self)
             }
 
             #[inline(always)]
-            fn write<const BITS: u32, W: BitWrite + ?Sized>(
+            fn write_var<const BITS: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
                 bits: BitCount<BITS>,
             ) -> io::Result<()> {
                 writer.write_unsigned_counted(bits, self)
-            }
-
-            #[inline(always)]
-            fn write_out<const BITS: u32, W: BitWrite + ?Sized>(
-                self,
-                writer: &mut W,
-            ) -> io::Result<()> {
-                writer.write_unsigned::<BITS, _>(self)
             }
         }
     };
@@ -567,7 +570,18 @@ macro_rules! define_signed_numeric {
 
         impl Integer for $t {
             #[inline(always)]
-            fn read<const BITS: u32, R>(reader: &mut R, bits: BitCount<BITS>) -> io::Result<Self>
+            fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+            where
+                Self: Sized,
+            {
+                reader.read_signed::<BITS, _>()
+            }
+
+            #[inline(always)]
+            fn read_var<const BITS: u32, R>(
+                reader: &mut R,
+                bits: BitCount<BITS>,
+            ) -> io::Result<Self>
             where
                 R: BitRead + ?Sized,
                 Self: Sized,
@@ -576,28 +590,20 @@ macro_rules! define_signed_numeric {
             }
 
             #[inline(always)]
-            fn read_in<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
-            where
-                Self: Sized,
-            {
-                reader.read_signed::<BITS, _>()
+            fn write<const BITS: u32, W: BitWrite + ?Sized>(
+                self,
+                writer: &mut W,
+            ) -> io::Result<()> {
+                writer.write_signed::<BITS, _>(self)
             }
 
             #[inline(always)]
-            fn write<const BITS: u32, W: BitWrite + ?Sized>(
+            fn write_var<const BITS: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
                 bits: BitCount<BITS>,
             ) -> io::Result<()> {
                 writer.write_signed_counted::<BITS, _>(bits, self)
-            }
-
-            #[inline(always)]
-            fn write_out<const BITS: u32, W: BitWrite + ?Sized>(
-                self,
-                writer: &mut W,
-            ) -> io::Result<()> {
-                writer.write_signed::<BITS, _>(self)
             }
         }
     };

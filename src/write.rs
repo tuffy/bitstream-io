@@ -300,7 +300,7 @@ pub trait BitWrite {
     where
         I: Integer,
     {
-        Integer::write_out::<BITS, Self>(value, self)
+        Integer::write::<BITS, Self>(value, self)
     }
 
     /// Writes a signed or unsigned value to the stream using the given
@@ -523,7 +523,7 @@ pub trait BitWrite {
     where
         I: Integer + Sized,
     {
-        I::write::<MAX, _>(value, self, bits)
+        I::write_var::<MAX, _>(value, self, bits)
     }
 
     /// Writes a signed value to the stream with

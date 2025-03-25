@@ -206,7 +206,7 @@ pub trait BitRead {
     where
         I: Integer,
     {
-        I::read_in::<BITS, _>(self)
+        I::read::<BITS, _>(self)
     }
 
     /// Reads a signed or unsigned value from the stream with
@@ -222,7 +222,7 @@ pub trait BitRead {
     where
         I: Integer + Sized,
     {
-        I::read(self, BitCount::unknown(bits))
+        I::read_var(self, BitCount::unknown(bits))
     }
 
     /// Given a desired maximum value for a bit count,
@@ -295,7 +295,7 @@ pub trait BitRead {
     where
         I: Integer + Sized,
     {
-        I::read(self, bits)
+        I::read_var(self, bits)
     }
 
     /// Reads an unsigned value from the stream with
