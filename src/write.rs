@@ -493,9 +493,6 @@ pub trait BitWrite {
     fn write_count<const MAX: u32>(&mut self, BitCount { bits }: BitCount<MAX>) -> io::Result<()> {
         const {
             assert!(MAX > 0, "MAX value must be > 0");
-        }
-
-        const {
             assert!(
                 MAX == u32::MAX || (MAX + 1).is_power_of_two(),
                 "MAX should fill some whole number of bits ('0b111', '0b1111', etc.)"
