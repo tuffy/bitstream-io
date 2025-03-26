@@ -814,8 +814,8 @@ pub trait Endianness: Sized {
     fn read_bits<const MAX: u32, U, F, E>(
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        BitCount { mut bits }: BitCount<MAX>,
-        mut read_byte: F,
+        BitCount { bits }: BitCount<MAX>,
+        read_byte: F,
     ) -> Result<U, E>
     where
         U: UnsignedNumeric,
@@ -823,44 +823,7 @@ pub trait Endianness: Sized {
         E: From<io::Error>,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            if bits <= *queue_bits {
-                Ok(U::from_u8(Self::pop_bits(queue_value, queue_bits, bits)))
-            } else {
-                let (value, mut value_bits) = Self::pop_final_value(queue_value, queue_bits);
-                let mut value = U::from_u8(value);
-                bits -= value_bits;
-
-                loop {
-                    match bits {
-                        0 => break Ok(value),
-                        1..8 => {
-                            let mut last = read_byte()?;
-                            let mut last_bits = 8;
-
-                            Self::push_bits(
-                                &mut value,
-                                &mut value_bits,
-                                bits,
-                                U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
-                            );
-
-                            *queue_value = last;
-                            *queue_bits = last_bits;
-
-                            break Ok(value);
-                        }
-                        _ => {
-                            Self::push_bits(
-                                &mut value,
-                                &mut value_bits,
-                                8,
-                                U::from_u8(read_byte()?),
-                            );
-                            bits -= 8;
-                        }
-                    }
-                }
-            }
+            read_bits::<Self, U, _, _>(queue_value, queue_bits, bits, read_byte)
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
         }
@@ -870,7 +833,7 @@ pub trait Endianness: Sized {
     fn read_bits_fixed<const BITS: u32, U, F, E>(
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        mut read_byte: F,
+        read_byte: F,
     ) -> Result<U, E>
     where
         U: UnsignedNumeric,
@@ -880,39 +843,7 @@ pub trait Endianness: Sized {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
         }
 
-        if BITS <= *queue_bits {
-            Ok(U::from_u8(Self::pop_bits(queue_value, queue_bits, BITS)))
-        } else {
-            let (value, mut value_bits) = Self::pop_final_value(queue_value, queue_bits);
-            let mut value = U::from_u8(value);
-            let mut bits = BITS - value_bits;
-
-            loop {
-                match bits {
-                    0 => break Ok(value),
-                    1..8 => {
-                        let mut last = read_byte()?;
-                        let mut last_bits = 8;
-
-                        Self::push_bits(
-                            &mut value,
-                            &mut value_bits,
-                            bits,
-                            U::from_u8(Self::pop_bits(&mut last, &mut last_bits, bits)),
-                        );
-
-                        *queue_value = last;
-                        *queue_bits = last_bits;
-
-                        break Ok(value);
-                    }
-                    _ => {
-                        Self::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
-                        bits -= 8;
-                    }
-                }
-            }
-        }
+        read_bits::<Self, U, _, _>(queue_value, queue_bits, BITS, read_byte)
     }
 
     /// For performing bulk writes of a type to a bit sink.
@@ -1054,6 +985,52 @@ pub trait Endianness: Sized {
     where
         W: io::Write,
         V: Primitive;
+}
+
+fn read_bits<N, U, F, E>(
+    queue_value: &mut u8,
+    queue_bits: &mut u32,
+    bits: u32,
+    mut read_byte: F,
+) -> Result<U, E>
+where
+    N: Endianness,
+    U: UnsignedNumeric,
+    F: FnMut() -> Result<u8, E>,
+{
+    if bits <= *queue_bits {
+        Ok(U::from_u8(N::pop_bits(queue_value, queue_bits, bits)))
+    } else {
+        let (value, mut value_bits) = N::pop_final_value(queue_value, queue_bits);
+        let mut value = U::from_u8(value);
+        let mut bits = bits - value_bits;
+
+        loop {
+            match bits {
+                0 => break Ok(value),
+                1..8 => {
+                    let mut last = read_byte()?;
+                    let mut last_bits = 8;
+
+                    N::push_bits(
+                        &mut value,
+                        &mut value_bits,
+                        bits,
+                        U::from_u8(N::pop_bits(&mut last, &mut last_bits, bits)),
+                    );
+
+                    *queue_value = last;
+                    *queue_bits = last_bits;
+
+                    break Ok(value);
+                }
+                _ => {
+                    N::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+                    bits -= 8;
+                }
+            }
+        }
+    }
 }
 
 /// Performs actual value extraction to disk
