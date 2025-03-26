@@ -932,7 +932,7 @@ pub trait Endianness: Sized {
             if bits == 0 {
                 Ok(())
             } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
-                Self::write_bits_raw(queue_value, queue_bits, bits, value, write_byte)
+                write_bits::<Self, U, _, _>(queue_value, queue_bits, bits, value, write_byte)
             } else {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -970,7 +970,7 @@ pub trait Endianness: Sized {
         if BITS == 0 {
             Ok(())
         } else {
-            Self::write_bits_raw(queue_value, queue_bits, BITS, VALUE, write_byte)
+            write_bits::<Self, _, _, _>(queue_value, queue_bits, BITS, VALUE, write_byte)
         }
     }
 
@@ -993,70 +993,13 @@ pub trait Endianness: Sized {
         if BITS == 0 {
             Ok(())
         } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
-            Self::write_bits_raw(queue_value, queue_bits, BITS, value, write_byte)
+            write_bits::<Self, U, _, _>(queue_value, queue_bits, BITS, value, write_byte)
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive value for bits written",
             )
             .into())
-        }
-    }
-
-    /// Performs actual value extraction to disk
-    fn write_bits_raw<U, F, E>(
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        mut bits: u32,
-        value: U,
-        mut write_byte: F,
-    ) -> Result<(), E>
-    where
-        U: UnsignedNumeric,
-        F: FnMut(u8) -> Result<(), E>,
-        E: From<io::Error>,
-    {
-        let mut value = Self::source_align(value, bits);
-        let available = u8::BITS_SIZE - *queue_bits;
-        if bits < available {
-            // all bits fit in queue, so populate it and we're done
-            Self::push_bits(
-                queue_value,
-                queue_bits,
-                bits,
-                Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
-            );
-            Ok(())
-        } else {
-            // push as many bits into queue as possible
-            // and write it to disk
-
-            Self::push_bits(
-                queue_value,
-                queue_bits,
-                available,
-                Self::pop_bits(&mut value, &mut bits, available).to_u8(),
-            );
-            write_byte(core::mem::take(queue_value))?;
-            *queue_bits = 0;
-
-            // write any further bytes in 8-bit increments
-            while bits >= 8 {
-                write_byte(Self::pop_bits(&mut value, &mut bits, 8).to_u8())?;
-            }
-
-            // finally repopulate queue with any leftover bits
-            if bits > 0 {
-                Self::push_bits(
-                    queue_value,
-                    queue_bits,
-                    bits,
-                    Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
-                );
-            }
-            debug_assert!(value == U::ZERO);
-
-            Ok(())
         }
     }
 
@@ -1111,6 +1054,64 @@ pub trait Endianness: Sized {
     where
         W: io::Write,
         V: Primitive;
+}
+
+/// Performs actual value extraction to disk
+fn write_bits<N, U, F, E>(
+    queue_value: &mut u8,
+    queue_bits: &mut u32,
+    mut bits: u32,
+    value: U,
+    mut write_byte: F,
+) -> Result<(), E>
+where
+    N: Endianness,
+    U: UnsignedNumeric,
+    F: FnMut(u8) -> Result<(), E>,
+    E: From<io::Error>,
+{
+    let mut value = N::source_align(value, bits);
+    let available = u8::BITS_SIZE - *queue_bits;
+    if bits < available {
+        // all bits fit in queue, so populate it and we're done
+        N::push_bits(
+            queue_value,
+            queue_bits,
+            bits,
+            N::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
+        );
+        Ok(())
+    } else {
+        // push as many bits into queue as possible
+        // and write it to disk
+
+        N::push_bits(
+            queue_value,
+            queue_bits,
+            available,
+            N::pop_bits(&mut value, &mut bits, available).to_u8(),
+        );
+        write_byte(core::mem::take(queue_value))?;
+        *queue_bits = 0;
+
+        // write any further bytes in 8-bit increments
+        while bits >= 8 {
+            write_byte(N::pop_bits(&mut value, &mut bits, 8).to_u8())?;
+        }
+
+        // finally repopulate queue with any leftover bits
+        if bits > 0 {
+            N::push_bits(
+                queue_value,
+                queue_bits,
+                bits,
+                N::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
+            );
+        }
+        debug_assert!(value == U::ZERO);
+
+        Ok(())
+    }
 }
 
 /// A number of bits to be consumed or written, with a known maximum
