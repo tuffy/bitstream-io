@@ -911,7 +911,7 @@ pub trait BitRead {
     /// assert_eq!(r.read_huffman::<TreeName>().unwrap(), 'd');
     /// ```
     #[inline]
-    fn read_huffman<T>(&mut self) -> io::Result<T::Output>
+    fn read_huffman<T>(&mut self) -> io::Result<T::Symbol>
     where
         T: crate::huffman::FromBits,
     {
@@ -1145,7 +1145,7 @@ pub trait BitRead2 {
     ///
     /// Passes along any I/O error from the underlying stream.
     #[inline]
-    fn read_huffman<T>(&mut self) -> io::Result<T::Output>
+    fn read_huffman<T>(&mut self) -> io::Result<T::Symbol>
     where
         T: crate::huffman::FromBits,
     {

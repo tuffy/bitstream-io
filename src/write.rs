@@ -1050,7 +1050,7 @@ pub trait BitWrite {
     /// writer.write_huffman::<TreeName>('d').unwrap();
     /// assert_eq!(writer.into_writer(), [0b10_110_111]);
     /// ```
-    fn write_huffman<T>(&mut self, value: T::Input) -> io::Result<()>
+    fn write_huffman<T>(&mut self, value: T::Symbol) -> io::Result<()>
     where
         T: crate::huffman::ToBits,
     {
@@ -1328,7 +1328,7 @@ pub trait BitWrite2 {
     /// writer.write_huffman::<TreeName>('d').unwrap();
     /// assert_eq!(writer.into_writer(), [0b10_110_111]);
     /// ```
-    fn write_huffman<T>(&mut self, value: T::Input) -> io::Result<()>
+    fn write_huffman<T>(&mut self, value: T::Symbol) -> io::Result<()>
     where
         T: crate::huffman::ToBits,
     {

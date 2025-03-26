@@ -22,15 +22,15 @@
 /// but implementing `FromBitStream` multiple times for `i32`
 /// isn't possible (or practical).
 pub trait FromBits {
-    /// Our final output type
-    type Output;
+    /// Our returned symbol type
+    type Symbol;
 
     /// Given a fallable bit generator, return our output type
     ///
     /// # Errors
     ///
     /// Passes along any error from the bit generator
-    fn from_bits<F, E>(next: F) -> Result<Self::Output, E>
+    fn from_bits<F, E>(next: F) -> Result<Self::Symbol, E>
     where
         F: FnMut() -> Result<bool, E>;
 }
@@ -47,7 +47,7 @@ pub trait FromBits {
 /// isn't possible (or practical).
 pub trait ToBits {
     /// The type we accept to output
-    type Input;
+    type Symbol;
 
     /// Given a value to generate, write out bits as needed.
     ///
@@ -56,7 +56,7 @@ pub trait ToBits {
     /// # Errors
     ///
     /// Passes along any error from the bit generator
-    fn to_bits<F, E>(value: Self::Input, write: F) -> Result<(), E>
+    fn to_bits<F, E>(value: Self::Symbol, write: F) -> Result<(), E>
     where
         F: FnMut(bool) -> Result<(), E>;
 }
@@ -86,9 +86,9 @@ macro_rules! define_huffman_tree {
         struct $name;
 
         impl $crate::huffman::FromBits for $name {
-            type Output = $type;
+            type Symbol = $type;
 
-            fn from_bits<F, E>(mut next: F) -> Result<Self::Output, E>
+            fn from_bits<F, E>(mut next: F) -> Result<Self::Symbol, E>
             where
                 F: FnMut() -> Result<bool, E>,
             {
@@ -97,9 +97,9 @@ macro_rules! define_huffman_tree {
         }
 
         impl $crate::huffman::ToBits for $name {
-            type Input = $type;
+            type Symbol = $type;
 
-            fn to_bits<F, E>(value: Self::Input, mut write: F) -> Result<(), E>
+            fn to_bits<F, E>(value: Self::Symbol, mut write: F) -> Result<(), E>
             where
                 F: FnMut(bool) -> Result<(), E>
             {
