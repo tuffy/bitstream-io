@@ -282,6 +282,38 @@ pub trait BitWrite {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w  = BitWriter::endian(vec![], BigEndian);
+    /// assert!(w.write_bit(true).is_ok());
+    /// assert!(w.write_bit(false).is_ok());
+    /// assert!(w.write_bit(false).is_ok());
+    /// assert!(w.write_bit(false).is_ok());
+    /// assert!(w.write_bit(true).is_ok());
+    /// assert!(w.write_bit(true).is_ok());
+    /// assert!(w.write_bit(true).is_ok());
+    /// assert!(w.write_bit(false).is_ok());
+    /// assert_eq!(w.into_writer(), &[0b1000_1110]);
+    /// ```
+    ///
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, LittleEndian};
+    ///
+    /// let mut w  = BitWriter::endian(vec![], LittleEndian);
+    /// assert!(w.write_bit(false).is_ok());
+    /// assert!(w.write_bit(true).is_ok());
+    /// assert!(w.write_bit(true).is_ok());
+    /// assert!(w.write_bit(true).is_ok());
+    /// assert!(w.write_bit(false).is_ok());
+    /// assert!(w.write_bit(false).is_ok());
+    /// assert!(w.write_bit(false).is_ok());
+    /// assert!(w.write_bit(true).is_ok());
+    /// assert_eq!(w.into_writer(), &[0b1000_1110]);
+    /// ```
+    #[inline]
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
         self.write_unsigned::<1, u8>(u8::from(bit))
     }
@@ -296,6 +328,29 @@ pub trait BitWrite {
     /// to fit the given number of bits.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // writing unsigned value is ok
+    /// assert!(w.write::<4, u8>(1).is_ok());
+    /// // writing signed value is ok
+    /// assert!(w.write::<4, i8>(-1).is_ok());
+    /// // trying to write a value larger than 4 bits in 4 bits is an error
+    /// assert!(w.write::<4, u8>(u8::MAX).is_err());
+    ///
+    /// assert_eq!(w.into_writer(), &[0b0001_1111]);
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // trying to write 9 bits to a u8 is a compile-time error
+    /// w.write::<9, u8>(1);
+    /// ```
     #[inline]
     fn write<const BITS: u32, I>(&mut self, value: I) -> io::Result<()>
     where
@@ -314,6 +369,28 @@ pub trait BitWrite {
     /// to hold the given number of bits.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // writing unsigned value is ok
+    /// assert!(w.write_var::<u8>(4, 1).is_ok());
+    /// // writing signed value is also ok
+    /// assert!(w.write_var::<i8>(4, -1).is_ok());
+    /// assert_eq!(w.into_writer(), &[0b0001_1111]);
+    /// ```
+    ///
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // writing a value larger than 4 bits in 4 bits is a runtime error
+    /// assert!(w.write_var::<u8>(4, u8::MAX).is_err());
+    /// // writing 9 bits to a u8 is also a runtime error
+    /// assert!(w.write_var::<u8>(9, 0).is_err());
+    /// ```
     #[inline]
     fn write_var<I>(&mut self, bits: u32, value: I) -> io::Result<()>
     where
@@ -332,6 +409,46 @@ pub trait BitWrite {
     /// to fit the given number of bits.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    ///
+    /// let mut writer = BitWriter::endian(vec![], BigEndian);
+    /// writer.write_unsigned::<1, u8>(0b1).unwrap();
+    /// writer.write_unsigned::<2, u8>(0b01).unwrap();
+    /// writer.write_unsigned::<5, u8>(0b10111).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b1_01_10111]);
+    /// ```
+    ///
+    /// ```
+    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
+    ///
+    /// let mut writer = BitWriter::endian(vec![], LittleEndian);
+    /// writer.write_unsigned::<1, u8>(0b1).unwrap();
+    /// writer.write_unsigned::<2, u8>(0b11).unwrap();
+    /// writer.write_unsigned::<5, u8>(0b10110).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10110_11_1]);
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    ///
+    /// let mut writer = BitWriter::endian(vec![], BigEndian);
+    /// // trying to write 9 bits to a u8 is a compile-time error
+    /// writer.write_unsigned::<9, u8>(1);
+    /// ```
+    ///
+    /// ```
+    /// use std::io::{Write, sink};
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    ///
+    /// let mut w = BitWriter::endian(sink(), BigEndian);
+    /// assert!(w.write_unsigned::<1, u8>(2).is_err());    // can't write   2 in 1 bit
+    /// assert!(w.write_unsigned::<2, u8>(4).is_err());    // can't write   4 in 2 bits
+    /// assert!(w.write_unsigned::<3, u8>(8).is_err());    // can't write   8 in 3 bits
+    /// assert!(w.write_unsigned::<4, u8>(16).is_err());   // can't write  16 in 4 bits
+    /// ```
     #[inline]
     fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
@@ -353,37 +470,39 @@ pub trait BitWrite {
     ///
     /// # Examples
     /// ```
-    /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_unsigned_var(1, 0b1u8).unwrap();
-    /// writer.write_unsigned_var(2, 0b01u8).unwrap();
-    /// writer.write_unsigned_var(5, 0b10111u8).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
+    ///
+    /// let mut writer = BitWriter::endian(vec![], BigEndian);
+    /// writer.write_unsigned_var::<u8>(1, 0b1).unwrap();
+    /// writer.write_unsigned_var::<u8>(2, 0b01).unwrap();
+    /// writer.write_unsigned_var::<u8>(5, 0b10111).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b1_01_10111]);
     /// ```
     ///
     /// ```
     /// use std::io::Write;
     /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_unsigned_var(1, 0b1u8).unwrap();
-    /// writer.write_unsigned_var(2, 0b11u8).unwrap();
-    /// writer.write_unsigned_var(5, 0b10110u8).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
+    ///
+    /// let mut writer = BitWriter::endian(vec![], LittleEndian);
+    /// writer.write_unsigned_var::<u8>(1, 0b1).unwrap();
+    /// writer.write_unsigned_var::<u8>(2, 0b11).unwrap();
+    /// writer.write_unsigned_var::<u8>(5, 0b10110).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10110_11_1]);
     /// ```
     ///
     /// ```
     /// use std::io::{Write, sink};
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    ///
     /// let mut w = BitWriter::endian(sink(), BigEndian);
-    /// assert!(w.write_unsigned_var(9, 0u8).is_err());    // can't write  u8 in 9 bits
-    /// assert!(w.write_unsigned_var(17, 0u16).is_err());  // can't write u16 in 17 bits
-    /// assert!(w.write_unsigned_var(33, 0u32).is_err());  // can't write u32 in 33 bits
-    /// assert!(w.write_unsigned_var(65, 0u64).is_err());  // can't write u64 in 65 bits
-    /// assert!(w.write_unsigned_var(1, 2u8).is_err());    // can't write   2 in 1 bit
-    /// assert!(w.write_unsigned_var(2, 4u8).is_err());    // can't write   4 in 2 bits
-    /// assert!(w.write_unsigned_var(3, 8u8).is_err());    // can't write   8 in 3 bits
-    /// assert!(w.write_unsigned_var(4, 16u8).is_err());   // can't write  16 in 4 bits
+    /// assert!(w.write_unsigned_var::<u8>(9, 0).is_err());    // can't write  u8 in 9 bits
+    /// assert!(w.write_unsigned_var::<u16>(17, 0).is_err());  // can't write u16 in 17 bits
+    /// assert!(w.write_unsigned_var::<u32>(33, 0).is_err());  // can't write u32 in 33 bits
+    /// assert!(w.write_unsigned_var::<u64>(65, 0).is_err());  // can't write u64 in 65 bits
+    /// assert!(w.write_unsigned_var::<u8>(1, 2).is_err());    // can't write   2 in 1 bit
+    /// assert!(w.write_unsigned_var::<u8>(2, 4).is_err());    // can't write   4 in 2 bits
+    /// assert!(w.write_unsigned_var::<u8>(3, 8).is_err());    // can't write   8 in 3 bits
+    /// assert!(w.write_unsigned_var::<u8>(4, 16).is_err());   // can't write  16 in 4 bits
     /// ```
     fn write_unsigned_var<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
@@ -404,6 +523,41 @@ pub trait BitWrite {
     /// since one bit is always needed for the sign.
     /// A compile-time error occurs if the given number of bits
     /// is larger than the output type.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    ///
+    /// let mut writer = BitWriter::endian(vec![], BigEndian);
+    /// writer.write_signed::<4, i8>(-5).unwrap();
+    /// writer.write_signed::<4, i8>(7).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
+    /// ```
+    ///
+    /// ```
+    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
+    ///
+    /// let mut writer = BitWriter::endian(vec![], LittleEndian);
+    /// writer.write_signed::<4, i8>(7).unwrap();
+    /// writer.write_signed::<4, i8>(-5).unwrap();
+    /// assert_eq!(writer.into_writer(), [0b10110111]);
+    /// ```
+    ///
+    /// ```
+    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
+    ///
+    /// let mut writer = BitWriter::endian(vec![], LittleEndian);
+    /// // writing a value too large for 4 bits in 4 bits is a runtime error
+    /// assert!(writer.write_signed::<4, i8>(i8::MAX).is_err());
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
+    ///
+    /// let mut writer = BitWriter::endian(vec![], LittleEndian);
+    /// // writing 9 bits to an i8 is a compile-time error
+    /// assert!(writer.write_signed::<9, i8>(1).is_err());
+    /// ```
     fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
         S: SignedNumeric,
@@ -426,18 +580,18 @@ pub trait BitWrite {
     ///
     /// # Examples
     /// ```
-    /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+    ///
+    /// let mut writer = BitWriter::endian(vec![], BigEndian);
     /// writer.write_signed_var(4, -5).unwrap();
     /// writer.write_signed_var(4, 7).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
     /// ```
     ///
     /// ```
-    /// use std::io::Write;
     /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
+    ///
+    /// let mut writer = BitWriter::endian(vec![], LittleEndian);
     /// writer.write_signed_var(4, 7).unwrap();
     /// writer.write_signed_var(4, -5).unwrap();
     /// assert_eq!(writer.into_writer(), [0b10110111]);
@@ -560,6 +714,21 @@ pub trait BitWrite {
     /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian, BitCount};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // writing 4 bits with a maximum of 8 will fit into a u8
+    /// // so we only need check the value fits into 4 bits
+    /// assert!(w.write_unsigned_counted::<4, u8>(BitCount::new::<4>(), 0b1111).is_ok());
+    /// assert!(w.write_unsigned_counted::<4, u8>(BitCount::new::<4>(), 0b1111 + 1).is_err());
+    /// // writing 4 bits with a maximum of 64 might not fit into a u8
+    /// // so need to verify this at runtime
+    /// assert!(w.write_unsigned_counted::<64, u8>(BitCount::new::<4>(), 0b0000).is_ok());
+    /// assert_eq!(w.into_writer(), &[0b1111_0000]);
+    /// ```
     fn write_unsigned_counted<const BITS: u32, U>(
         &mut self,
         bits: BitCount<BITS>,
@@ -576,6 +745,21 @@ pub trait BitWrite {
     /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian, BitCount};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // writing 4 bits with a maximum of 8 will fit into an i8
+    /// // so we only need check the value fits into 4 bits
+    /// assert!(w.write_signed_counted::<4, i8>(BitCount::new::<4>(), 0b0111).is_ok());
+    /// assert!(w.write_signed_counted::<4, i8>(BitCount::new::<4>(), 0b0111 + 1).is_err());
+    /// // writing 4 bits with a maximum of 64 might not fit into a i8
+    /// // so need to verify this at runtime
+    /// assert!(w.write_signed_counted::<64, i8>(BitCount::new::<4>(), 0b0000).is_ok());
+    /// assert_eq!(w.into_writer(), &[0b0111_0000]);
+    /// ```
     fn write_signed_counted<const MAX: u32, S>(
         &mut self,
         bits: BitCount<MAX>,
@@ -590,6 +774,23 @@ pub trait BitWrite {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// assert!(w.write_from::<u32>(0x12_34_56_78).is_ok());
+    /// assert_eq!(w.into_writer(), &[0x12, 0x34, 0x56, 0x78]);
+    /// ```
+    ///
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// assert!(w.write_from::<[u8; 4]>([0x12, 0x34, 0x56, 0x78]).is_ok());
+    /// assert_eq!(w.into_writer(), &[0x12, 0x34, 0x56, 0x78]);
+    /// ```
     fn write_from<V>(&mut self, value: V) -> io::Result<()>
     where
         V: Primitive;
@@ -601,6 +802,15 @@ pub trait BitWrite {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian, LittleEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// assert!(w.write_as_from::<LittleEndian, u32>(0x12_34_56_78).is_ok());
+    /// assert_eq!(w.into_writer(), &[0x78, 0x56, 0x34, 0x12]);
+    /// ```
     fn write_as_from<F, V>(&mut self, value: V) -> io::Result<()>
     where
         F: Endianness,
@@ -740,6 +950,18 @@ pub trait BitWrite {
     }
 
     /// Returns true if the stream is aligned at a whole byte.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::{Write, sink};
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(sink(), BigEndian);
+    /// assert_eq!(writer.byte_aligned(), true);
+    /// writer.write_var(1, 0u8).unwrap();
+    /// assert_eq!(writer.byte_aligned(), false);
+    /// writer.write_var(7, 0u8).unwrap();
+    /// assert_eq!(writer.byte_aligned(), true);
+    /// ```
     fn byte_aligned(&self) -> bool;
 
     /// Pads the stream with 0 bits until it is aligned at a whole byte.
@@ -778,6 +1000,7 @@ pub trait BitWrite {
     /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// use bitstream_io::define_huffman_tree;
+    ///
     /// define_huffman_tree!(TreeName : char = ['a', ['b', ['c', 'd']]]);
     /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
     /// writer.write_huffman::<TreeName>('b').unwrap();
@@ -1380,17 +1603,6 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         }
     }
 
-    /// # Example
-    /// ```
-    /// use std::io::{Write, sink};
-    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(sink(), BigEndian);
-    /// assert_eq!(writer.byte_aligned(), true);
-    /// writer.write_var(1, 0u8).unwrap();
-    /// assert_eq!(writer.byte_aligned(), false);
-    /// writer.write_var(7, 0u8).unwrap();
-    /// assert_eq!(writer.byte_aligned(), true);
-    /// ```
     #[inline(always)]
     fn byte_aligned(&self) -> bool {
         self.bits == 0

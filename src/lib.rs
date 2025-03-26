@@ -239,6 +239,7 @@ impl<const N: usize> Primitive for [u8; N] {
 
 /// This trait is for integer types which can be read or written
 /// to a bit stream as a partial amount of bits.
+///
 /// It unifies signed and unsigned integer types by delegating
 /// reads and writes to the signed and unsigned reading
 /// and writing methods as appropriate.

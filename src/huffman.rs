@@ -9,10 +9,6 @@
 //! Traits and implementations for reading or writing Huffman codes
 //! from or to a stream.
 
-//! The [`FromBits`] and [`ToBits`] traits will be implemented
-//! automatically by defining new trees with
-//! the `define_huffman_tree` macro.
-
 #![warn(missing_docs)]
 
 /// A trait for building a final value from individual bits
