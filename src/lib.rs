@@ -919,9 +919,9 @@ pub trait Endianness: Sized {
     fn write_bits<const MAX: u32, U, F, E>(
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        BitCount { mut bits }: BitCount<MAX>,
+        BitCount { bits }: BitCount<MAX>,
         value: U,
-        mut write_byte: F,
+        write_byte: F,
     ) -> Result<(), E>
     where
         U: UnsignedNumeric,
@@ -930,51 +930,9 @@ pub trait Endianness: Sized {
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             if bits == 0 {
-                return Ok(());
-            }
-
-            if value <= U::ALL >> (U::BITS_SIZE - bits) {
-                let mut value = Self::source_align(value, bits);
-                let available = u8::BITS_SIZE - *queue_bits;
-                if bits < available {
-                    // all bits fit in queue, so populate it and we're done
-                    Self::push_bits(
-                        queue_value,
-                        queue_bits,
-                        bits,
-                        Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
-                    );
-                    Ok(())
-                } else {
-                    // push as many bits into queue as possible
-                    // and write it to disk
-                    Self::push_bits(
-                        queue_value,
-                        queue_bits,
-                        available,
-                        Self::pop_bits(&mut value, &mut bits, available).to_u8(),
-                    );
-                    write_byte(core::mem::take(queue_value))?;
-                    *queue_bits = 0;
-
-                    // write any further bytes in 8-bit increments
-                    while bits >= 8 {
-                        write_byte(Self::pop_bits(&mut value, &mut bits, 8).to_u8())?;
-                    }
-
-                    // finally repopulate queue with any leftover bits
-                    if bits > 0 {
-                        Self::push_bits(
-                            queue_value,
-                            queue_bits,
-                            bits,
-                            Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
-                        );
-                    }
-                    debug_assert!(value == U::ZERO);
-
-                    Ok(())
-                }
+                Ok(())
+            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
+                Self::write_bits_raw(queue_value, queue_bits, bits, value, write_byte)
             } else {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -995,7 +953,7 @@ pub trait Endianness: Sized {
     fn write_bits_const<const BITS: u32, const VALUE: u32, F, E>(
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        mut write_byte: F,
+        write_byte: F,
     ) -> Result<(), E>
     where
         F: FnMut(u8) -> Result<(), E>,
@@ -1010,24 +968,68 @@ pub trait Endianness: Sized {
         }
 
         if BITS == 0 {
-            return Ok(());
+            Ok(())
+        } else {
+            Self::write_bits_raw(queue_value, queue_bits, BITS, VALUE, write_byte)
+        }
+    }
+
+    /// For performing bulk writes of a type to a bit sink.
+    fn write_bits_fixed<const BITS: u32, U, F, E>(
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        value: U,
+        write_byte: F,
+    ) -> Result<(), E>
+    where
+        U: UnsignedNumeric,
+        F: FnMut(u8) -> Result<(), E>,
+        E: From<io::Error>,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
         }
 
-        let mut value = Self::source_align(VALUE, BITS);
+        if BITS == 0 {
+            Ok(())
+        } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+            Self::write_bits_raw(queue_value, queue_bits, BITS, value, write_byte)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            )
+            .into())
+        }
+    }
+
+    /// Performs actual value extraction to disk
+    fn write_bits_raw<U, F, E>(
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        mut bits: u32,
+        value: U,
+        mut write_byte: F,
+    ) -> Result<(), E>
+    where
+        U: UnsignedNumeric,
+        F: FnMut(u8) -> Result<(), E>,
+        E: From<io::Error>,
+    {
+        let mut value = Self::source_align(value, bits);
         let available = u8::BITS_SIZE - *queue_bits;
-        if BITS < available {
+        if bits < available {
             // all bits fit in queue, so populate it and we're done
             Self::push_bits(
                 queue_value,
                 queue_bits,
-                BITS,
-                Self::pop_bits(&mut value, &mut BITS.clone(), BITS).to_u8(),
+                bits,
+                Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
             );
             Ok(())
         } else {
             // push as many bits into queue as possible
             // and write it to disk
-            let mut bits = BITS;
 
             Self::push_bits(
                 queue_value,
@@ -1052,82 +1054,9 @@ pub trait Endianness: Sized {
                     Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
                 );
             }
-            debug_assert!(value == 0);
+            debug_assert!(value == U::ZERO);
 
             Ok(())
-        }
-    }
-
-    /// For performing bulk writes of a type to a bit sink.
-    fn write_bits_fixed<const BITS: u32, U, F, E>(
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        value: U,
-        mut write_byte: F,
-    ) -> Result<(), E>
-    where
-        U: UnsignedNumeric,
-        F: FnMut(u8) -> Result<(), E>,
-        E: From<io::Error>,
-    {
-        const {
-            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
-        }
-
-        if BITS == 0 {
-            return Ok(());
-        }
-
-        if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
-            let mut value = Self::source_align(value, BITS);
-            let available = u8::BITS_SIZE - *queue_bits;
-            if BITS < available {
-                // all bits fit in queue, so populate it and we're done
-                Self::push_bits(
-                    queue_value,
-                    queue_bits,
-                    BITS,
-                    Self::pop_bits(&mut value, &mut BITS.clone(), BITS).to_u8(),
-                );
-                Ok(())
-            } else {
-                // push as many bits into queue as possible
-                // and write it to disk
-                let mut bits = BITS;
-
-                Self::push_bits(
-                    queue_value,
-                    queue_bits,
-                    available,
-                    Self::pop_bits(&mut value, &mut bits, available).to_u8(),
-                );
-                write_byte(core::mem::take(queue_value))?;
-                *queue_bits = 0;
-
-                // write any further bytes in 8-bit increments
-                while bits >= 8 {
-                    write_byte(Self::pop_bits(&mut value, &mut bits, 8).to_u8())?;
-                }
-
-                // finally repopulate queue with any leftover bits
-                if bits > 0 {
-                    Self::push_bits(
-                        queue_value,
-                        queue_bits,
-                        bits,
-                        Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
-                    );
-                }
-                debug_assert!(value == U::ZERO);
-
-                Ok(())
-            }
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive value for bits written",
-            )
-            .into())
         }
     }
 
