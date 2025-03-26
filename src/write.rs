@@ -359,6 +359,44 @@ pub trait BitWrite {
         Integer::write::<BITS, Self>(value, self)
     }
 
+    /// Writes the given constant value to the stream with
+    /// the given number of bits.
+    ///
+    /// Due to current limitations of constant parameters,
+    /// this is limited to `u32` values.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// A compile-time error occurs if the number of bits is larger
+    /// than 32 or if the value is too large too fit the
+    /// requested number of bits.
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// assert!(w.write_const::<4, 0b1000>().is_ok());
+    /// assert!(w.write_const::<4, 0b1011>().is_ok());
+    /// assert_eq!(w.into_writer(), &[0b1000_1011]);
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // trying to write a 5 bit value in 4 bits is a compile-time error
+    /// w.write_const::<4, 0b11111>();
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // trying to write a 33 bit value is also a compile-time error
+    /// w.write_const::<33, 1>();
+    /// ```
+    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()>;
+
     /// Writes a signed or unsigned value to the stream using the given
     /// number of bits.
     ///
@@ -997,12 +1035,16 @@ pub trait BitWrite {
     ///
     /// # Example
     /// ```
-    /// use std::io::Write;
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     /// use bitstream_io::define_huffman_tree;
     ///
     /// define_huffman_tree!(TreeName : char = ['a', ['b', ['c', 'd']]]);
-    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+    /// // 'a' is 0
+    /// // 'b' is 1 -> 0
+    /// // 'c' is 1 -> 1 -> 0
+    /// // 'd' is 1 -> 1 -> 1
+    ///
+    /// let mut writer = BitWriter::endian(vec![], BigEndian);
     /// writer.write_huffman::<TreeName>('b').unwrap();
     /// writer.write_huffman::<TreeName>('c').unwrap();
     /// writer.write_huffman::<TreeName>('d').unwrap();
@@ -1397,36 +1439,19 @@ impl<W: BitWrite> BitWrite2 for W {
 }
 
 impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
-    /// # Examples
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(false).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(false).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(false).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// writer.write_bit(false).unwrap();
-    /// writer.write_bit(true).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
+    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
+        let Self {
+            value,
+            bits,
+            writer,
+            ..
+        } = self;
+
+        E::write_bits_const::<BITS, VALUE, _, _>(value, bits, |byte| {
+            write_byte(writer.by_ref(), byte)
+        })
+    }
+
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
         match E::push_bit_flush(&mut self.value, &mut self.bits, bit) {
             None => Ok(()),
@@ -1434,36 +1459,6 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         }
     }
 
-    /// # Examples
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_unsigned::<1, _>(0b1u8).unwrap();
-    /// writer.write_unsigned::<2, _>(0b01u8).unwrap();
-    /// writer.write_unsigned::<5, _>(0b10111u8).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_unsigned::<1, _>(0b1u8).unwrap();
-    /// writer.write_unsigned::<2, _>(0b11u8).unwrap();
-    /// writer.write_unsigned::<5, _>(0b10110u8).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::{Write, sink};
-    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut w = BitWriter::endian(sink(), BigEndian);
-    /// assert!(w.write_unsigned::<1, _>(2u8).is_err());      // can't write   2 in 1 bit
-    /// assert!(w.write_unsigned::<2, _>(4u8).is_err());      // can't write   4 in 2 bits
-    /// assert!(w.write_unsigned::<3, _>(8u8).is_err());      // can't write   8 in 3 bits
-    /// assert!(w.write_unsigned::<4, _>(16u8).is_err());     // can't write  16 in 4 bits
-    /// ```
     #[inline(always)]
     fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
@@ -1511,24 +1506,6 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         E::write_signed::<BITS, _, _>(self, bits, value)
     }
 
-    /// # Examples
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
-    /// writer.write_signed::<4, _>(-5).unwrap();
-    /// writer.write_signed::<4, _>(7).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
-    ///
-    /// ```
-    /// use std::io::Write;
-    /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
-    /// let mut writer = BitWriter::endian(Vec::new(), LittleEndian);
-    /// writer.write_signed::<4, _>(7).unwrap();
-    /// writer.write_signed::<4, _>(-5).unwrap();
-    /// assert_eq!(writer.into_writer(), [0b10110111]);
-    /// ```
     #[inline]
     fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
@@ -1727,6 +1704,20 @@ where
     #[inline]
     fn write_bit(&mut self, _bit: bool) -> io::Result<()> {
         self.bits.checked_add_assign(1u8.into())?;
+        Ok(())
+    }
+
+    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
+        const {
+            assert!(BITS <= u32::BITS_SIZE, "excessive bits for type written");
+            assert!(
+                VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
+                "excessive value for bits written"
+            );
+        }
+
+        self.bits
+            .checked_add_assign(BITS.try_into().map_err(|_| Overflowed)?)?;
         Ok(())
     }
 
@@ -2027,6 +2018,14 @@ where
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
         self.records.push(WriteRecord::Bit(bit));
         BitWrite::write_bit(&mut self.counter, bit)
+    }
+
+    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
+        self.records.push(WriteRecord::Unsigned {
+            bits: BITS,
+            value: VALUE.into(),
+        });
+        BitWrite::write_const::<BITS, VALUE>(&mut self.counter)
     }
 
     #[inline]

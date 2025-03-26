@@ -1897,3 +1897,62 @@ fn test_nonzero_writes() {
     w.byte_align().unwrap();
     assert_eq!(w.into_writer(), &[0b00000_001]);
 }
+
+#[test]
+fn test_const_writes() {
+    use bitstream_io::{BigEndian, BitWrite, BitWriter, LittleEndian};
+
+    let mut w = BitWriter::endian(vec![], BigEndian);
+    w.write_const::<0, 0b0>().unwrap();
+    w.write_const::<1, 0b1>().unwrap();
+    w.write_const::<2, 0b10>().unwrap();
+    w.write_const::<3, 0b100>().unwrap();
+    w.write_const::<4, 0b1000>().unwrap();
+    w.write_const::<5, 0b10000>().unwrap();
+    w.write_const::<6, 0b100000>().unwrap();
+    w.write_const::<7, 0b1000000>().unwrap();
+    w.write_const::<8, 0b10000000>().unwrap();
+    w.write_const::<9, 0b100000000>().unwrap();
+    w.write_const::<10, 0b1000000000>().unwrap();
+    w.byte_align().unwrap();
+
+    assert_eq!(
+        w.into_writer(),
+        &[
+            0b1_10_100_10,
+            0b00_100001,
+            0b00000_100,
+            0b0000_1000,
+            0b0000_1000,
+            0b00000_100,
+            0b00000000
+        ]
+    );
+
+    let mut w = BitWriter::endian(vec![], LittleEndian);
+    w.write_const::<0, 0b0>().unwrap();
+    w.write_const::<1, 0b1>().unwrap();
+    w.write_const::<2, 0b10>().unwrap();
+    w.write_const::<3, 0b100>().unwrap();
+    w.write_const::<4, 0b1000>().unwrap();
+    w.write_const::<5, 0b10000>().unwrap();
+    w.write_const::<6, 0b100000>().unwrap();
+    w.write_const::<7, 0b1000000>().unwrap();
+    w.write_const::<8, 0b10000000>().unwrap();
+    w.write_const::<9, 0b100000000>().unwrap();
+    w.write_const::<10, 0b1000000000>().unwrap();
+    w.byte_align().unwrap();
+
+    assert_eq!(
+        w.into_writer(),
+        &[
+            0b00_100_10_1,
+            0b0_10000_10,
+            0b000_10000,
+            0b0000_1000,
+            0b0000_1000,
+            0b000_10000,
+            0b0_1000000
+        ]
+    );
+}

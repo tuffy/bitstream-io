@@ -991,6 +991,73 @@ pub trait Endianness: Sized {
         }
     }
 
+    /// For performing bulk writes of a constant value to a bit sink.
+    fn write_bits_const<const BITS: u32, const VALUE: u32, F, E>(
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        mut write_byte: F,
+    ) -> Result<(), E>
+    where
+        F: FnMut(u8) -> Result<(), E>,
+        E: From<io::Error>,
+    {
+        const {
+            assert!(BITS <= u32::BITS_SIZE, "excessive bits for type written");
+            assert!(
+                BITS == 0 || VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
+                "excessive value for bits written"
+            );
+        }
+
+        if BITS == 0 {
+            return Ok(());
+        }
+
+        let mut value = Self::source_align(VALUE, BITS);
+        let available = u8::BITS_SIZE - *queue_bits;
+        if BITS < available {
+            // all bits fit in queue, so populate it and we're done
+            Self::push_bits(
+                queue_value,
+                queue_bits,
+                BITS,
+                Self::pop_bits(&mut value, &mut BITS.clone(), BITS).to_u8(),
+            );
+            Ok(())
+        } else {
+            // push as many bits into queue as possible
+            // and write it to disk
+            let mut bits = BITS;
+
+            Self::push_bits(
+                queue_value,
+                queue_bits,
+                available,
+                Self::pop_bits(&mut value, &mut bits, available).to_u8(),
+            );
+            write_byte(core::mem::take(queue_value))?;
+            *queue_bits = 0;
+
+            // write any further bytes in 8-bit increments
+            while bits >= 8 {
+                write_byte(Self::pop_bits(&mut value, &mut bits, 8).to_u8())?;
+            }
+
+            // finally repopulate queue with any leftover bits
+            if bits > 0 {
+                Self::push_bits(
+                    queue_value,
+                    queue_bits,
+                    bits,
+                    Self::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
+                );
+            }
+            debug_assert!(value == 0);
+
+            Ok(())
+        }
+    }
+
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits_fixed<const BITS: u32, U, F, E>(
         queue_value: &mut u8,
