@@ -380,10 +380,10 @@ pub trait BitWrite {
     /// assert!(w.write_unsigned_var(17, 0u16).is_err());  // can't write u16 in 17 bits
     /// assert!(w.write_unsigned_var(33, 0u32).is_err());  // can't write u32 in 33 bits
     /// assert!(w.write_unsigned_var(65, 0u64).is_err());  // can't write u64 in 65 bits
-    /// assert!(w.write_unsigned_var(1, 2u8).is_err());      // can't write   2 in 1 bit
-    /// assert!(w.write_unsigned_var(2, 4u8).is_err());      // can't write   4 in 2 bits
-    /// assert!(w.write_unsigned_var(3, 8u8).is_err());      // can't write   8 in 3 bits
-    /// assert!(w.write_unsigned_var(4, 16u8).is_err());     // can't write  16 in 4 bits
+    /// assert!(w.write_unsigned_var(1, 2u8).is_err());    // can't write   2 in 1 bit
+    /// assert!(w.write_unsigned_var(2, 4u8).is_err());    // can't write   4 in 2 bits
+    /// assert!(w.write_unsigned_var(3, 8u8).is_err());    // can't write   8 in 3 bits
+    /// assert!(w.write_unsigned_var(4, 16u8).is_err());   // can't write  16 in 4 bits
     /// ```
     fn write_unsigned_var<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
@@ -457,8 +457,10 @@ pub trait BitWrite {
     /// writes the bit count to the stream as a 4-bit unsigned value
     /// which can be used in subsequent writes.
     ///
-    /// Note that `MAX` must be greater than 0, and `MAX + 1` must be
-    /// an exact power of two.
+    /// Note that `MAX` must be greater than 0.
+    /// Unlike the bit reader, the bit count need not be an exact
+    /// power of two when writing.  Any bits higher than the
+    /// bit count can reach are simply left 0.
     ///
     /// # Errors
     ///
@@ -467,8 +469,7 @@ pub trait BitWrite {
     /// ```
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     ///
-    /// let mut bytes = Vec::new();
-    /// let mut w = BitWriter::endian(bytes, BigEndian);
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
     /// let count = 4;
     /// w.write::<3, u32>(count).unwrap();
     /// // may need to verify count is not larger than u8 at runtime
@@ -480,30 +481,42 @@ pub trait BitWrite {
     /// ```
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite, BitCount};
     ///
-    /// use std::convert::TryInto;
-    /// let mut bytes = Vec::new();
-    /// let mut w = BitWriter::endian(bytes, BigEndian);
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // a bit count of 4, with a maximum of 7 (0b111)
     /// let count: BitCount<0b111> = BitCount::new::<4>();
-    /// w.write_count::<0b111>(count).unwrap();
-    /// // size of count is known at compile-time, so no runtime check needed
+    /// w.write_count(count).unwrap();
+    /// // maximum size of count is known to be 7 bits at compile-time
+    /// // so no need to check that 7 bits is larger than a u8 at runtime
     /// w.write_counted::<0b111, u8>(count, 0b1111).unwrap();
     /// w.byte_align().unwrap();
+    /// assert_eq!(w.into_writer(), &[0b100_11110]);
+    /// ```
+    ///
+    /// ```
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite, BitCount};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // a bit count of 4, with a maximum of 6 (0b110)
+    /// let count: BitCount<0b110> = BitCount::new::<4>();
+    /// w.write_count(count).unwrap();
+    /// w.write_counted::<0b110, u8>(count, 0b1111).unwrap();
+    /// w.byte_align().unwrap();
+    /// // bit count is written in 3 bits
+    /// // while actual value is written in 4 bits
     /// assert_eq!(w.into_writer(), &[0b100_11110]);
     /// ```
     fn write_count<const MAX: u32>(&mut self, BitCount { bits }: BitCount<MAX>) -> io::Result<()> {
         const {
             assert!(MAX > 0, "MAX value must be > 0");
-            assert!(
-                MAX == u32::MAX || (MAX + 1).is_power_of_two(),
-                "MAX should fill some whole number of bits ('0b111', '0b1111', etc.)"
-            )
         }
 
         self.write_unsigned_var(
-            if MAX < u32::MAX {
+            if MAX == u32::MAX {
+                32
+            } else if (MAX + 1).is_power_of_two() {
                 (MAX + 1).ilog2()
             } else {
-                32
+                (MAX + 1).ilog2() + 1
             },
             bits,
         )
@@ -517,6 +530,21 @@ pub trait BitWrite {
     /// Passes along any I/O error from the underlying stream.
     /// Returns an error if the value is too large
     /// to fit the given number of bits.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian, BitCount};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // writing 4 bits with a maximum of 8 will fit into a u8
+    /// // so we only need check the value fits into 4 bits
+    /// assert!(w.write_counted::<4, u8>(BitCount::new::<4>(), 0b1111).is_ok());
+    /// assert!(w.write_counted::<4, u8>(BitCount::new::<4>(), 0b1111 + 1).is_err());
+    /// // writing 4 bits with a maximum of 64 might not fit into a u8
+    /// // so need to verify this at runtime
+    /// assert!(w.write_counted::<64, u8>(BitCount::new::<4>(), 0b0000).is_ok());
+    /// assert_eq!(w.into_writer(), &[0b1111_0000]);
+    /// ```
     fn write_counted<const MAX: u32, I>(&mut self, bits: BitCount<MAX>, value: I) -> io::Result<()>
     where
         I: Integer + Sized,
@@ -583,6 +611,17 @@ pub trait BitWrite {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// assert!(w.write_bit(true).is_ok());
+    /// assert!(w.pad(7).is_ok());
+    /// assert_eq!(w.into_writer(), &[0b1_0000000]);
+    /// ```
     fn pad(&mut self, mut bits: u32) -> io::Result<()> {
         loop {
             match bits {
@@ -754,8 +793,7 @@ pub trait BitWrite {
     }
 }
 
-/// An older trait for anything that can write a variable number of
-/// potentially un-aligned values to an output stream
+/// A compatibility trait for older code implementing [`BitWrite`]
 ///
 /// This is a trait largely compatible with older code
 /// from the 2.X.X version,

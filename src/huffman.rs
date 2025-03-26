@@ -16,6 +16,15 @@
 #![warn(missing_docs)]
 
 /// A trait for building a final value from individual bits
+///
+/// Though similar to the [`crate::read::FromBitStream`] trait,
+/// this is intended to parse short symbols from a stream of bits
+/// while `FromBitStream` is meant for parsing larger structs from
+/// a whole reader.
+/// For example, one might have several [`FromBits`] implementations
+/// in a single program that all generate `i32` symbols from bits,
+/// but implementing `FromBitStream` multiple times for `i32`
+/// isn't possible (or practical).
 pub trait FromBits {
     /// Our final output type
     type Output;
@@ -31,11 +40,22 @@ pub trait FromBits {
 }
 
 /// For building individual bits from a final value
+///
+/// Though similar to the [`crate::write::ToBitStream`] trait,
+/// this is intended to generate a stream of bits from short symbols
+/// while `ToBitStream` is meant for writing larger structs to
+/// a whole writer.
+/// For example, one might have several [`ToBits`] implementations
+/// in a single program that all write `i32` symbols to bits,
+/// but implementing `ToBitStream` multiple times for `i32`
+/// isn't possible (or practical).
 pub trait ToBits {
     /// The type we accept to output
     type Input;
 
-    /// Given a value to generate, write out bits as needed
+    /// Given a value to generate, write out bits as needed.
+    ///
+    /// Outputs nothing if the symbol isn't defined.
     ///
     /// # Errors
     ///

@@ -52,7 +52,7 @@
 //! But starting with Rust 1.79, we can now have read and write methods
 //! which take a constant number of bits and can validate the number of bits
 //! are small enough for the type being read/written at compile-time:
-//! ```rust,ignore
+//! ```rust,compile_fail
 //! use std::io::{Read, Cursor};
 //! use bitstream_io::{BigEndian, BitReader, BitRead};
 //! let data = [0; 10];
@@ -65,7 +65,7 @@
 
 //! # Changes From 2.X.X
 //!
-//! Version 3.X.X has made many breaking changes to the [`BitRead`] and
+//! Version 3.0.0 has made many breaking changes to the [`BitRead`] and
 //! [`BitWrite`] traits.
 //!
 //! The [`BitRead::read`] method takes a constant number of bits,
@@ -1132,6 +1132,26 @@ impl<const MAX: u32> BitCount<MAX> {
     ///
     /// Use `TryFrom` to conditionally build
     /// counts from values at runtime.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::{BitReader, BitRead, BigEndian, BitCount};
+    /// let data: &[u8] = &[0b111_00000];
+    /// let mut r = BitReader::endian(data, BigEndian);
+    /// // reading 3 bits from a stream out of a maximum of 8
+    /// // doesn't require checking that the bit count is larger
+    /// // than a u8 at runtime because specifying the maximum of 8
+    /// // guarantees our bit count will not be larger than 8
+    /// assert_eq!(r.read_counted::<8, u8>(BitCount::new::<3>()).unwrap(), 0b111);
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::BitCount;
+    /// // trying to build a count of 10 with a maximum of 8
+    /// // fails to compile at all
+    /// let count = BitCount::<8>::new::<10>();
+    /// ```
     pub const fn new<const BITS: u32>() -> Self {
         const {
             assert!(BITS <= MAX, "BITS must be <= MAX");
@@ -1140,8 +1160,47 @@ impl<const MAX: u32> BitCount<MAX> {
         Self { bits: BITS }
     }
 
+    /// Add a number of bits to our count,
+    /// returning a new count with a new maximum.
+    ///
+    /// Returns `None` if the new count goes above our new maximum
+    /// or above `u32::MAX`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::BitCount;
+    /// let count = BitCount::<2>::new::<1>();
+    /// // adding 2 to 1 and increasing the max to 3 yields a new count of 3
+    /// assert_eq!(count.checked_add::<3>(2), Some(BitCount::<3>::new::<3>()));
+    /// // adding 2 to 1 without increasing the max yields None
+    /// assert_eq!(count.checked_add::<2>(2), None);
+    /// // adding u32::MAX to 1 while increasing the max yields None
+    /// assert_eq!(count.checked_add::<{u32::MAX}>(u32::MAX), None);
+    /// ```
+    #[inline]
+    pub const fn checked_add<const NEW_MAX: u32>(self, bits: u32) -> Option<BitCount<NEW_MAX>> {
+        match self.bits.checked_add(bits) {
+            Some(bits) if bits <= NEW_MAX => Some(BitCount { bits }),
+            _ => None,
+        }
+    }
+
     /// Subtracts a number of bits from our count,
-    /// returning a new count.
+    /// returning a new count with the same maximum.
+    ///
+    /// Returns `None` if the new count goes below 0.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::BitCount;
+    /// let count = BitCount::<5>::new::<1>();
+    /// // subtracting 1 from 1 yields a new count of 0
+    /// assert_eq!(count.checked_sub(1), Some(BitCount::<5>::new::<0>()));
+    /// // subtracting 2 from 1 yields None
+    /// assert!(count.checked_sub(2).is_none());
+    /// ```
+    #[inline]
     pub const fn checked_sub(self, bits: u32) -> Option<Self> {
         // it's okay for the number of bits to be smaller than MAX
         // so subtracting into a smaller number of bits is fine
@@ -1161,11 +1220,16 @@ impl<const MAX: u32> BitCount<MAX> {
     /// # Example
     /// ```
     /// use bitstream_io::BitCount;
-    /// let count = BitCount::<16>::new::<5>();
-    /// assert_eq!(u32::from(count), 5);
-    /// let count2 = count.try_map::<17, _>(|i| i.checked_add(1)).unwrap();
-    /// assert_eq!(u32::from(count2), 6);
+    /// let count = BitCount::<5>::new::<5>();
+    /// // muliplying 5 bits by 2 with a new max of 10 is ok
+    /// assert_eq!(
+    ///     count.try_map::<10, _>(|i| i.checked_mul(2)),
+    ///     Some(BitCount::<10>::new::<10>()),
+    /// );
+    /// // multiplying 5 bits by 3 with a new max of 10 overflows
+    /// assert_eq!(count.try_map::<10, _>(|i| i.checked_mul(3)), None);
     /// ```
+    #[inline]
     pub fn try_map<const NEW_MAX: u32, F>(self, f: F) -> Option<BitCount<NEW_MAX>>
     where
         F: FnOnce(u32) -> Option<u32>,
@@ -1187,7 +1251,13 @@ impl<const MAX: u32> core::convert::TryFrom<u32> for BitCount<MAX> {
 impl BitCount<{ u32::MAX }> {
     /// Builds a bit count where the maximum bits is unknown.
     ///
-    /// In this case, the maximum number is assumed.
+    /// In this case, `u32::MAX` is assumed.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::BitCount;
+    /// assert_eq!(BitCount::unknown(5), BitCount::<{u32::MAX}>::new::<5>());
+    /// ```
     pub const fn unknown(bits: u32) -> Self {
         Self { bits }
     }
