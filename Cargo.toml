@@ -21,6 +21,10 @@ divan = "0.1"
 name = "read"
 harness = false
 
+[[bench]]
+name = "write"
+harness = false
+
 [features]
 std = []
 default = ["std"]
