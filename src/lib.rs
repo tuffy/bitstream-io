@@ -808,7 +808,7 @@ pub trait Endianness: Sized {
     /// For performing bulk reads from a bit source to an output type.
     fn read_bits<const MAX: u32, U, F, E>(
         queue: &mut PartialByte<Self>,
-        BitCount { bits }: BitCount<MAX>,
+        count @ BitCount { bits }: BitCount<MAX>,
         read_byte: F,
     ) -> Result<U, E>
     where
@@ -817,7 +817,7 @@ pub trait Endianness: Sized {
         E: From<io::Error>,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            read_bits::<Self, U, _, _>(queue, bits, read_byte)
+            read_bits::<MAX, Self, U, _, _>(queue, count, read_byte)
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
         }
@@ -836,7 +836,7 @@ pub trait Endianness: Sized {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
         }
 
-        read_bits::<Self, U, _, _>(queue, BITS, read_byte)
+        read_bits::<BITS, Self, U, _, _>(queue, BitCount::new::<BITS>(), read_byte)
     }
 
     /// For performing bulk writes of a type to a bit sink.
@@ -1006,7 +1006,11 @@ impl<E: Endianness> PartialByte<E> {
     }
 }
 
-fn read_bits<N, U, F, E>(queue: &mut PartialByte<N>, bits: u32, mut read_byte: F) -> Result<U, E>
+fn read_bits<const MAX: u32, N, U, F, E>(
+    queue: &mut PartialByte<N>,
+    BitCount { bits }: BitCount<MAX>,
+    mut read_byte: F,
+) -> Result<U, E>
 where
     N: Endianness,
     U: UnsignedNumeric,
@@ -1023,31 +1027,26 @@ where
         let mut value = U::from_u8(value);
         let mut bits = bits - value_bits;
 
-        loop {
-            match bits {
-                0 => break Ok(value),
-                1..8 => {
-                    let mut last = read_byte()?;
-                    let mut last_bits = 8;
-
-                    N::push_bits(
-                        &mut value,
-                        &mut value_bits,
-                        bits,
-                        U::from_u8(N::pop_bits(&mut last, &mut last_bits, bits)),
-                    );
-
-                    queue.value = last;
-                    queue.bits = last_bits;
-
-                    break Ok(value);
-                }
-                _ => {
-                    N::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
-                    bits -= 8;
-                }
-            }
+        while MAX >= 8 && bits >= 8 {
+            N::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+            bits -= 8;
         }
+
+        if bits > 0 {
+            let mut last = read_byte()?;
+            let mut last_bits = 8;
+
+            N::push_bits(
+                &mut value,
+                &mut value_bits,
+                bits,
+                U::from_u8(N::pop_bits(&mut last, &mut last_bits, bits)),
+            );
+
+            queue.value = last;
+            queue.bits = last_bits;
+        }
+        Ok(value)
     }
 }
 
