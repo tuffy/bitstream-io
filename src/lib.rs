@@ -760,7 +760,11 @@ define_primitive_numeric!(f64);
 pub trait Endianness: Sized {
     /// Pops the next bit from the queue,
     /// repleneshing it from the given closure if necessary
-    fn pop_bit_refill<F, E>(queue: &mut PartialByte<Self>, read_val: F) -> Result<bool, E>
+    fn pop_bit_refill<F, E>(
+        queue_bits: &mut u8,
+        queue_value: &mut u32,
+        read_val: F,
+    ) -> Result<bool, E>
     where
         F: FnOnce() -> Result<u8, E>;
 
@@ -770,7 +774,8 @@ pub trait Endianness: Sized {
     ///
     /// `STOP_BIT` must be 0 or 1.
     fn pop_unary<const STOP_BIT: u8, F, E>(
-        queue: &mut PartialByte<Self>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         read_val: F,
     ) -> Result<u32, E>
     where
@@ -779,10 +784,10 @@ pub trait Endianness: Sized {
     /// Pushes the next bit into the queue,
     /// and returns `Some` value if the queue is full.
     #[inline]
-    fn push_bit_flush(queue: &mut PartialByte<Self>, bit: bool) -> Option<u8> {
-        Self::push_bits(&mut queue.value, &mut queue.bits, 1, u8::from(bit));
-        queue.bits %= u8::BITS_SIZE;
-        (queue.bits == 0).then(|| mem::take(&mut queue.value))
+    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
+        Self::push_bits(queue_value, queue_bits, 1, u8::from(bit));
+        *queue_bits %= u8::BITS_SIZE;
+        (*queue_bits == 0).then(|| mem::take(queue_value))
     }
 
     /// For extracting all the values from a source into a final value
@@ -807,7 +812,8 @@ pub trait Endianness: Sized {
 
     /// For performing bulk reads from a bit source to an output type.
     fn read_bits<const MAX: u32, U, F, E>(
-        queue: &mut PartialByte<Self>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         BitCount { bits }: BitCount<MAX>,
         read_byte: F,
     ) -> Result<U, E>
@@ -817,7 +823,7 @@ pub trait Endianness: Sized {
         E: From<io::Error>,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            read_bits::<Self, U, _, _>(queue, bits, read_byte)
+            read_bits::<Self, U, _, _>(queue_value, queue_bits, bits, read_byte)
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
         }
@@ -825,7 +831,8 @@ pub trait Endianness: Sized {
 
     /// For performing bulk reads from a bit source to an output type.
     fn read_bits_fixed<const BITS: u32, U, F, E>(
-        queue: &mut PartialByte<Self>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         read_byte: F,
     ) -> Result<U, E>
     where
@@ -836,12 +843,13 @@ pub trait Endianness: Sized {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
         }
 
-        read_bits::<Self, U, _, _>(queue, BITS, read_byte)
+        read_bits::<Self, U, _, _>(queue_value, queue_bits, BITS, read_byte)
     }
 
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits<const MAX: u32, U, F, E>(
-        queue: &mut PartialByte<Self>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         BitCount { bits }: BitCount<MAX>,
         value: U,
         write_byte: F,
@@ -855,7 +863,7 @@ pub trait Endianness: Sized {
             if bits == 0 {
                 Ok(())
             } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
-                write_bits::<Self, U, _, _>(queue, bits, value, write_byte)
+                write_bits::<Self, U, _, _>(queue_value, queue_bits, bits, value, write_byte)
             } else {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -874,7 +882,8 @@ pub trait Endianness: Sized {
 
     /// For performing bulk writes of a constant value to a bit sink.
     fn write_bits_const<const BITS: u32, const VALUE: u32, F, E>(
-        queue: &mut PartialByte<Self>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         write_byte: F,
     ) -> Result<(), E>
     where
@@ -892,13 +901,14 @@ pub trait Endianness: Sized {
         if BITS == 0 {
             Ok(())
         } else {
-            write_bits::<Self, _, _, _>(queue, BITS, VALUE, write_byte)
+            write_bits::<Self, _, _, _>(queue_value, queue_bits, BITS, VALUE, write_byte)
         }
     }
 
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits_fixed<const BITS: u32, U, F, E>(
-        queue: &mut PartialByte<Self>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         value: U,
         write_byte: F,
     ) -> Result<(), E>
@@ -914,7 +924,7 @@ pub trait Endianness: Sized {
         if BITS == 0 {
             Ok(())
         } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
-            write_bits::<Self, U, _, _>(queue, BITS, value, write_byte)
+            write_bits::<Self, U, _, _>(queue_value, queue_bits, BITS, value, write_byte)
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -977,49 +987,21 @@ pub trait Endianness: Sized {
         V: Primitive;
 }
 
-/// An opaque partially-consumed byte.
-#[derive(Clone, Debug)]
-pub struct PartialByte<E: Endianness> {
-    // our partial byte
-    value: u8,
-    // the number of bits in our partial byte
+fn read_bits<N, U, F, E>(
+    queue_value: &mut u8,
+    queue_bits: &mut u32,
     bits: u32,
-    // a container for our endianness
-    phantom: PhantomData<E>,
-}
-
-impl<E: Endianness> Default for PartialByte<E> {
-    fn default() -> Self {
-        Self {
-            value: 0,
-            bits: 0,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<E: Endianness> PartialByte<E> {
-    /// Returns the number of bits in our partial byte
-    #[inline]
-    fn bits(&self) -> u32 {
-        self.bits
-    }
-}
-
-fn read_bits<N, U, F, E>(queue: &mut PartialByte<N>, bits: u32, mut read_byte: F) -> Result<U, E>
+    mut read_byte: F,
+) -> Result<U, E>
 where
     N: Endianness,
     U: UnsignedNumeric,
     F: FnMut() -> Result<u8, E>,
 {
-    if bits <= queue.bits {
-        Ok(U::from_u8(N::pop_bits(
-            &mut queue.value,
-            &mut queue.bits,
-            bits,
-        )))
+    if bits <= *queue_bits {
+        Ok(U::from_u8(N::pop_bits(queue_value, queue_bits, bits)))
     } else {
-        let (value, mut value_bits) = N::pop_final_value(&mut queue.value, &mut queue.bits);
+        let (value, mut value_bits) = N::pop_final_value(queue_value, queue_bits);
         let mut value = U::from_u8(value);
         let mut bits = bits - value_bits;
 
@@ -1037,8 +1019,8 @@ where
                         U::from_u8(N::pop_bits(&mut last, &mut last_bits, bits)),
                     );
 
-                    queue.value = last;
-                    queue.bits = last_bits;
+                    *queue_value = last;
+                    *queue_bits = last_bits;
 
                     break Ok(value);
                 }
@@ -1053,7 +1035,8 @@ where
 
 /// Performs actual value extraction to disk
 fn write_bits<N, U, F, E>(
-    queue: &mut PartialByte<N>,
+    queue_value: &mut u8,
+    queue_bits: &mut u32,
     mut bits: u32,
     value: U,
     mut write_byte: F,
@@ -1065,12 +1048,12 @@ where
     E: From<io::Error>,
 {
     let mut value = N::source_align(value, bits);
-    let available = u8::BITS_SIZE - queue.bits;
+    let available = u8::BITS_SIZE - *queue_bits;
     if bits < available {
         // all bits fit in queue, so populate it and we're done
         N::push_bits(
-            &mut queue.value,
-            &mut queue.bits,
+            queue_value,
+            queue_bits,
             bits,
             N::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
         );
@@ -1080,13 +1063,13 @@ where
         // and write it to disk
 
         N::push_bits(
-            &mut queue.value,
-            &mut queue.bits,
+            queue_value,
+            queue_bits,
             available,
             N::pop_bits(&mut value, &mut bits, available).to_u8(),
         );
-        write_byte(core::mem::take(&mut queue.value))?;
-        queue.bits = 0;
+        write_byte(core::mem::take(queue_value))?;
+        *queue_bits = 0;
 
         // write any further bytes in 8-bit increments
         while bits >= 8 {
@@ -1096,8 +1079,8 @@ where
         // finally repopulate queue with any leftover bits
         if bits > 0 {
             N::push_bits(
-                &mut queue.value,
-                &mut queue.bits,
+                queue_value,
+                queue_bits,
                 bits,
                 N::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
             );
@@ -1270,26 +1253,31 @@ pub struct BigEndian;
 pub type BE = BigEndian;
 
 impl Endianness for BigEndian {
-    fn pop_bit_refill<F, E>(queue: &mut PartialByte<Self>, read_val: F) -> Result<bool, E>
+    fn pop_bit_refill<F, E>(
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        read_val: F,
+    ) -> Result<bool, E>
     where
         F: FnOnce() -> Result<u8, E>,
     {
-        Ok(if queue.bits == 0 {
+        Ok(if *queue_bits == 0 {
             let value = read_val()?;
             let msb = value & u8::MSB_BIT;
-            queue.value = value << 1;
-            queue.bits = u8::BITS_SIZE - 1;
+            *queue_value = value << 1;
+            *queue_bits = u8::BITS_SIZE - 1;
             msb
         } else {
-            let msb = queue.value & u8::MSB_BIT;
-            queue.value <<= 1;
-            queue.bits -= 1;
+            let msb = *queue_value & u8::MSB_BIT;
+            *queue_value <<= 1;
+            *queue_bits -= 1;
             msb
         } != 0)
     }
 
     fn pop_unary<const STOP_BIT: u8, F, E>(
-        queue: &mut PartialByte<Self>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         read_val: F,
     ) -> Result<u32, E>
     where
@@ -1301,14 +1289,16 @@ impl Endianness for BigEndian {
 
         match STOP_BIT {
             0 => find_unary(
-                queue,
+                queue_value,
+                queue_bits,
                 |v| v.leading_ones(),
-                |q| q,
+                |q| *q,
                 |v, b| v.checked_shl(b),
                 read_val,
             ),
             1 => find_unary(
-                queue,
+                queue_value,
+                queue_bits,
                 |v| v.leading_zeros(),
                 |_| u8::BITS_SIZE,
                 |v, b| v.checked_shl(b),
@@ -1501,26 +1491,31 @@ pub struct LittleEndian;
 pub type LE = LittleEndian;
 
 impl Endianness for LittleEndian {
-    fn pop_bit_refill<F, E>(queue: &mut PartialByte<Self>, read_val: F) -> Result<bool, E>
+    fn pop_bit_refill<F, E>(
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        read_val: F,
+    ) -> Result<bool, E>
     where
         F: FnOnce() -> Result<u8, E>,
     {
-        Ok(if queue.bits == 0 {
+        Ok(if *queue_bits == 0 {
             let value = read_val()?;
             let lsb = value & u8::LSB_BIT;
-            queue.value = value >> 1;
-            queue.bits = u8::BITS_SIZE - 1;
+            *queue_value = value >> 1;
+            *queue_bits = u8::BITS_SIZE - 1;
             lsb
         } else {
-            let lsb = queue.value & u8::LSB_BIT;
-            queue.value >>= 1;
-            queue.bits -= 1;
+            let lsb = *queue_value & u8::LSB_BIT;
+            *queue_value >>= 1;
+            *queue_bits -= 1;
             lsb
         } != 0)
     }
 
     fn pop_unary<const STOP_BIT: u8, F, E>(
-        queue: &mut PartialByte<Self>,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
         read_val: F,
     ) -> Result<u32, E>
     where
@@ -1532,14 +1527,16 @@ impl Endianness for LittleEndian {
 
         match STOP_BIT {
             0 => find_unary(
-                queue,
+                queue_value,
+                queue_bits,
                 |v| v.trailing_ones(),
-                |q| q,
+                |q| *q,
                 |v, b| v.checked_shr(b),
                 read_val,
             ),
             1 => find_unary(
-                queue,
+                queue_value,
+                queue_bits,
                 |v| v.trailing_zeros(),
                 |_| u8::BITS_SIZE,
                 |v, b| v.checked_shr(b),
@@ -1723,38 +1720,36 @@ impl Endianness for LittleEndian {
 }
 
 #[inline]
-fn find_unary<N, E>(
-    queue: &mut PartialByte<N>,
+fn find_unary<E>(
+    queue_value: &mut u8,
+    queue_bits: &mut u32,
     leading_bits: impl Fn(u8) -> u32,
-    max_bits: impl Fn(u32) -> u32,
+    max_bits: impl Fn(&mut u32) -> u32,
     checked_shift: impl Fn(u8, u32) -> Option<u8>,
     mut read_val: impl FnMut() -> Result<u8, E>,
-) -> Result<u32, E>
-where
-    N: Endianness,
-{
+) -> Result<u32, E> {
     let mut acc = 0;
 
     loop {
-        match leading_bits(queue.value) {
-            bits if bits == max_bits(queue.bits) => {
+        match leading_bits(*queue_value) {
+            bits if bits == max_bits(queue_bits) => {
                 // all bits exhausted
                 // fetch another byte and keep going
-                acc += queue.bits;
-                queue.value = read_val()?;
-                queue.bits = u8::BITS_SIZE;
+                acc += *queue_bits;
+                *queue_value = read_val()?;
+                *queue_bits = u8::BITS_SIZE;
             }
-            bits => match checked_shift(queue.value, bits + 1) {
+            bits => match checked_shift(*queue_value, bits + 1) {
                 Some(value) => {
                     // fetch part of source byte
-                    queue.value = value;
-                    queue.bits -= bits + 1;
+                    *queue_value = value;
+                    *queue_bits -= bits + 1;
                     break Ok(acc + bits);
                 }
                 None => {
                     // fetch all of source byte
-                    queue.value = 0;
-                    queue.bits = 0;
+                    *queue_value = 0;
+                    *queue_bits = 0;
                     break Ok(acc + bits);
                 }
             },

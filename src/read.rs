@@ -178,8 +178,7 @@ use alloc::{vec, vec::Vec};
 use std::io;
 
 use super::{
-    BitCount, Endianness, Integer, PartialByte, PhantomData, Primitive, SignedNumeric,
-    UnsignedNumeric,
+    BitCount, Endianness, Integer, PhantomData, Primitive, SignedNumeric, UnsignedNumeric,
 };
 
 /// A trait for anything that can read a variable number of
@@ -1250,7 +1249,11 @@ pub struct BitReader<R, E: Endianness> {
     // our underlying reader
     reader: R,
     // our partial byte
-    queue: PartialByte<E>,
+    value: u8,
+    // the number of bits in our partial byte
+    bits: u32,
+    // a container for our endiannness
+    phantom: PhantomData<E>,
 }
 
 impl<R, E: Endianness> BitReader<R, E> {
@@ -1258,7 +1261,9 @@ impl<R, E: Endianness> BitReader<R, E> {
     pub fn new(reader: R) -> BitReader<R, E> {
         BitReader {
             reader,
-            queue: PartialByte::default(),
+            value: 0,
+            bits: 0,
+            phantom: PhantomData,
         }
     }
 
@@ -1267,7 +1272,9 @@ impl<R, E: Endianness> BitReader<R, E> {
     pub fn endian(reader: R, _endian: E) -> BitReader<R, E> {
         BitReader {
             reader,
-            queue: PartialByte::default(),
+            value: 0,
+            bits: 0,
+            phantom: PhantomData,
         }
     }
 
@@ -1319,8 +1326,13 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
 impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     #[inline(always)]
     fn read_bit(&mut self) -> io::Result<bool> {
-        let Self { queue, reader, .. } = self;
-        E::pop_bit_refill(queue, || read_byte(reader))
+        let Self {
+            value,
+            bits,
+            reader,
+            ..
+        } = self;
+        E::pop_bit_refill(value, bits, || read_byte(reader))
     }
 
     #[inline(always)]
@@ -1328,8 +1340,13 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     where
         U: UnsignedNumeric,
     {
-        let Self { queue, reader, .. } = self;
-        E::read_bits(queue, bits, || read_byte(reader.by_ref()))
+        let Self {
+            value: queue_value,
+            bits: queue_bits,
+            reader,
+            ..
+        } = self;
+        E::read_bits(queue_value, queue_bits, bits, || read_byte(reader.by_ref()))
     }
 
     #[inline]
@@ -1337,12 +1354,13 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     where
         U: UnsignedNumeric,
     {
-        let Self { queue, reader, .. } = self;
-        if BITS == U::BITS_SIZE && queue.bits == 0 {
-            E::read_numeric(reader)
-        } else {
-            E::read_bits_fixed::<BITS, U, _, _>(queue, || read_byte(reader.by_ref()))
-        }
+        let Self {
+            value,
+            bits,
+            reader,
+            ..
+        } = self;
+        E::read_bits_fixed::<BITS, U, _, _>(value, bits, || read_byte(reader.by_ref()))
     }
 
     #[inline(always)]
@@ -1431,19 +1449,24 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     }
 
     fn read_unary<const STOP_BIT: u8>(&mut self) -> io::Result<u32> {
-        let Self { queue, reader, .. } = self;
-        E::pop_unary::<STOP_BIT, _, _>(queue, || read_byte(reader.by_ref()))
+        let Self {
+            value,
+            bits,
+            reader,
+            ..
+        } = self;
+        E::pop_unary::<STOP_BIT, _, _>(value, bits, || read_byte(reader.by_ref()))
     }
 
     #[inline]
     fn byte_aligned(&self) -> bool {
-        self.queue.bits == 0
+        self.bits == 0
     }
 
     #[inline]
     fn byte_align(&mut self) {
-        self.queue.value = 0;
-        self.queue.bits = 0;
+        self.value = 0;
+        self.bits = 0;
     }
 }
 
@@ -1510,7 +1533,7 @@ where
     #[inline]
     pub fn position_in_bits(&mut self) -> io::Result<u64> {
         let bytes = self.reader.stream_position()?;
-        Ok(bytes * 8 - (self.queue.bits() as u64))
+        Ok(bytes * 8 - (self.bits as u64))
     }
 }
 
