@@ -1,4 +1,4 @@
-use bitstream_io::{BigEndian, BitRead, BitReader, LittleEndian, Endianness};
+use bitstream_io::{BigEndian, BitRead, BitReader, Endianness, LittleEndian};
 
 fn main() {
     divan::main();
@@ -11,56 +11,66 @@ fn bytes() -> impl std::io::Read {
 }
 
 #[divan::bench]
-fn read_be_bits() {
-    read_bits::<BigEndian>();
+fn be_bits() {
+    bits::<BigEndian>();
 }
 
 #[divan::bench]
-fn read_le_bits() {
-    read_bits::<LittleEndian>();
+fn le_bits() {
+    bits::<LittleEndian>();
 }
 
 #[divan::bench]
-fn read_be_partials() {
-    read_partials::<BigEndian>();
+fn be_partials() {
+    partials::<BigEndian>();
 }
 
 #[divan::bench]
-fn read_le_partials() {
-    read_partials::<LittleEndian>();
+fn le_partials() {
+    partials::<LittleEndian>();
 }
 
 #[divan::bench]
-fn read_be_wholes() {
-    read_wholes::<BigEndian>();
+fn be_wholes() {
+    wholes::<BigEndian>();
 }
 
 #[divan::bench]
-fn read_le_wholes() {
-    read_wholes::<LittleEndian>();
+fn le_wholes() {
+    wholes::<LittleEndian>();
 }
 
 #[divan::bench]
-fn read_be_to() {
-    read_to::<BigEndian>();
+fn be_to() {
+    to::<BigEndian>();
 }
 
 #[divan::bench]
-fn read_le_to() {
-    read_to::<LittleEndian>();
+fn le_to() {
+    to::<LittleEndian>();
 }
 
 #[divan::bench]
-fn read_be_unary() {
-    read_unaries::<BigEndian>();
+fn be_unary() {
+    unaries::<BigEndian>();
 }
 
 #[divan::bench]
-fn read_le_unary() {
-    read_unaries::<LittleEndian>();
+fn le_unary() {
+    unaries::<LittleEndian>();
 }
 
-fn read_bits<E: Endianness>() {
+#[divan::bench]
+fn be_off_by_1() {
+    off_by_1::<BigEndian>();
+}
+
+#[divan::bench]
+fn le_off_by_1() {
+    off_by_1::<LittleEndian>();
+}
+
+fn bits<E: Endianness>() {
     let mut bits: u32 = 0;
     let mut reader = BitReader::<_, E>::new(bytes());
 
@@ -71,7 +81,7 @@ fn read_bits<E: Endianness>() {
     let _ = bits;
 }
 
-fn read_partials<E: Endianness>() {
+fn partials<E: Endianness>() {
     let mut values: u32 = 0;
     let mut reader = BitReader::<_, E>::new(bytes());
 
@@ -82,7 +92,7 @@ fn read_partials<E: Endianness>() {
     let _ = values;
 }
 
-fn read_wholes<E: Endianness>() {
+fn wholes<E: Endianness>() {
     let mut values: u32 = 0;
     let mut reader = BitReader::<_, E>::new(bytes());
 
@@ -93,7 +103,7 @@ fn read_wholes<E: Endianness>() {
     let _ = values;
 }
 
-fn read_to<E: Endianness>() {
+fn to<E: Endianness>() {
     let mut values: u32 = 0;
     let mut reader = BitReader::<_, E>::new(bytes());
 
@@ -104,11 +114,24 @@ fn read_to<E: Endianness>() {
     let _ = values;
 }
 
-fn read_unaries<E: Endianness>() {
+fn unaries<E: Endianness>() {
     let mut values: u32 = 0;
     let mut reader = BitReader::<_, E>::new(bytes());
 
     while let Ok(value) = reader.read_unary::<1>() {
+        values += value;
+    }
+
+    let _ = values;
+}
+
+fn off_by_1<E: Endianness>() {
+    let mut values: u32 = 0;
+    let mut reader = BitReader::<_, E>::new(bytes());
+
+    let _ = reader.read_bit();
+
+    while let Ok(value) = reader.read::<32, u32>() {
         values += value;
     }
 

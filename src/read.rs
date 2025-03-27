@@ -1338,7 +1338,11 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
         U: UnsignedNumeric,
     {
         let Self { queue, reader, .. } = self;
-        E::read_bits_fixed::<BITS, U, _, _>(queue, || read_byte(reader.by_ref()))
+        if BITS == U::BITS_SIZE && queue.bits == 0 {
+            E::read_numeric(reader)
+        } else {
+            E::read_bits_fixed::<BITS, U, _, _>(queue, || read_byte(reader.by_ref()))
+        }
     }
 
     #[inline(always)]

@@ -18,7 +18,7 @@ core2 = "0.4"
 divan = "0.1"
 
 [[bench]]
-name = "bitstream"
+name = "read"
 harness = false
 
 [features]

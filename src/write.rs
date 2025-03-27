@@ -1451,7 +1451,11 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         U: UnsignedNumeric,
     {
         let Self { queue, writer, .. } = self;
-        E::write_bits_fixed::<BITS, U, _, _>(queue, value, |b| write_byte(writer.by_ref(), b))
+        if BITS == U::BITS_SIZE && queue.bits == 0 {
+            E::write_numeric(writer, value)
+        } else {
+            E::write_bits_fixed::<BITS, U, _, _>(queue, value, |b| write_byte(writer.by_ref(), b))
+        }
     }
 
     fn write_unsigned_counted<const BITS: u32, U>(
