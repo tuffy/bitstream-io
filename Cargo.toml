@@ -14,6 +14,13 @@ rust-version = "1.83"
 [dependencies]
 core2 = "0.4"
 
+[dev-dependencies]
+divan = "0.1"
+
+[[bench]]
+name = "bitstream"
+harness = false
+
 [features]
 std = []
 default = ["std"]
