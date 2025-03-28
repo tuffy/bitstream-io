@@ -790,8 +790,8 @@ pub trait Endianness: Sized {
         (*queue_bits == 0).then(|| mem::take(queue_value))
     }
 
-    /// For extracting all the values from a source into a final value
-    fn pop_final_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    /// Aligns a queue value and queue bit count for a final value
+    fn align_final_value<U>(queue_value: U, queue_bits: u32) -> U
     where
         U: UnsignedNumeric;
 
@@ -1006,6 +1006,7 @@ where
         .map(|()| byte)
 }
 
+#[inline]
 fn read_bits<const MAX: u32, N, R, U>(
     reader: &mut R,
     queue_value: &mut u8,
@@ -1017,38 +1018,43 @@ where
     N: Endianness,
     U: UnsignedNumeric,
 {
-    if bits <= *queue_bits {
-        Ok(U::from_u8(N::pop_bits(queue_value, queue_bits, bits)))
-    } else {
-        let (value, mut value_bits) = N::pop_final_value(queue_value, queue_bits);
-        let mut value = U::from_u8(value);
-        let mut bits = bits - value_bits;
-
-        while MAX >= 8 && bits >= 8 {
-            N::push_bits(
-                &mut value,
-                &mut value_bits,
-                8,
-                U::from_u8(read_byte(reader.by_ref())?),
-            );
-            bits -= 8;
+    match bits.checked_sub(*queue_bits) {
+        None | Some(0) => {
+            // enough bits in the queue aready
+            Ok(U::from_u8(N::pop_bits(queue_value, queue_bits, bits)))
         }
+        Some(mut remaining) => {
+            // more bits to extract than in queue
+            // so extract everything in queue to our target value
+            let mut value_bits = core::mem::take(queue_bits);
+            let mut value = U::from_u8(N::align_final_value(
+                core::mem::take(queue_value),
+                value_bits,
+            ));
 
-        if bits > 0 {
-            let mut last = read_byte(reader.by_ref())?;
-            let mut last_bits = 8;
+            while MAX >= 8 && remaining >= 8 {
+                N::push_bits(
+                    &mut value,
+                    &mut value_bits,
+                    8,
+                    U::from_u8(read_byte(reader.by_ref())?),
+                );
+                remaining -= 8;
+            }
 
-            N::push_bits(
-                &mut value,
-                &mut value_bits,
-                bits,
-                U::from_u8(N::pop_bits(&mut last, &mut last_bits, bits)),
-            );
+            if remaining > 0 {
+                *queue_value = read_byte(reader.by_ref())?;
+                *queue_bits = 8;
 
-            *queue_value = last;
-            *queue_bits = last_bits;
+                N::push_bits(
+                    &mut value,
+                    &mut value_bits,
+                    remaining,
+                    U::from_u8(N::pop_bits(queue_value, queue_bits, remaining)),
+                );
+            }
+            Ok(value)
         }
-        Ok(value)
     }
 }
 
@@ -1340,17 +1346,14 @@ impl Endianness for BigEndian {
         }
     }
 
-    fn pop_final_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    #[inline(always)]
+    fn align_final_value<U>(value: U, bits: u32) -> U
     where
         U: UnsignedNumeric,
     {
-        let bits = core::mem::take(source_bits);
-        (
-            core::mem::take(source)
-                .checked_shr(U::BITS_SIZE - bits)
-                .unwrap_or(U::ZERO),
-            bits,
-        )
+        value
+            .checked_shr(U::BITS_SIZE - bits)
+            .unwrap_or(U::default())
     }
 
     #[inline(always)]
@@ -1579,15 +1582,13 @@ impl Endianness for LittleEndian {
         }
     }
 
-    fn pop_final_value<U>(source: &mut U, source_bits: &mut u32) -> (U, u32)
+    #[inline(always)]
+    fn align_final_value<U>(value: U, _bits: u32) -> U
     where
         U: UnsignedNumeric,
     {
-        let bits = core::mem::take(source_bits);
-        (
-            core::mem::take(source) & (U::ALL.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO)),
-            bits,
-        )
+        // bits are already aligned so nothing to do
+        value
     }
 
     #[inline(always)]
