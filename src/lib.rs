@@ -1347,6 +1347,7 @@ impl Endianness for BigEndian {
         } != 0)
     }
 
+    #[inline]
     fn pop_unary<const STOP_BIT: u8, R>(
         reader: &mut R,
         queue_value: &mut u8,
@@ -1581,6 +1582,7 @@ impl Endianness for LittleEndian {
         } != 0)
     }
 
+    #[inline]
     fn pop_unary<const STOP_BIT: u8, R>(
         reader: &mut R,
         queue_value: &mut u8,
