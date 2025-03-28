@@ -351,12 +351,6 @@ pub trait Numeric:
 
     /// Counts the number of trailing ones
     fn trailing_ones(self) -> u32;
-
-    /// Checked shift left
-    fn checked_shl(self, rhs: u32) -> Option<Self>;
-
-    /// Checked shift right
-    fn checked_shr(self, rhs: u32) -> Option<Self>;
 }
 
 macro_rules! define_numeric {
@@ -401,14 +395,6 @@ macro_rules! define_numeric {
             #[inline(always)]
             fn trailing_ones(self) -> u32 {
                 self.trailing_ones()
-            }
-            #[inline(always)]
-            fn checked_shl(self, rhs: u32) -> Option<Self> {
-                self.checked_shl(rhs)
-            }
-            #[inline(always)]
-            fn checked_shr(self, rhs: u32) -> Option<Self> {
-                self.checked_shr(rhs)
             }
         }
     };
@@ -462,6 +448,26 @@ pub trait UnsignedNumeric: Numeric + Into<crate::write::UnsignedValue> {
     /// assert_eq!(0b01111111u8.as_negative_fixed::<8>(), -1i8);
     /// ```
     fn as_negative_fixed<const BITS: u32>(self) -> Self::Signed;
+
+    /// Checked shift left
+    fn checked_shl(self, rhs: u32) -> Option<Self>;
+
+    /// Checked shift right
+    fn checked_shr(self, rhs: u32) -> Option<Self>;
+
+    /// Shift left up to our length in bits
+    ///
+    /// If rhs equals our length in bits, returns default
+    fn shl_default(self, rhs: u32) -> Self {
+        self.checked_shl(rhs).unwrap_or(Self::ZERO)
+    }
+
+    /// Shift left up to our length in bits
+    ///
+    /// If rhs equals our length in bits, returns zero
+    fn shr_default(self, rhs: u32) -> Self {
+        self.checked_shr(rhs).unwrap_or(Self::ZERO)
+    }
 }
 
 macro_rules! define_unsigned_numeric {
@@ -488,6 +494,14 @@ macro_rules! define_unsigned_numeric {
             #[inline(always)]
             fn as_negative_fixed<const BITS: u32>(self) -> Self::Signed {
                 (self as $s) + (-1 << (BITS - 1))
+            }
+            #[inline(always)]
+            fn checked_shl(self, rhs: u32) -> Option<Self> {
+                self.checked_shl(rhs)
+            }
+            #[inline(always)]
+            fn checked_shr(self, rhs: u32) -> Option<Self> {
+                self.checked_shr(rhs)
             }
         }
 
@@ -1371,9 +1385,7 @@ impl Endianness for BigEndian {
     where
         U: UnsignedNumeric,
     {
-        value
-            .checked_shr(U::BITS_SIZE - bits)
-            .unwrap_or(U::default())
+        value.shr_default(U::BITS_SIZE - bits)
     }
 
     #[inline(always)]
@@ -1389,8 +1401,8 @@ impl Endianness for BigEndian {
     where
         U: UnsignedNumeric,
     {
-        let value = source.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO);
-        *source = source.checked_shl(bits).unwrap_or(U::ZERO);
+        let value = source.shr_default(U::BITS_SIZE - bits);
+        *source = source.shl_default(bits);
         *source_bits -= bits;
         value
     }
@@ -1400,7 +1412,7 @@ impl Endianness for BigEndian {
     where
         U: UnsignedNumeric,
     {
-        *target = target.checked_shl(bits).unwrap_or(U::ZERO) | value;
+        *target = target.shl_default(bits) | value;
         *target_bits += bits;
     }
 
@@ -1625,8 +1637,8 @@ impl Endianness for LittleEndian {
     where
         U: UnsignedNumeric,
     {
-        let value = *source & (U::ALL.checked_shr(U::BITS_SIZE - bits).unwrap_or(U::ZERO));
-        *source = source.checked_shr(bits).unwrap_or(U::ZERO);
+        let value = *source & U::ALL.shr_default(U::BITS_SIZE - bits);
+        *source = source.shr_default(bits);
         *source_bits -= bits;
         value
     }
@@ -1636,7 +1648,7 @@ impl Endianness for LittleEndian {
     where
         U: UnsignedNumeric,
     {
-        *target |= value.checked_shl(*target_bits).unwrap_or(U::ZERO);
+        *target |= value.shl_default(*target_bits);
         *target_bits += bits;
     }
 
