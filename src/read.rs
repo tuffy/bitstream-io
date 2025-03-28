@@ -1332,7 +1332,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
             reader,
             ..
         } = self;
-        E::pop_bit_refill(value, bits, || read_byte(reader))
+        E::pop_bit_refill(reader, value, bits)
     }
 
     #[inline(always)]

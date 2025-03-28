@@ -759,14 +759,14 @@ define_primitive_numeric!(f64);
 /// in most cases.
 pub trait Endianness: Sized {
     /// Pops the next bit from the queue,
-    /// repleneshing it from the given closure if necessary
-    fn pop_bit_refill<F, E>(
-        queue_bits: &mut u8,
-        queue_value: &mut u32,
-        read_val: F,
-    ) -> Result<bool, E>
+    /// repleneshing it from the given reader if necessary
+    fn pop_bit_refill<R>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<bool>
     where
-        F: FnOnce() -> Result<u8, E>;
+        R: io::Read;
 
     /// Pops the next unary value from the source until
     /// `STOP_BIT` is encountered, replenishing it from the given
@@ -995,6 +995,17 @@ pub trait Endianness: Sized {
         V: Primitive;
 }
 
+#[inline(always)]
+fn read_byte<R>(mut reader: R) -> io::Result<u8>
+where
+    R: io::Read,
+{
+    let mut byte = 0;
+    reader
+        .read_exact(core::slice::from_mut(&mut byte))
+        .map(|()| byte)
+}
+
 fn read_bits<const MAX: u32, N, R, U>(
     reader: &mut R,
     queue_value: &mut u8,
@@ -1006,17 +1017,6 @@ where
     N: Endianness,
     U: UnsignedNumeric,
 {
-    #[inline(always)]
-    fn read_byte<R>(mut reader: R) -> io::Result<u8>
-    where
-        R: io::Read,
-    {
-        let mut byte = 0;
-        reader
-            .read_exact(core::slice::from_mut(&mut byte))
-            .map(|()| byte)
-    }
-
     if bits <= *queue_bits {
         Ok(U::from_u8(N::pop_bits(queue_value, queue_bits, bits)))
     } else {
@@ -1284,16 +1284,17 @@ pub struct BigEndian;
 pub type BE = BigEndian;
 
 impl Endianness for BigEndian {
-    fn pop_bit_refill<F, E>(
+    #[inline]
+    fn pop_bit_refill<R>(
+        reader: &mut R,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        read_val: F,
-    ) -> Result<bool, E>
+    ) -> io::Result<bool>
     where
-        F: FnOnce() -> Result<u8, E>,
+        R: io::Read,
     {
         Ok(if *queue_bits == 0 {
-            let value = read_val()?;
+            let value = read_byte(reader)?;
             let msb = value & u8::MSB_BIT;
             *queue_value = value << 1;
             *queue_bits = u8::BITS_SIZE - 1;
@@ -1522,16 +1523,17 @@ pub struct LittleEndian;
 pub type LE = LittleEndian;
 
 impl Endianness for LittleEndian {
-    fn pop_bit_refill<F, E>(
+    #[inline]
+    fn pop_bit_refill<R>(
+        reader: &mut R,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        read_val: F,
-    ) -> Result<bool, E>
+    ) -> io::Result<bool>
     where
-        F: FnOnce() -> Result<u8, E>,
+        R: io::Read,
     {
         Ok(if *queue_bits == 0 {
-            let value = read_val()?;
+            let value = read_byte(reader)?;
             let lsb = value & u8::LSB_BIT;
             *queue_value = value >> 1;
             *queue_bits = u8::BITS_SIZE - 1;
