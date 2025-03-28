@@ -1447,9 +1447,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
             ..
         } = self;
 
-        E::write_bits_const::<BITS, VALUE, _, _>(value, bits, |byte| {
-            write_byte(writer.by_ref(), byte)
-        })
+        E::write_bits_const::<BITS, VALUE, W>(writer, value, bits)
     }
 
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
@@ -1470,9 +1468,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
             writer,
             ..
         } = self;
-        E::write_bits_fixed::<BITS, U, _, _>(queue_value, queue_bits, value, |b| {
-            write_byte(writer.by_ref(), b)
-        })
+        E::write_bits_fixed::<BITS, W, U>(writer, queue_value, queue_bits, value)
     }
 
     fn write_unsigned_counted<const BITS: u32, U>(
@@ -1489,9 +1485,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
             writer,
             ..
         } = self;
-        E::write_bits::<BITS, U, _, _>(queue_value, queue_bits, bits, value, |b| {
-            write_byte(writer.by_ref(), b)
-        })
+        E::write_bits::<BITS, W, U>(writer, queue_value, queue_bits, bits, value)
     }
 
     #[inline(always)]
