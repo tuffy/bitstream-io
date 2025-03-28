@@ -1026,25 +1026,14 @@ where
         Some(mut remaining) => {
             // more bits to extract than in queue
             // so extract everything in queue to our target value
-            let mut value_bits = core::mem::take(queue_bits);
-            let mut value = U::from_u8(N::align_final_value(
-                core::mem::take(queue_value),
-                value_bits,
-            ));
 
-            while MAX >= 8 && remaining >= 8 {
-                N::push_bits(
-                    &mut value,
-                    &mut value_bits,
-                    8,
-                    U::from_u8(read_byte(reader.by_ref())?),
-                );
-                remaining -= 8;
-            }
-
-            if remaining > 0 {
-                *queue_value = read_byte(reader.by_ref())?;
-                *queue_bits = 8;
+            if MAX <= 8 || remaining <= 8 {
+                // need one additional byte at most
+                let mut value_bits = core::mem::replace(queue_bits, 8);
+                let mut value = U::from_u8(N::align_final_value(
+                    core::mem::replace(queue_value, read_byte(reader.by_ref())?),
+                    value_bits,
+                ));
 
                 N::push_bits(
                     &mut value,
@@ -1052,8 +1041,39 @@ where
                     remaining,
                     U::from_u8(N::pop_bits(queue_value, queue_bits, remaining)),
                 );
+
+                Ok(value)
+            } else {
+                // may need more than one additional byte
+                let mut value_bits = core::mem::take(queue_bits);
+                let mut value = U::from_u8(N::align_final_value(
+                    core::mem::take(queue_value),
+                    value_bits,
+                ));
+
+                while remaining >= 8 {
+                    N::push_bits(
+                        &mut value,
+                        &mut value_bits,
+                        8,
+                        U::from_u8(read_byte(reader.by_ref())?),
+                    );
+                    remaining -= 8;
+                }
+
+                if remaining > 0 {
+                    *queue_value = read_byte(reader.by_ref())?;
+                    *queue_bits = 8;
+
+                    N::push_bits(
+                        &mut value,
+                        &mut value_bits,
+                        remaining,
+                        U::from_u8(N::pop_bits(queue_value, queue_bits, remaining)),
+                    );
+                }
+                Ok(value)
             }
-            Ok(value)
         }
     }
 }
