@@ -787,13 +787,13 @@ pub trait Endianness: Sized {
     /// closure if necessary.
     ///
     /// `STOP_BIT` must be 0 or 1.
-    fn pop_unary<const STOP_BIT: u8, F, E>(
+    fn pop_unary<const STOP_BIT: u8, R>(
+        reader: &mut R,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        read_val: F,
-    ) -> Result<u32, E>
+    ) -> io::Result<u32>
     where
-        F: FnMut() -> Result<u8, E>;
+        R: io::Read;
 
     /// Pushes the next bit into the queue,
     /// and returns `Some` value if the queue is full.
@@ -1347,13 +1347,13 @@ impl Endianness for BigEndian {
         } != 0)
     }
 
-    fn pop_unary<const STOP_BIT: u8, F, E>(
+    fn pop_unary<const STOP_BIT: u8, R>(
+        reader: &mut R,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        read_val: F,
-    ) -> Result<u32, E>
+    ) -> io::Result<u32>
     where
-        F: FnMut() -> Result<u8, E>,
+        R: io::Read,
     {
         const {
             assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
@@ -1361,20 +1361,20 @@ impl Endianness for BigEndian {
 
         match STOP_BIT {
             0 => find_unary(
+                reader,
                 queue_value,
                 queue_bits,
                 |v| v.leading_ones(),
                 |q| *q,
                 |v, b| v.checked_shl(b),
-                read_val,
             ),
             1 => find_unary(
+                reader,
                 queue_value,
                 queue_bits,
                 |v| v.leading_zeros(),
                 |_| u8::BITS_SIZE,
                 |v, b| v.checked_shl(b),
-                read_val,
             ),
             _ => unreachable!(),
         }
@@ -1581,13 +1581,13 @@ impl Endianness for LittleEndian {
         } != 0)
     }
 
-    fn pop_unary<const STOP_BIT: u8, F, E>(
+    fn pop_unary<const STOP_BIT: u8, R>(
+        reader: &mut R,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        read_val: F,
-    ) -> Result<u32, E>
+    ) -> io::Result<u32>
     where
-        F: FnMut() -> Result<u8, E>,
+        R: io::Read,
     {
         const {
             assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
@@ -1595,20 +1595,20 @@ impl Endianness for LittleEndian {
 
         match STOP_BIT {
             0 => find_unary(
+                reader,
                 queue_value,
                 queue_bits,
                 |v| v.trailing_ones(),
                 |q| *q,
                 |v, b| v.checked_shr(b),
-                read_val,
             ),
             1 => find_unary(
+                reader,
                 queue_value,
                 queue_bits,
                 |v| v.trailing_zeros(),
                 |_| u8::BITS_SIZE,
                 |v, b| v.checked_shr(b),
-                read_val,
             ),
             _ => unreachable!(),
         }
@@ -1786,14 +1786,17 @@ impl Endianness for LittleEndian {
 }
 
 #[inline]
-fn find_unary<E>(
+fn find_unary<R>(
+    reader: &mut R,
     queue_value: &mut u8,
     queue_bits: &mut u32,
     leading_bits: impl Fn(u8) -> u32,
     max_bits: impl Fn(&mut u32) -> u32,
     checked_shift: impl Fn(u8, u32) -> Option<u8>,
-    mut read_val: impl FnMut() -> Result<u8, E>,
-) -> Result<u32, E> {
+) -> io::Result<u32>
+where
+    R: io::Read,
+{
     let mut acc = 0;
 
     loop {
@@ -1802,7 +1805,7 @@ fn find_unary<E>(
                 // all bits exhausted
                 // fetch another byte and keep going
                 acc += *queue_bits;
-                *queue_value = read_val()?;
+                *queue_value = read_byte(reader.by_ref())?;
                 *queue_bits = u8::BITS_SIZE;
             }
             bits => match checked_shift(*queue_value, bits + 1) {

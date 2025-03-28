@@ -1455,7 +1455,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
             reader,
             ..
         } = self;
-        E::pop_unary::<STOP_BIT, _, _>(value, bits, || read_byte(reader.by_ref()))
+        E::pop_unary::<STOP_BIT, R>(reader, value, bits)
     }
 
     #[inline]
@@ -1535,17 +1535,6 @@ where
         let bytes = self.reader.stream_position()?;
         Ok(bytes * 8 - (self.bits as u64))
     }
-}
-
-#[inline(always)]
-fn read_byte<R>(mut reader: R) -> io::Result<u8>
-where
-    R: io::Read,
-{
-    let mut byte = 0;
-    reader
-        .read_exact(core::slice::from_mut(&mut byte))
-        .map(|()| byte)
 }
 
 fn skip_aligned<R>(reader: R, bytes: u32) -> io::Result<()>
