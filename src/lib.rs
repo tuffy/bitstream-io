@@ -811,44 +811,38 @@ pub trait Endianness: Sized {
         U: UnsignedNumeric;
 
     /// For performing bulk reads from a bit source to an output type.
-    fn read_bits<const MAX: u32, U, F, E>(
+    fn read_bits<const MAX: u32, R, U>(
+        reader: &mut R,
         queue_value: &mut u8,
         queue_bits: &mut u32,
         count @ BitCount { bits }: BitCount<MAX>,
-        read_byte: F,
-    ) -> Result<U, E>
+    ) -> io::Result<U>
     where
+        R: io::Read,
         U: UnsignedNumeric,
-        F: FnMut() -> Result<u8, E>,
-        E: From<io::Error>,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            read_bits::<MAX, Self, U, _, _>(queue_value, queue_bits, count, read_byte)
+            read_bits::<MAX, Self, R, U>(reader, queue_value, queue_bits, count)
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
         }
     }
 
     /// For performing bulk reads from a bit source to an output type.
-    fn read_bits_fixed<const BITS: u32, U, F, E>(
+    fn read_bits_fixed<const BITS: u32, R, U>(
+        reader: &mut R,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        read_byte: F,
-    ) -> Result<U, E>
+    ) -> io::Result<U>
     where
+        R: io::Read,
         U: UnsignedNumeric,
-        F: FnMut() -> Result<u8, E>,
     {
         const {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
         }
 
-        read_bits::<BITS, Self, U, _, _>(
-            queue_value,
-            queue_bits,
-            BitCount::new::<BITS>(),
-            read_byte,
-        )
+        read_bits::<BITS, Self, R, U>(reader, queue_value, queue_bits, BitCount::new::<BITS>())
     }
 
     /// For performing bulk writes of a type to a bit sink.
@@ -992,17 +986,28 @@ pub trait Endianness: Sized {
         V: Primitive;
 }
 
-fn read_bits<const MAX: u32, N, U, F, E>(
+fn read_bits<const MAX: u32, N, R, U>(
+    reader: &mut R,
     queue_value: &mut u8,
     queue_bits: &mut u32,
     BitCount { bits }: BitCount<MAX>,
-    mut read_byte: F,
-) -> Result<U, E>
+) -> io::Result<U>
 where
+    R: io::Read,
     N: Endianness,
     U: UnsignedNumeric,
-    F: FnMut() -> Result<u8, E>,
 {
+    #[inline(always)]
+    fn read_byte<R>(mut reader: R) -> io::Result<u8>
+    where
+        R: io::Read,
+    {
+        let mut byte = 0;
+        reader
+            .read_exact(core::slice::from_mut(&mut byte))
+            .map(|()| byte)
+    }
+
     if bits <= *queue_bits {
         Ok(U::from_u8(N::pop_bits(queue_value, queue_bits, bits)))
     } else {
@@ -1011,12 +1016,17 @@ where
         let mut bits = bits - value_bits;
 
         while MAX >= 8 && bits >= 8 {
-            N::push_bits(&mut value, &mut value_bits, 8, U::from_u8(read_byte()?));
+            N::push_bits(
+                &mut value,
+                &mut value_bits,
+                8,
+                U::from_u8(read_byte(reader.by_ref())?),
+            );
             bits -= 8;
         }
 
         if bits > 0 {
-            let mut last = read_byte()?;
+            let mut last = read_byte(reader.by_ref())?;
             let mut last_bits = 8;
 
             N::push_bits(

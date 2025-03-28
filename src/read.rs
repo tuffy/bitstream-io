@@ -1346,7 +1346,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
             reader,
             ..
         } = self;
-        E::read_bits(queue_value, queue_bits, bits, || read_byte(reader.by_ref()))
+        E::read_bits(reader, queue_value, queue_bits, bits)
     }
 
     #[inline]
@@ -1360,7 +1360,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
             reader,
             ..
         } = self;
-        E::read_bits_fixed::<BITS, U, _, _>(value, bits, || read_byte(reader.by_ref()))
+        E::read_bits_fixed::<BITS, R, U>(reader, value, bits)
     }
 
     #[inline(always)]
