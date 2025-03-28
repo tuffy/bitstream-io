@@ -849,7 +849,7 @@ pub trait Endianness: Sized {
     fn write_bits<const MAX: u32, U, F, E>(
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        BitCount { bits }: BitCount<MAX>,
+        count @ BitCount { bits }: BitCount<MAX>,
         value: U,
         write_byte: F,
     ) -> Result<(), E>
@@ -862,7 +862,7 @@ pub trait Endianness: Sized {
             if bits == 0 {
                 Ok(())
             } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
-                write_bits::<Self, U, _, _>(queue_value, queue_bits, bits, value, write_byte)
+                write_bits::<MAX, Self, U, _, _>(queue_value, queue_bits, count, value, write_byte)
             } else {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -900,7 +900,13 @@ pub trait Endianness: Sized {
         if BITS == 0 {
             Ok(())
         } else {
-            write_bits::<Self, _, _, _>(queue_value, queue_bits, BITS, VALUE, write_byte)
+            write_bits::<BITS, Self, _, _, _>(
+                queue_value,
+                queue_bits,
+                BitCount::new::<BITS>(),
+                VALUE,
+                write_byte,
+            )
         }
     }
 
@@ -923,7 +929,13 @@ pub trait Endianness: Sized {
         if BITS == 0 {
             Ok(())
         } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
-            write_bits::<Self, U, _, _>(queue_value, queue_bits, BITS, value, write_byte)
+            write_bits::<BITS, Self, U, _, _>(
+                queue_value,
+                queue_bits,
+                BitCount::new::<BITS>(),
+                value,
+                write_byte,
+            )
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -1044,10 +1056,10 @@ where
 }
 
 /// Performs actual value extraction to disk
-fn write_bits<N, U, F, E>(
+fn write_bits<const MAX: u32, N, U, F, E>(
     queue_value: &mut u8,
     queue_bits: &mut u32,
-    mut bits: u32,
+    BitCount { mut bits }: BitCount<MAX>,
     value: U,
     mut write_byte: F,
 ) -> Result<(), E>
@@ -1057,6 +1069,8 @@ where
     F: FnMut(u8) -> Result<(), E>,
     E: From<io::Error>,
 {
+    // TODO - take better advantage of BitCount
+
     let mut value = N::source_align(value, bits);
     let available = u8::BITS_SIZE - *queue_bits;
     if bits < available {
