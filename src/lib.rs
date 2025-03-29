@@ -819,8 +819,18 @@ pub trait Endianness: Sized {
     where
         U: UnsignedNumeric;
 
+    /// For pushing and finalizing a final value
+    fn push_and_finalize<U>(target: U, target_bits: u32, bits: u32, value: U) -> U
+    where
+        U: UnsignedNumeric;
+
     /// Aligns value to be a bit source which can be popped from
     fn source_align<U>(value: U, bits: u32) -> U
+    where
+        U: UnsignedNumeric;
+
+    /// Aligns value to be a bit sink which can be pushed to
+    fn target_align<U>(value: U, bits: u32) -> U
     where
         U: UnsignedNumeric;
 
@@ -836,7 +846,7 @@ pub trait Endianness: Sized {
         U: UnsignedNumeric,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            read_bits::<MAX, Self, R, U>(reader, queue_value, queue_bits, count)
+            read_bits::<0, MAX, Self, R, U>(reader, queue_value, queue_bits, count)
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
         }
@@ -856,7 +866,12 @@ pub trait Endianness: Sized {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
         }
 
-        read_bits::<BITS, Self, R, U>(reader, queue_value, queue_bits, BitCount::new::<BITS>())
+        read_bits::<BITS, BITS, Self, R, U>(
+            reader,
+            queue_value,
+            queue_bits,
+            BitCount::new::<BITS>(),
+        )
     }
 
     /// For performing bulk writes of a type to a bit sink.
@@ -1021,74 +1036,56 @@ where
 }
 
 #[inline]
-fn read_bits<const MAX: u32, N, R, U>(
+fn read_bits<const MIN: u32, const MAX: u32, N, R, U>(
     reader: &mut R,
     queue_value: &mut u8,
     queue_bits: &mut u32,
-    BitCount { bits }: BitCount<MAX>,
+    BitCount { mut bits }: BitCount<MAX>,
 ) -> io::Result<U>
 where
     R: io::Read,
     N: Endianness,
     U: UnsignedNumeric,
 {
-    match bits.checked_sub(*queue_bits) {
-        None | Some(0) => {
-            // enough bits in the queue aready
-            Ok(U::from_u8(N::pop_bits(queue_value, queue_bits, bits)))
-        }
-        Some(mut remaining) => {
-            // more bits to extract than in queue
-            // so extract everything in queue to our target value
+    if MAX == 0 {
+        return Ok(U::default());
+    }
 
-            if MAX <= 8 || remaining <= 8 {
-                // need one additional byte at most
-                let mut value_bits = core::mem::replace(queue_bits, 8);
-                let mut value = U::from_u8(N::align_final_value(
-                    core::mem::replace(queue_value, read_byte(reader.by_ref())?),
-                    value_bits,
-                ));
+    let mut value_bits;
+    let mut value;
 
-                N::push_bits(
-                    &mut value,
-                    &mut value_bits,
-                    remaining,
-                    U::from_u8(N::pop_bits(queue_value, queue_bits, remaining)),
-                );
+    if MIN > 7 {
+        value_bits = core::mem::take(queue_bits);
+        value = U::from_u8(N::target_align(core::mem::take(queue_value), value_bits));
+    } else {
+        value_bits = bits.min(*queue_bits);
+        value = U::from_u8(N::pop_bits(queue_value, queue_bits, value_bits));
+    }
 
-                Ok(value)
-            } else {
-                // may need more than one additional byte
-                let mut value_bits = core::mem::take(queue_bits);
-                let mut value = U::from_u8(N::align_final_value(
-                    core::mem::take(queue_value),
-                    value_bits,
-                ));
+    bits -= value_bits;
 
-                while remaining >= 8 {
-                    N::push_bits(
-                        &mut value,
-                        &mut value_bits,
-                        8,
-                        U::from_u8(read_byte(reader.by_ref())?),
-                    );
-                    remaining -= 8;
-                }
+    while MAX > 8 && bits > 8 {
+        N::push_bits(
+            &mut value,
+            &mut value_bits,
+            8,
+            U::from_u8(read_byte(reader.by_ref())?),
+        );
+        bits -= 8;
+    }
 
-                if remaining > 0 {
-                    *queue_value = read_byte(reader.by_ref())?;
-                    *queue_bits = 8;
+    if bits > 0 {
+        *queue_value = read_byte(reader.by_ref())?;
+        *queue_bits = 8;
 
-                    N::push_bits(
-                        &mut value,
-                        &mut value_bits,
-                        remaining,
-                        U::from_u8(N::pop_bits(queue_value, queue_bits, remaining)),
-                    );
-                }
-                Ok(value)
-            }
-        }
+        Ok(N::push_and_finalize(
+            value,
+            value_bits,
+            bits,
+            U::from_u8(N::pop_bits(queue_value, queue_bits, bits)),
+        ))
+    } else {
+        Ok(value)
     }
 }
 
@@ -1398,6 +1395,14 @@ impl Endianness for BigEndian {
     }
 
     #[inline]
+    fn target_align<U>(value: U, bits: u32) -> U
+    where
+        U: UnsignedNumeric,
+    {
+        value.shr_default(U::BITS_SIZE - bits)
+    }
+
+    #[inline]
     fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
         U: UnsignedNumeric,
@@ -1415,6 +1420,14 @@ impl Endianness for BigEndian {
     {
         *target = target.shl_default(bits) | value;
         *target_bits += bits;
+    }
+
+    #[inline]
+    fn push_and_finalize<U>(target: U, _target_bits: u32, bits: u32, value: U) -> U
+    where
+        U: UnsignedNumeric,
+    {
+        target.shl_default(bits) | value
     }
 
     fn read_signed<const MAX: u32, R, S>(
@@ -1634,6 +1647,15 @@ impl Endianness for LittleEndian {
         value
     }
 
+    #[inline(always)]
+    fn target_align<U>(value: U, _bits: u32) -> U
+    where
+        U: UnsignedNumeric,
+    {
+        // bits are already aligned so nothing to do
+        value
+    }
+
     #[inline]
     fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
@@ -1652,6 +1674,14 @@ impl Endianness for LittleEndian {
     {
         *target |= value.shl_default(*target_bits);
         *target_bits += bits;
+    }
+
+    #[inline]
+    fn push_and_finalize<U>(target: U, target_bits: u32, _bits: u32, value: U) -> U
+    where
+        U: UnsignedNumeric,
+    {
+        target | value.shl_default(target_bits)
     }
 
     fn read_signed<const MAX: u32, R, S>(
