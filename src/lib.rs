@@ -804,11 +804,6 @@ pub trait Endianness: Sized {
         (*queue_bits == 0).then(|| mem::take(queue_value))
     }
 
-    /// Aligns a queue value and queue bit count for a final value
-    fn align_final_value<U>(queue_value: U, queue_bits: u32) -> U
-    where
-        U: UnsignedNumeric;
-
     /// For extracting multiple bits from a source
     fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
     where
@@ -819,18 +814,8 @@ pub trait Endianness: Sized {
     where
         U: UnsignedNumeric;
 
-    /// For pushing and finalizing a final value
-    fn push_and_finalize<U>(target: U, target_bits: u32, bits: u32, value: U) -> U
-    where
-        U: UnsignedNumeric;
-
     /// Aligns value to be a bit source which can be popped from
     fn source_align<U>(value: U, bits: u32) -> U
-    where
-        U: UnsignedNumeric;
-
-    /// Aligns value to be a bit sink which can be pushed to
-    fn target_align<U>(value: U, bits: u32) -> U
     where
         U: UnsignedNumeric;
 
@@ -1017,15 +1002,18 @@ where
 }
 
 #[inline]
-fn read_bits<const MIN: u32, const MAX: u32, N, R, U>(
+fn read_bits<const MIN: u32, const MAX: u32, R, U>(
     reader: &mut R,
     queue_value: &mut u8,
     queue_bits: &mut u32,
     BitCount { mut bits }: BitCount<MAX>,
+    target_align: impl FnOnce(u8, u32) -> u8,
+    mut pop_bits: impl FnMut(&mut u8, &mut u32, u32) -> u8,
+    mut push_bits: impl FnMut(&mut U, &mut u32, u32, U),
+    push_and_finalize: impl FnOnce(U, u32, u32, U) -> U,
 ) -> io::Result<U>
 where
     R: io::Read,
-    N: Endianness,
     U: UnsignedNumeric,
 {
     if MAX == 0 {
@@ -1037,16 +1025,16 @@ where
 
     if MIN > 7 {
         value_bits = core::mem::take(queue_bits);
-        value = U::from_u8(N::target_align(core::mem::take(queue_value), value_bits));
+        value = U::from_u8(target_align(core::mem::take(queue_value), value_bits));
     } else {
         value_bits = bits.min(*queue_bits);
-        value = U::from_u8(N::pop_bits(queue_value, queue_bits, value_bits));
+        value = U::from_u8(pop_bits(queue_value, queue_bits, value_bits));
     }
 
     bits -= value_bits;
 
     while MAX > 8 && bits > 8 {
-        N::push_bits(
+        push_bits(
             &mut value,
             &mut value_bits,
             8,
@@ -1059,11 +1047,11 @@ where
         *queue_value = read_byte(reader.by_ref())?;
         *queue_bits = 8;
 
-        Ok(N::push_and_finalize(
+        Ok(push_and_finalize(
             value,
             value_bits,
             bits,
-            U::from_u8(N::pop_bits(queue_value, queue_bits, bits)),
+            U::from_u8(pop_bits(queue_value, queue_bits, bits)),
         ))
     } else {
         Ok(value)
@@ -1392,7 +1380,26 @@ impl BigEndian {
         R: io::Read,
         U: UnsignedNumeric,
     {
-        read_bits::<MIN, MAX, Self, R, U>(reader, queue_value, queue_bits, count)
+        read_bits::<MIN, MAX, R, U>(
+            reader,
+            queue_value,
+            queue_bits,
+            count,
+            |value, bits| value.shr_default(u8::BITS_SIZE - bits),
+            |source, source_bits, bits| {
+                let value = source.shr_default(u8::BITS_SIZE - bits);
+                *source = source.shl_default(bits);
+                *source_bits -= bits;
+                value
+            },
+            |target, target_bits, bits, value| {
+                *target = target.shl_default(bits) | value;
+                *target_bits += bits;
+            },
+            |target, _, bits, value| {
+                target.shl_default(bits) | value
+            },
+        )
     }
 }
 
@@ -1495,27 +1502,11 @@ impl Endianness for BigEndian {
     }
 
     #[inline(always)]
-    fn align_final_value<U>(value: U, bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        value.shr_default(U::BITS_SIZE - bits)
-    }
-
-    #[inline(always)]
     fn source_align<U>(value: U, bits: u32) -> U
     where
         U: UnsignedNumeric,
     {
         value << (U::BITS_SIZE - bits)
-    }
-
-    #[inline]
-    fn target_align<U>(value: U, bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        value.shr_default(U::BITS_SIZE - bits)
     }
 
     #[inline]
@@ -1536,14 +1527,6 @@ impl Endianness for BigEndian {
     {
         *target = target.shl_default(bits) | value;
         *target_bits += bits;
-    }
-
-    #[inline]
-    fn push_and_finalize<U>(target: U, _target_bits: u32, bits: u32, value: U) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        target.shl_default(bits) | value
     }
 
     fn read_signed<const MAX: u32, R, S>(
@@ -1702,7 +1685,26 @@ impl LittleEndian {
         R: io::Read,
         U: UnsignedNumeric,
     {
-        read_bits::<MIN, MAX, Self, R, U>(reader, queue_value, queue_bits, count)
+        read_bits::<MIN, MAX, R, U>(
+            reader,
+            queue_value,
+            queue_bits,
+            count,
+            |value, _| value,
+            |source, source_bits, bits| {
+                let value = *source & u8::ALL.shr_default(u8::BITS_SIZE - bits);
+                *source = source.shr_default(bits);
+                *source_bits -= bits;
+                value
+            },
+            |target, target_bits, bits, value| {
+                *target |= value.shl_default(*target_bits);
+                *target_bits += bits;
+            },
+            |target, target_bits, _, value| {
+                target | value.shl_default(target_bits)
+            },
+        )
     }
 }
 
@@ -1805,25 +1807,7 @@ impl Endianness for LittleEndian {
     }
 
     #[inline(always)]
-    fn align_final_value<U>(value: U, _bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        // bits are already aligned so nothing to do
-        value
-    }
-
-    #[inline(always)]
     fn source_align<U>(value: U, _bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        // bits are already aligned so nothing to do
-        value
-    }
-
-    #[inline(always)]
-    fn target_align<U>(value: U, _bits: u32) -> U
     where
         U: UnsignedNumeric,
     {
@@ -1849,14 +1833,6 @@ impl Endianness for LittleEndian {
     {
         *target |= value.shl_default(*target_bits);
         *target_bits += bits;
-    }
-
-    #[inline]
-    fn push_and_finalize<U>(target: U, target_bits: u32, _bits: u32, value: U) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        target | value.shl_default(target_bits)
     }
 
     fn read_signed<const MAX: u32, R, S>(
