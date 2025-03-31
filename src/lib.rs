@@ -797,17 +797,7 @@ pub trait Endianness: Sized {
 
     /// Pushes the next bit into the queue,
     /// and returns `Some` value if the queue is full.
-    #[inline]
-    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
-        Self::push_bits(queue_value, queue_bits, 1, u8::from(bit));
-        *queue_bits %= u8::BITS_SIZE;
-        (*queue_bits == 0).then(|| mem::take(queue_value))
-    }
-
-    /// For pushing multiple bits into a final value
-    fn push_bits<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
-    where
-        U: UnsignedNumeric;
+    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8>;
 
     /// For performing bulk reads from a bit source to an output type.
     fn read_bits<const MAX: u32, R, U>(
@@ -1363,6 +1353,13 @@ impl BigEndian {
 
 impl Endianness for BigEndian {
     #[inline]
+    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
+        *queue_value = *queue_value << 1 | u8::from(bit);
+        *queue_bits = (*queue_bits + 1) % 8;
+        (*queue_bits == 0).then(|| mem::take(queue_value))
+    }
+
+    #[inline]
     fn read_bits<const MAX: u32, R, U>(
         reader: &mut R,
         queue_value: &mut u8,
@@ -1554,15 +1551,6 @@ impl Endianness for BigEndian {
             ),
             _ => unreachable!(),
         }
-    }
-
-    #[inline]
-    fn push_bits<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
-    where
-        U: UnsignedNumeric,
-    {
-        *target = target.shl_default(bits) | value;
-        *target_bits += bits;
     }
 
     fn read_signed<const MAX: u32, R, S>(
@@ -1780,6 +1768,13 @@ impl LittleEndian {
 
 impl Endianness for LittleEndian {
     #[inline]
+    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
+        *queue_value |= u8::from(bit) << *queue_bits;
+        *queue_bits = (*queue_bits + 1) % 8;
+        (*queue_bits == 0).then(|| mem::take(queue_value))
+    }
+
+    #[inline]
     fn read_bits<const MAX: u32, R, U>(
         reader: &mut R,
         queue_value: &mut u8,
@@ -1971,15 +1966,6 @@ impl Endianness for LittleEndian {
             ),
             _ => unreachable!(),
         }
-    }
-
-    #[inline]
-    fn push_bits<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
-    where
-        U: UnsignedNumeric,
-    {
-        *target |= value.shl_default(*target_bits);
-        *target_bits += bits;
     }
 
     fn read_signed<const MAX: u32, R, S>(
