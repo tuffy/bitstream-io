@@ -916,8 +916,17 @@ where
         .map(|()| byte)
 }
 
+// These "read_bits" and "write_bits" functions are
+// to be used by the endianness traits to fill in their closures
+// and build specialized reading and writing routines
+// that shift and consume bits in the proper directions.
+//
+// So while they have a lot of arguments, they're not intended
+// for public consumption.
+
 // FIXME - completely overhaul this
 #[inline]
+#[allow(clippy::too_many_arguments)]
 fn read_bits<const MAX: u32, R, U>(
     reader: &mut R,
     queue_value: &mut u8,
@@ -979,6 +988,7 @@ where
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write_bits<const MAX: u32, W, U>(
     writer: &mut W,
     queue_value: &mut u8,
@@ -1370,7 +1380,7 @@ impl BigEndian {
 impl Endianness for BigEndian {
     #[inline]
     fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
-        *queue_value = *queue_value << 1 | u8::from(bit);
+        *queue_value = (*queue_value << 1) | u8::from(bit);
         *queue_bits = (*queue_bits + 1) % 8;
         (*queue_bits == 0).then(|| mem::take(queue_value))
     }
@@ -1389,7 +1399,10 @@ impl Endianness for BigEndian {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             Self::read_bits_checked::<MAX, R, U>(reader, queue_value, queue_bits, count)
         } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
         }
     }
 
@@ -1436,15 +1449,13 @@ impl Endianness for BigEndian {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "excessive value for bits written",
-                )
-                .into())
+                ))
             }
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
-            )
-            .into())
+            ))
         }
     }
 
@@ -1507,8 +1518,7 @@ impl Endianness for BigEndian {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive value for bits written",
-            )
-            .into())
+            ))
         }
     }
 
@@ -1815,7 +1825,10 @@ impl Endianness for LittleEndian {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             Self::read_bits_checked::<0, MAX, R, U>(reader, queue_value, queue_bits, count)
         } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
         }
     }
 
@@ -1862,15 +1875,13 @@ impl Endianness for LittleEndian {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "excessive value for bits written",
-                )
-                .into())
+                ))
             }
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
-            )
-            .into())
+            ))
         }
     }
 
@@ -1933,8 +1944,7 @@ impl Endianness for LittleEndian {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive value for bits written",
-            )
-            .into())
+            ))
         }
     }
 
