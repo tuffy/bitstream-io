@@ -839,18 +839,11 @@ pub trait Endianness: Sized {
         reader: &mut R,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        count @ BitCount { bits }: BitCount<MAX>,
+        count: BitCount<MAX>,
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric,
-    {
-        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            read_bits::<0, MAX, Self, R, U>(reader, queue_value, queue_bits, count)
-        } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
-        }
-    }
+        U: UnsignedNumeric;
 
     /// For performing bulk reads from a bit source to an output type.
     fn read_bits_fixed<const BITS: u32, R, U>(
@@ -860,19 +853,7 @@ pub trait Endianness: Sized {
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric,
-    {
-        const {
-            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
-        }
-
-        read_bits::<BITS, BITS, Self, R, U>(
-            reader,
-            queue_value,
-            queue_bits,
-            BitCount::new::<BITS>(),
-        )
-    }
+        U: UnsignedNumeric;
 
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits<const MAX: u32, W, U>(
@@ -1396,7 +1377,66 @@ pub struct BigEndian;
 /// Big-endian, or most significant bits first
 pub type BE = BigEndian;
 
+impl BigEndian {
+    // checked in the sense that we've verified
+    // the output type is large enough to hold the
+    // requested number of bits
+    #[inline]
+    fn read_bits_checked<const MIN: u32, const MAX: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count: BitCount<MAX>,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedNumeric,
+    {
+        read_bits::<MIN, MAX, Self, R, U>(reader, queue_value, queue_bits, count)
+    }
+}
+
 impl Endianness for BigEndian {
+    #[inline]
+    fn read_bits<const MAX: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count @ BitCount { bits }: BitCount<MAX>,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedNumeric,
+    {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            Self::read_bits_checked::<0, MAX, R, U>(reader, queue_value, queue_bits, count)
+        } else {
+            Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
+        }
+    }
+
+    #[inline]
+    fn read_bits_fixed<const BITS: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedNumeric,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
+        }
+
+        Self::read_bits_checked::<BITS, BITS, R, U>(
+            reader,
+            queue_value,
+            queue_bits,
+            BitCount::new::<BITS>(),
+        )
+    }
+
     #[inline]
     fn pop_bit_refill<R>(
         reader: &mut R,
@@ -1647,7 +1687,66 @@ pub struct LittleEndian;
 /// Little-endian, or least significant bits first
 pub type LE = LittleEndian;
 
+impl LittleEndian {
+    // checked in the sense that we've verified
+    // the output type is large enough to hold the
+    // requested number of bits
+    #[inline]
+    fn read_bits_checked<const MIN: u32, const MAX: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count: BitCount<MAX>,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedNumeric,
+    {
+        read_bits::<MIN, MAX, Self, R, U>(reader, queue_value, queue_bits, count)
+    }
+}
+
 impl Endianness for LittleEndian {
+    #[inline]
+    fn read_bits<const MAX: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count @ BitCount { bits }: BitCount<MAX>,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedNumeric,
+    {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            Self::read_bits_checked::<0, MAX, R, U>(reader, queue_value, queue_bits, count)
+        } else {
+            Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
+        }
+    }
+
+    #[inline]
+    fn read_bits_fixed<const BITS: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedNumeric,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
+        }
+
+        Self::read_bits_checked::<BITS, BITS, R, U>(
+            reader,
+            queue_value,
+            queue_bits,
+            BitCount::new::<BITS>(),
+        )
+    }
+
     #[inline]
     fn pop_bit_refill<R>(
         reader: &mut R,
