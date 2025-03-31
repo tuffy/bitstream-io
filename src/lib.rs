@@ -804,18 +804,8 @@ pub trait Endianness: Sized {
         (*queue_bits == 0).then(|| mem::take(queue_value))
     }
 
-    /// For extracting multiple bits from a source
-    fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
-    where
-        U: UnsignedNumeric;
-
     /// For pushing multiple bits into a final value
     fn push_bits<U>(target: &mut U, target_bits: &mut u32, bits: u32, value: U)
-    where
-        U: UnsignedNumeric;
-
-    /// Aligns value to be a bit source which can be popped from
-    fn source_align<U>(value: U, bits: u32) -> U
     where
         U: UnsignedNumeric;
 
@@ -845,33 +835,12 @@ pub trait Endianness: Sized {
         writer: &mut W,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        count @ BitCount { bits }: BitCount<MAX>,
+        count: BitCount<MAX>,
         value: U,
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric,
-    {
-        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            if bits == 0 {
-                Ok(())
-            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
-                write_bits::<MAX, Self, W, U>(writer, queue_value, queue_bits, count, value)
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "excessive value for bits written",
-                )
-                .into())
-            }
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            )
-            .into())
-        }
-    }
+        U: UnsignedNumeric;
 
     /// For performing bulk writes of a constant value to a bit sink.
     fn write_bits_const<const BITS: u32, const VALUE: u32, W>(
@@ -880,28 +849,7 @@ pub trait Endianness: Sized {
         queue_bits: &mut u32,
     ) -> io::Result<()>
     where
-        W: io::Write,
-    {
-        const {
-            assert!(BITS <= u32::BITS_SIZE, "excessive bits for type written");
-            assert!(
-                BITS == 0 || VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
-                "excessive value for bits written"
-            );
-        }
-
-        if BITS == 0 {
-            Ok(())
-        } else {
-            write_bits::<BITS, Self, W, u32>(
-                writer,
-                queue_value,
-                queue_bits,
-                BitCount::new::<BITS>(),
-                VALUE,
-            )
-        }
-    }
+        W: io::Write;
 
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits_fixed<const BITS: u32, W, U>(
@@ -912,30 +860,7 @@ pub trait Endianness: Sized {
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric,
-    {
-        const {
-            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
-        }
-
-        if BITS == 0 {
-            Ok(())
-        } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
-            write_bits::<BITS, Self, W, U>(
-                writer,
-                queue_value,
-                queue_bits,
-                BitCount::new::<BITS>(),
-                value,
-            )
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive value for bits written",
-            )
-            .into())
-        }
-    }
+        U: UnsignedNumeric;
 
     /// Reads signed value from reader in this endianness
     fn read_signed<const MAX: u32, R, S>(r: &mut R, bits: BitCount<MAX>) -> io::Result<S>
@@ -1001,6 +926,7 @@ where
         .map(|()| byte)
 }
 
+// FIXME - completely overhaul this
 #[inline]
 fn read_bits<const MIN: u32, const MAX: u32, R, U>(
     reader: &mut R,
@@ -1058,17 +984,18 @@ where
     }
 }
 
-/// Performs actual value extraction to disk
-fn write_bits<const MAX: u32, N, W, U>(
+fn write_bits<const MAX: u32, W, U>(
     writer: &mut W,
     queue_value: &mut u8,
     queue_bits: &mut u32,
     BitCount { mut bits }: BitCount<MAX>,
     value: U,
+    source_align: impl FnOnce(U, u32) -> U,
+    mut pop_bits: impl FnMut(&mut U, &mut u32, u32) -> U,
+    mut push_bits: impl FnMut(&mut u8, &mut u32, u32, u8),
 ) -> io::Result<()>
 where
     W: io::Write,
-    N: Endianness,
     U: UnsignedNumeric,
 {
     // TODO - take better advantage of BitCount
@@ -1081,45 +1008,42 @@ where
         writer.write_all(core::slice::from_ref(&byte))
     }
 
-    let mut value = N::source_align(value, bits);
+    let mut value = source_align(value, bits);
     let available = u8::BITS_SIZE - *queue_bits;
     if bits < available {
         // all bits fit in queue, so populate it and we're done
-        N::push_bits(
+        push_bits(
             queue_value,
             queue_bits,
             bits,
-            N::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
+            pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
         );
         Ok(())
     } else {
         // push as many bits into queue as possible
         // and write it to disk
 
-        N::push_bits(
+        push_bits(
             queue_value,
             queue_bits,
             available,
-            N::pop_bits(&mut value, &mut bits, available).to_u8(),
+            pop_bits(&mut value, &mut bits, available).to_u8(),
         );
         write_byte(writer.by_ref(), core::mem::take(queue_value))?;
         *queue_bits = 0;
 
         // write any further bytes in 8-bit increments
         while bits >= 8 {
-            write_byte(
-                writer.by_ref(),
-                N::pop_bits(&mut value, &mut bits, 8).to_u8(),
-            )?;
+            write_byte(writer.by_ref(), pop_bits(&mut value, &mut bits, 8).to_u8())?;
         }
 
         // finally repopulate queue with any leftover bits
         if bits > 0 {
-            N::push_bits(
+            push_bits(
                 queue_value,
                 queue_bits,
                 bits,
-                N::pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
+                pop_bits(&mut value, &mut bits.clone(), bits).to_u8(),
             );
         }
         debug_assert!(value == U::ZERO);
@@ -1396,8 +1320,42 @@ impl BigEndian {
                 *target = target.shl_default(bits) | value;
                 *target_bits += bits;
             },
-            |target, _, bits, value| {
-                target.shl_default(bits) | value
+            |target, _, bits, value| target.shl_default(bits) | value,
+        )
+    }
+
+    // checked in the sense that we've verified
+    // the input type is large enough to hold the
+    // requested number of bits and that the value is
+    // not too large for those bits
+    #[inline]
+    fn write_bits_checked<const MAX: u32, W, U>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count: BitCount<MAX>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+        U: UnsignedNumeric,
+    {
+        write_bits::<MAX, W, U>(
+            writer,
+            queue_value,
+            queue_bits,
+            count,
+            value,
+            |value, bits| value << (U::BITS_SIZE - bits),
+            |source, source_bits, bits| {
+                let value = source.shr_default(U::BITS_SIZE - bits);
+                *source = source.shl_default(bits);
+                *source_bits -= bits;
+                value
+            },
+            |target, target_bits, bits, value| {
+                *target = target.shl_default(bits) | value;
+                *target_bits += bits;
             },
         )
     }
@@ -1442,6 +1400,103 @@ impl Endianness for BigEndian {
             queue_bits,
             BitCount::new::<BITS>(),
         )
+    }
+
+    /// For performing bulk writes of a type to a bit sink.
+    fn write_bits<const MAX: u32, W, U>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count @ BitCount { bits }: BitCount<MAX>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+        U: UnsignedNumeric,
+    {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            if bits == 0 {
+                Ok(())
+            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
+                Self::write_bits_checked::<MAX, W, U>(writer, queue_value, queue_bits, count, value)
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "excessive value for bits written",
+                )
+                .into())
+            }
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            )
+            .into())
+        }
+    }
+
+    /// For performing bulk writes of a constant value to a bit sink.
+    fn write_bits_const<const BITS: u32, const VALUE: u32, W>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        const {
+            assert!(BITS <= u32::BITS_SIZE, "excessive bits for type written");
+            assert!(
+                BITS == 0 || VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
+                "excessive value for bits written"
+            );
+        }
+
+        if BITS == 0 {
+            Ok(())
+        } else {
+            Self::write_bits_checked::<BITS, W, u32>(
+                writer,
+                queue_value,
+                queue_bits,
+                BitCount::new::<BITS>(),
+                VALUE,
+            )
+        }
+    }
+
+    /// For performing bulk writes of a type to a bit sink.
+    fn write_bits_fixed<const BITS: u32, W, U>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        value: U,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+        U: UnsignedNumeric,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
+        }
+
+        if BITS == 0 {
+            Ok(())
+        } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+            Self::write_bits_checked::<BITS, W, U>(
+                writer,
+                queue_value,
+                queue_bits,
+                BitCount::new::<BITS>(),
+                value,
+            )
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            )
+            .into())
+        }
     }
 
     #[inline]
@@ -1499,25 +1554,6 @@ impl Endianness for BigEndian {
             ),
             _ => unreachable!(),
         }
-    }
-
-    #[inline(always)]
-    fn source_align<U>(value: U, bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        value << (U::BITS_SIZE - bits)
-    }
-
-    #[inline]
-    fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        let value = source.shr_default(U::BITS_SIZE - bits);
-        *source = source.shl_default(bits);
-        *source_bits -= bits;
-        value
     }
 
     #[inline]
@@ -1701,8 +1737,42 @@ impl LittleEndian {
                 *target |= value.shl_default(*target_bits);
                 *target_bits += bits;
             },
-            |target, target_bits, _, value| {
-                target | value.shl_default(target_bits)
+            |target, target_bits, _, value| target | value.shl_default(target_bits),
+        )
+    }
+
+    // checked in the sense that we've verified
+    // the input type is large enough to hold the
+    // requested number of bits and that the value is
+    // not too large for those bits
+    #[inline]
+    fn write_bits_checked<const MAX: u32, W, U>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count: BitCount<MAX>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+        U: UnsignedNumeric,
+    {
+        write_bits::<MAX, W, U>(
+            writer,
+            queue_value,
+            queue_bits,
+            count,
+            value,
+            |value, _| value,
+            |source, source_bits, bits| {
+                let value = *source & U::ALL.shr_default(U::BITS_SIZE - bits);
+                *source = source.shr_default(bits);
+                *source_bits -= bits;
+                value
+            },
+            |target, target_bits, bits, value| {
+                *target |= value.shl_default(*target_bits);
+                *target_bits += bits;
             },
         )
     }
@@ -1747,6 +1817,103 @@ impl Endianness for LittleEndian {
             queue_bits,
             BitCount::new::<BITS>(),
         )
+    }
+
+    /// For performing bulk writes of a type to a bit sink.
+    fn write_bits<const MAX: u32, W, U>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count @ BitCount { bits }: BitCount<MAX>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+        U: UnsignedNumeric,
+    {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            if bits == 0 {
+                Ok(())
+            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
+                Self::write_bits_checked::<MAX, W, U>(writer, queue_value, queue_bits, count, value)
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "excessive value for bits written",
+                )
+                .into())
+            }
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            )
+            .into())
+        }
+    }
+
+    /// For performing bulk writes of a constant value to a bit sink.
+    fn write_bits_const<const BITS: u32, const VALUE: u32, W>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        const {
+            assert!(BITS <= u32::BITS_SIZE, "excessive bits for type written");
+            assert!(
+                BITS == 0 || VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
+                "excessive value for bits written"
+            );
+        }
+
+        if BITS == 0 {
+            Ok(())
+        } else {
+            Self::write_bits_checked::<BITS, W, u32>(
+                writer,
+                queue_value,
+                queue_bits,
+                BitCount::new::<BITS>(),
+                VALUE,
+            )
+        }
+    }
+
+    /// For performing bulk writes of a type to a bit sink.
+    fn write_bits_fixed<const BITS: u32, W, U>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        value: U,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+        U: UnsignedNumeric,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
+        }
+
+        if BITS == 0 {
+            Ok(())
+        } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+            Self::write_bits_checked::<BITS, W, U>(
+                writer,
+                queue_value,
+                queue_bits,
+                BitCount::new::<BITS>(),
+                value,
+            )
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            )
+            .into())
+        }
     }
 
     #[inline]
@@ -1804,26 +1971,6 @@ impl Endianness for LittleEndian {
             ),
             _ => unreachable!(),
         }
-    }
-
-    #[inline(always)]
-    fn source_align<U>(value: U, _bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        // bits are already aligned so nothing to do
-        value
-    }
-
-    #[inline]
-    fn pop_bits<U>(source: &mut U, source_bits: &mut u32, bits: u32) -> U
-    where
-        U: UnsignedNumeric,
-    {
-        let value = *source & U::ALL.shr_default(U::BITS_SIZE - bits);
-        *source = source.shr_default(bits);
-        *source_bits -= bits;
-        value
     }
 
     #[inline]
