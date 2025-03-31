@@ -918,13 +918,13 @@ where
 
 // FIXME - completely overhaul this
 #[inline]
-fn read_bits<const MIN: u32, const MAX: u32, R, U>(
+fn read_bits<const MAX: u32, R, U>(
     reader: &mut R,
     queue_value: &mut u8,
     queue_bits: &mut u32,
     BitCount { mut bits }: BitCount<MAX>,
-    target_align: impl FnOnce(u8, u32) -> u8,
     mut pop_bits: impl FnMut(&mut u8, &mut u32, u32) -> u8,
+    pop_and_reload: impl FnOnce(&mut u8, &mut u32, u32, u8) -> u8,
     mut push_bits: impl FnMut(&mut U, &mut u32, u32, U),
     push_and_finalize: impl FnOnce(U, u32, u32, U) -> U,
 ) -> io::Result<U>
@@ -932,45 +932,50 @@ where
     R: io::Read,
     U: UnsignedNumeric,
 {
-    if MAX == 0 {
-        return Ok(U::default());
-    }
-
-    let mut value_bits;
-    let mut value;
-
-    if MIN > 7 {
-        value_bits = core::mem::take(queue_bits);
-        value = U::from_u8(target_align(core::mem::take(queue_value), value_bits));
+    if MAX <= 8 || bits <= 8 {
+        // need 0-1 additional bytes
+        Ok(U::from_u8(if bits <= *queue_bits {
+            // all bits in queue, so no byte needed
+            pop_bits(queue_value, queue_bits, bits)
+        } else {
+            // not enough bits in queue, so one byte needed
+            pop_and_reload(
+                queue_value,
+                queue_bits,
+                bits - *queue_bits,
+                read_byte(reader)?,
+            )
+        }))
     } else {
-        value_bits = bits.min(*queue_bits);
-        value = U::from_u8(pop_bits(queue_value, queue_bits, value_bits));
-    }
+        // multiple bytes needed
+        let mut value_bits = bits.min(*queue_bits);
+        let mut value = U::from_u8(pop_bits(queue_value, queue_bits, value_bits));
 
-    bits -= value_bits;
+        bits -= value_bits;
 
-    while MAX > 8 && bits > 8 {
-        push_bits(
-            &mut value,
-            &mut value_bits,
-            8,
-            U::from_u8(read_byte(reader.by_ref())?),
-        );
-        bits -= 8;
-    }
+        while MAX > 8 && bits > 8 {
+            push_bits(
+                &mut value,
+                &mut value_bits,
+                8,
+                U::from_u8(read_byte(reader.by_ref())?),
+            );
+            bits -= 8;
+        }
 
-    if bits > 0 {
-        *queue_value = read_byte(reader.by_ref())?;
-        *queue_bits = 8;
+        if bits > 0 {
+            *queue_value = read_byte(reader.by_ref())?;
+            *queue_bits = 8;
 
-        Ok(push_and_finalize(
-            value,
-            value_bits,
-            bits,
-            U::from_u8(pop_bits(queue_value, queue_bits, bits)),
-        ))
-    } else {
-        Ok(value)
+            Ok(push_and_finalize(
+                value,
+                value_bits,
+                bits,
+                U::from_u8(pop_bits(queue_value, queue_bits, bits)),
+            ))
+        } else {
+            Ok(value)
+        }
     }
 }
 
@@ -1284,7 +1289,7 @@ impl BigEndian {
     // the output type is large enough to hold the
     // requested number of bits
     #[inline]
-    fn read_bits_checked<const MIN: u32, const MAX: u32, R, U>(
+    fn read_bits_checked<const MAX: u32, R, U>(
         reader: &mut R,
         queue_value: &mut u8,
         queue_bits: &mut u32,
@@ -1294,17 +1299,28 @@ impl BigEndian {
         R: io::Read,
         U: UnsignedNumeric,
     {
-        read_bits::<MIN, MAX, R, U>(
+        read_bits::<MAX, R, U>(
             reader,
             queue_value,
             queue_bits,
             count,
-            |value, bits| value.shr_default(u8::BITS_SIZE - bits),
-            |source, source_bits, bits| {
-                let value = source.shr_default(u8::BITS_SIZE - bits);
-                *source = source.shl_default(bits);
-                *source_bits -= bits;
+            |queue, queue_bits, bits| {
+                let value = queue.shr_default(u8::BITS_SIZE - bits);
+                *queue = queue.shl_default(bits);
+                *queue_bits -= bits;
                 value
+            },
+            |queue, queue_bits, needed, next_byte| {
+                // "needed" is the bits needed in the next byte
+
+                // this hyper-dense expression pulls the remaining bits
+                // off the queue and merges it with the next byte
+                // as a final value - while simultaneously replacing
+                // the queue bits with the remainder of that byte
+                // (while also updating the queue's new length)
+                mem::replace(queue, next_byte.shl_default(needed)).shr_default(
+                    (u8::BITS_SIZE - mem::replace(queue_bits, u8::BITS_SIZE - needed)) - needed,
+                ) | next_byte.shr_default(u8::BITS_SIZE - needed)
             },
             |target, target_bits, bits, value| {
                 *target = target.shl_default(bits) | value;
@@ -1371,7 +1387,7 @@ impl Endianness for BigEndian {
         U: UnsignedNumeric,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            Self::read_bits_checked::<0, MAX, R, U>(reader, queue_value, queue_bits, count)
+            Self::read_bits_checked::<MAX, R, U>(reader, queue_value, queue_bits, count)
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "excessive bits for type read").into())
         }
@@ -1391,7 +1407,7 @@ impl Endianness for BigEndian {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
         }
 
-        Self::read_bits_checked::<BITS, BITS, R, U>(
+        Self::read_bits_checked::<BITS, R, U>(
             reader,
             queue_value,
             queue_bits,
@@ -1709,17 +1725,28 @@ impl LittleEndian {
         R: io::Read,
         U: UnsignedNumeric,
     {
-        read_bits::<MIN, MAX, R, U>(
+        read_bits::<MAX, R, U>(
             reader,
             queue_value,
             queue_bits,
             count,
-            |value, _| value,
-            |source, source_bits, bits| {
-                let value = *source & u8::ALL.shr_default(u8::BITS_SIZE - bits);
-                *source = source.shr_default(bits);
-                *source_bits -= bits;
+            |queue, queue_bits, bits| {
+                let value = *queue & u8::ALL.shr_default(u8::BITS_SIZE - bits);
+                *queue = queue.shr_default(bits);
+                *queue_bits -= bits;
                 value
+            },
+            |queue, queue_bits, needed, next_byte| {
+                // "needed" is the bits needed in the next byte
+
+                // this hyper-dense expression pulls the remaining bits
+                // off the queue and merges it with the next byte
+                // as a final value - while simultaneously replacing
+                // the queue bits with the remainder of that byte
+                // (while also updating the queue's new length)
+                mem::replace(queue, next_byte.shr_default(needed))
+                    | ((next_byte & (u8::ALL >> (u8::BITS_SIZE - needed)))
+                        << mem::replace(queue_bits, u8::BITS_SIZE - needed))
             },
             |target, target_bits, bits, value| {
                 *target |= value.shl_default(*target_bits);
