@@ -1301,47 +1301,88 @@ impl BigEndian {
     #[inline]
     fn read_bits_checked<const MAX: u32, R, U>(
         reader: &mut R,
-        queue_value: &mut u8,
+        queue: &mut u8,
         queue_bits: &mut u32,
-        count: BitCount<MAX>,
+        BitCount { bits }: BitCount<MAX>,
     ) -> io::Result<U>
     where
         R: io::Read,
         U: UnsignedNumeric,
     {
-        read_bits::<MAX, R, U>(
-            reader,
-            queue_value,
-            queue_bits,
-            count,
-            |queue, queue_bits, bits| {
-                let value = queue.shr_default(u8::BITS_SIZE - bits);
-                *queue = queue.shl_default(bits);
-                *queue_bits -= bits;
-                value
-            },
-            |queue, queue_bits, needed, next_byte| {
-                // "needed" is the bits needed in the next byte
+        // reads a whole value with the given number of
+        // bytes in our endianness, where the number of bytes
+        // must be less than or equal to the type's size in bytes
+        #[inline(always)]
+        fn read_bytes<R, U>(reader: &mut R, bytes: usize) -> io::Result<U>
+        where
+            R: io::Read,
+            U: UnsignedNumeric,
+        {
+            let mut buf = U::buffer();
+            reader
+                .read_exact(&mut buf.as_mut()[(mem::size_of::<U>() - bytes)..])
+                .map(|()| U::from_be_bytes(buf))
+        }
 
-                // this hyper-dense expression pulls the remaining bits
-                // off the queue and merges it with the next byte
-                // as a final value - while simultaneously replacing
-                // the queue bits with the remainder of that byte
-                // (while also updating the queue's new length)
-                U::from_u8(
-                    mem::replace(queue, next_byte.shl_default(needed)).shr_default(
-                        u8::BITS_SIZE - mem::replace(queue_bits, u8::BITS_SIZE - needed),
-                    ),
-                )
-                .shl_default(needed)
-                    | U::from_u8(next_byte.shr_default(u8::BITS_SIZE - needed))
-            },
-            |target, target_bits, bits, value| {
-                *target = target.shl_default(bits) | value;
-                *target_bits += bits;
-            },
-            |target, _, bits, value| target.shl_default(bits) | value,
-        )
+        if bits <= *queue_bits {
+            // all bits in queue, so no byte needed
+            let value = queue.shr_default(u8::BITS_SIZE - bits);
+            *queue = queue.shl_default(bits);
+            *queue_bits -= bits;
+            Ok(U::from_u8(value))
+        } else {
+            // at least one byte needed
+
+            // bits needed beyond what's in the queue
+            let needed_bits = bits - *queue_bits;
+
+            match (needed_bits / 8, needed_bits % 8) {
+                (0, needed) => {
+                    // only one additional byte needed,
+                    // which we share between our returned value
+                    // and the bit queue
+                    let next_byte = read_byte(reader)?;
+
+                    Ok(U::from_u8(
+                        mem::replace(queue, next_byte.shl_default(needed)).shr_default(
+                            u8::BITS_SIZE - mem::replace(queue_bits, u8::BITS_SIZE - needed),
+                        ),
+                    )
+                    .shl_default(needed)
+                        | U::from_u8(next_byte.shr_default(u8::BITS_SIZE - needed)))
+                }
+                (bytes, 0) => {
+                    // exact number of bytes needed beyond what's
+                    // available in the queue
+
+                    // so read a whole value from the reader
+                    // and prepend what's left of our queue onto it
+                    Ok(U::from_u8(
+                        mem::take(queue).shr_default(u8::BITS_SIZE - mem::take(queue_bits)),
+                    )
+                    .shl_default(needed_bits)
+                        | read_bytes(reader, bytes as usize)?)
+                }
+                (bytes, needed) => {
+                    // read a whole value from the reader
+                    // prepend what's in the queue at the front of it
+                    // *and* append a partial byte at the end of it
+                    // while also updating the queue and its bit count
+
+                    let whole: U = read_bytes(reader, bytes as usize)?;
+                    let next_byte = read_byte(reader)?;
+
+                    Ok(U::from_u8(
+                        mem::replace(queue, next_byte.shl_default(needed)).shr_default(
+                            u8::BITS_SIZE - mem::replace(queue_bits, u8::BITS_SIZE - needed),
+                        ),
+                    )
+                    .shl_default(needed_bits)
+                        | whole.shl_default(needed)
+                        | U::from_u8(next_byte.shr_default(u8::BITS_SIZE - needed)))
+                }
+            }
+        }
     }
 
     // checked in the sense that we've verified
