@@ -933,7 +933,7 @@ fn read_bits<const MAX: u32, R, U>(
     queue_bits: &mut u32,
     BitCount { mut bits }: BitCount<MAX>,
     mut pop_bits: impl FnMut(&mut u8, &mut u32, u32) -> u8,
-    pop_and_reload: impl FnOnce(&mut u8, &mut u32, u32, u8) -> u8,
+    pop_and_reload: impl FnOnce(&mut u8, &mut u32, u32, u8) -> U,
     mut push_bits: impl FnMut(&mut U, &mut u32, u32, U),
     push_and_finalize: impl FnOnce(U, u32, u32, U) -> U,
 ) -> io::Result<U>
@@ -943,9 +943,9 @@ where
 {
     if MAX <= 8 || bits <= 8 {
         // need 0-1 additional bytes
-        Ok(U::from_u8(if bits <= *queue_bits {
+        Ok(if bits <= *queue_bits {
             // all bits in queue, so no byte needed
-            pop_bits(queue_value, queue_bits, bits)
+            U::from_u8(pop_bits(queue_value, queue_bits, bits))
         } else {
             // not enough bits in queue, so one byte needed
             pop_and_reload(
@@ -954,7 +954,7 @@ where
                 bits - *queue_bits,
                 read_byte(reader)?,
             )
-        }))
+        })
     } else {
         // multiple bytes needed
         let mut value_bits = bits.min(*queue_bits);
@@ -1328,9 +1328,13 @@ impl BigEndian {
                 // as a final value - while simultaneously replacing
                 // the queue bits with the remainder of that byte
                 // (while also updating the queue's new length)
-                mem::replace(queue, next_byte.shl_default(needed)).shr_default(
-                    (u8::BITS_SIZE - mem::replace(queue_bits, u8::BITS_SIZE - needed)) - needed,
-                ) | next_byte.shr_default(u8::BITS_SIZE - needed)
+                U::from_u8(
+                    mem::replace(queue, next_byte.shl_default(needed)).shr_default(
+                        u8::BITS_SIZE - mem::replace(queue_bits, u8::BITS_SIZE - needed),
+                    ),
+                )
+                .shl_default(needed)
+                    | U::from_u8(next_byte.shr_default(u8::BITS_SIZE - needed))
             },
             |target, target_bits, bits, value| {
                 *target = target.shl_default(bits) | value;
@@ -1754,8 +1758,8 @@ impl LittleEndian {
                 // as a final value - while simultaneously replacing
                 // the queue bits with the remainder of that byte
                 // (while also updating the queue's new length)
-                mem::replace(queue, next_byte.shr_default(needed))
-                    | ((next_byte & (u8::ALL >> (u8::BITS_SIZE - needed)))
+                U::from_u8(mem::replace(queue, next_byte.shr_default(needed)))
+                    | (U::from_u8(next_byte & (u8::ALL >> (u8::BITS_SIZE - needed)))
                         << mem::replace(queue_bits, u8::BITS_SIZE - needed))
             },
             |target, target_bits, bits, value| {
