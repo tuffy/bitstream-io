@@ -21,7 +21,7 @@ fn test_writer_be() {
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
-    /*writing individual bits*/
+    // writing individual bits
     let mut w = BitWriter::endian(Vec::with_capacity(2), BigEndian);
     w.write_bit(true).unwrap();
     w.write_bit(false).unwrap();
@@ -41,7 +41,7 @@ fn test_writer_be() {
     w.write_bit(true).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data[0..2]);
 
-    /*writing unsigned values*/
+    // writing unsigned values
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     assert!(w.byte_aligned());
     w.write_var(2, 2u32).unwrap();
@@ -70,7 +70,19 @@ fn test_writer_be() {
     assert!(w.byte_aligned());
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*writing signed values*/
+    let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
+    assert!(w.byte_aligned());
+    w.write::<1, u8>(1).unwrap();
+    assert!(!w.byte_aligned());
+    w.write::<14, u16>(0b0110_0011_1101_10).unwrap();
+    assert!(!w.byte_aligned());
+    w.write::<16, u16>(0b1001_1101_1110_0000).unwrap();
+    assert!(!w.byte_aligned());
+    w.write::<1, u8>(1).unwrap();
+    assert!(w.byte_aligned());
+    assert_eq!(w.into_writer().as_slice(), &final_data);
+
+    // writing signed values
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     w.write_signed_var(2, -2).unwrap();
     w.write_signed_var(3, -2).unwrap();
@@ -87,7 +99,7 @@ fn test_writer_be() {
     w.write_signed::<19, i32>(-181311).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*writing unary 0 values*/
+    // writing unary 0 values
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     w.write_unary::<0>(1).unwrap();
     w.write_unary::<0>(2).unwrap();
@@ -106,7 +118,7 @@ fn test_writer_be() {
     w.write_var(1, 1u32).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*writing unary 1 values*/
+    // writing unary 1 values
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     w.write_unary::<1>(0).unwrap();
     w.write_unary::<1>(1).unwrap();
@@ -128,7 +140,7 @@ fn test_writer_be() {
     w.write_unary::<1>(5).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*byte aligning*/
+    // byte aligning
     let aligned_data = [0xA0, 0xE0, 0x3B, 0xC0];
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
     w.write_var(3, 5u32).unwrap();
@@ -142,13 +154,13 @@ fn test_writer_be() {
     w.byte_align().unwrap();
     assert_eq!(w.into_writer().as_slice(), &aligned_data);
 
-    /*writing bytes, aligned*/
+    // writing bytes, aligned
     let final_data = [0xB1, 0xED];
     let mut w = BitWriter::endian(Vec::with_capacity(2), BigEndian);
     w.write_bytes(b"\xB1\xED").unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*writing bytes, un-aligned*/
+    // writing bytes, un-aligned
     let final_data = [0xBB, 0x1E, 0xD0];
     let mut w = BitWriter::endian(Vec::with_capacity(3), BigEndian);
     w.write_var(4, 11u32).unwrap();
@@ -182,7 +194,7 @@ fn test_writer_edge_cases_be() {
         255, 255, 255,
     ];
 
-    /*unsigned 32 and 64-bit values*/
+    // unsigned 32 and 64-bit values
     let mut w = BitWriter::endian(Vec::with_capacity(48), BigEndian);
     w.write_var(32, 0u32).unwrap();
     w.write_var(32, 4294967295u32).unwrap();
@@ -205,7 +217,7 @@ fn test_writer_edge_cases_be() {
     w.write::<64, u64>(9223372036854775807).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
-    /*signed 32 and 64-bit values*/
+    // signed 32 and 64-bit values
     let mut w = BitWriter::endian(Vec::with_capacity(48), BigEndian);
     w.write_signed_var(32, 0i32).unwrap();
     w.write_signed_var(32, -1i32).unwrap();
@@ -343,7 +355,7 @@ fn test_writer_le() {
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
-    /*writing individual bits*/
+    // writing individual bits
     let mut w = BitWriter::endian(Vec::with_capacity(2), LittleEndian);
     w.write_bit(true).unwrap();
     w.write_bit(false).unwrap();
@@ -363,7 +375,7 @@ fn test_writer_le() {
     w.write_bit(true).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data[0..2]);
 
-    /*writing unsigned values*/
+    // writing unsigned values
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     assert!(w.byte_aligned());
     w.write_var(2, 1u32).unwrap();
@@ -392,7 +404,19 @@ fn test_writer_le() {
     assert!(w.byte_aligned());
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*writing signed values*/
+    let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
+    assert!(w.byte_aligned());
+    w.write::<1, u8>(1).unwrap();
+    assert!(!w.byte_aligned());
+    w.write::<14, u16>(0b1101_1011_0110_00).unwrap();
+    assert!(!w.byte_aligned());
+    w.write::<16, u16>(0b1000_0010_0111_0111).unwrap();
+    assert!(!w.byte_aligned());
+    w.write::<1, u8>(1).unwrap();
+    assert!(w.byte_aligned());
+    assert_eq!(w.into_writer().as_slice(), &final_data);
+
+    // writing signed values
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.write_signed_var(2, 1).unwrap();
     w.write_signed_var(3, -4).unwrap();
@@ -409,7 +433,7 @@ fn test_writer_le() {
     w.write_signed::<19, i32>(-128545).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*writing unary 0 values*/
+    // writing unary 0 values
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.write_unary::<0>(1).unwrap();
     w.write_unary::<0>(0).unwrap();
@@ -428,7 +452,7 @@ fn test_writer_le() {
     w.write_var(2, 3u32).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*writing unary 1 values*/
+    // writing unary 1 values
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.write_unary::<1>(0).unwrap();
     w.write_unary::<1>(3).unwrap();
@@ -450,7 +474,7 @@ fn test_writer_le() {
     w.write_unary::<1>(0).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*byte aligning*/
+    // byte aligning
     let aligned_data = [0x05, 0x07, 0x3B, 0x0C];
     let mut w = BitWriter::endian(Vec::with_capacity(4), LittleEndian);
     w.write_var(3, 5u32).unwrap();
@@ -464,13 +488,13 @@ fn test_writer_le() {
     w.byte_align().unwrap();
     assert_eq!(w.into_writer().as_slice(), &aligned_data);
 
-    /*writing bytes, aligned*/
+    // writing bytes, aligned
     let final_data = [0xB1, 0xED];
     let mut w = BitWriter::endian(Vec::with_capacity(2), LittleEndian);
     w.write_bytes(b"\xB1\xED").unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
-    /*writing bytes, un-aligned*/
+    // writing bytes, un-aligned
     let final_data = [0x1B, 0xDB, 0x0E];
     let mut w = BitWriter::endian(Vec::with_capacity(3), LittleEndian);
     w.write_var(4, 11u32).unwrap();
@@ -504,7 +528,7 @@ fn test_writer_edge_cases_le() {
         255, 255, 127,
     ];
 
-    /*unsigned 32 and 64-bit values*/
+    // unsigned 32 and 64-bit values
     let mut w = BitWriter::endian(Vec::with_capacity(48), LittleEndian);
     w.write_var(32, 0u32).unwrap();
     w.write_var(32, 4294967295u32).unwrap();
@@ -527,7 +551,7 @@ fn test_writer_edge_cases_le() {
     w.write::<64, u64>(9223372036854775807).unwrap();
     assert_eq!(w.into_writer(), final_data);
 
-    /*signed 32 and 64-bit values*/
+    // signed 32 and 64-bit values
     let mut w = BitWriter::endian(Vec::with_capacity(48), LittleEndian);
     w.write_signed_var(32, 0i32).unwrap();
     w.write_signed_var(32, -1i32).unwrap();
@@ -687,7 +711,7 @@ fn test_writer_io_errors_be() {
     use bitstream_io::{BigEndian, BitWrite, BitWriter};
     use io::ErrorKind;
 
-    /*individual bits*/
+    // individual bits
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
     assert!(w.write_bit(true).is_ok());
     assert!(w.write_bit(false).is_ok());
@@ -706,7 +730,7 @@ fn test_writer_io_errors_be() {
     assert!(w.write_bit(false).is_ok());
     assert_eq!(w.write_bit(true).unwrap_err().kind(), ErrorKind::WriteZero);
 
-    /*unsigned values*/
+    // unsigned values
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
     assert!(w.write_var(2, 2u32).is_ok());
     assert!(w.write_var(3, 6u32).is_ok());
@@ -717,7 +741,7 @@ fn test_writer_io_errors_be() {
         ErrorKind::WriteZero
     );
 
-    /*signed values*/
+    // signed values
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
     assert!(w.write_signed_var(2, -2).is_ok());
     assert!(w.write_signed_var(3, -2).is_ok());
@@ -728,7 +752,7 @@ fn test_writer_io_errors_be() {
         ErrorKind::WriteZero
     );
 
-    /*unary 0 values*/
+    // unary 0 values
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
     assert!(w.write_unary::<0>(1).is_ok());
     assert!(w.write_unary::<0>(2).is_ok());
@@ -741,7 +765,7 @@ fn test_writer_io_errors_be() {
         ErrorKind::WriteZero
     );
 
-    /*unary 1 values*/
+    // unary 1 values
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
     assert!(w.write_unary::<1>(0).is_ok());
     assert!(w.write_unary::<1>(1).is_ok());
@@ -757,19 +781,19 @@ fn test_writer_io_errors_be() {
         ErrorKind::WriteZero
     );
 
-    /*byte aligning*/
+    // byte aligning
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
     assert!(w.write_var::<u16>(9, 0b111111111).is_ok());
     assert_eq!(w.byte_align().unwrap_err().kind(), ErrorKind::WriteZero);
 
-    /*aligned bytes*/
+    // aligned bytes
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
     assert_eq!(
         w.write_bytes(b"\xB1\xED").unwrap_err().kind(),
         ErrorKind::WriteZero
     );
 
-    /*un-aligned bytes*/
+    // un-aligned bytes
     let mut w = BitWriter::endian(LimitedWriter::new(1), BigEndian);
     assert!(w.write_var(4, 11u8).is_ok());
     assert_eq!(
@@ -783,7 +807,7 @@ fn test_writer_io_errors_le() {
     use bitstream_io::{BitWrite, BitWriter, LittleEndian};
     use io::ErrorKind;
 
-    /*individual bits*/
+    // individual bits
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
     assert!(w.write_bit(true).is_ok());
     assert!(w.write_bit(false).is_ok());
@@ -802,7 +826,7 @@ fn test_writer_io_errors_le() {
     assert!(w.write_bit(true).is_ok());
     assert_eq!(w.write_bit(true).unwrap_err().kind(), ErrorKind::WriteZero);
 
-    /*unsigned values*/
+    // unsigned values
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
     assert!(w.write_var(2, 1u32).is_ok());
     assert!(w.write_var(3, 4u32).is_ok());
@@ -813,7 +837,7 @@ fn test_writer_io_errors_le() {
         ErrorKind::WriteZero
     );
 
-    /*signed values*/
+    // signed values
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
     assert!(w.write_signed_var(2, 1).is_ok());
     assert!(w.write_signed_var(3, -4).is_ok());
@@ -824,7 +848,7 @@ fn test_writer_io_errors_le() {
         ErrorKind::WriteZero
     );
 
-    /*unary 0 values*/
+    // unary 0 values
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
     assert!(w.write_unary::<0>(1).is_ok());
     assert!(w.write_unary::<0>(0).is_ok());
@@ -837,7 +861,7 @@ fn test_writer_io_errors_le() {
         ErrorKind::WriteZero
     );
 
-    /*unary 1 values*/
+    // unary 1 values
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
     assert!(w.write_unary::<1>(0).is_ok());
     assert!(w.write_unary::<1>(3).is_ok());
@@ -853,19 +877,19 @@ fn test_writer_io_errors_le() {
         ErrorKind::WriteZero
     );
 
-    /*byte aligning*/
+    // byte aligning
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
     assert!(w.write_var::<u16>(9, 0b111111111).is_ok());
     assert_eq!(w.byte_align().unwrap_err().kind(), ErrorKind::WriteZero);
 
-    /*aligned bytes*/
+    // aligned bytes
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
     assert_eq!(
         w.write_bytes(b"\xB1\xED").unwrap_err().kind(),
         ErrorKind::WriteZero
     );
 
-    /*un-aligned bytes*/
+    // un-aligned bytes
     let mut w = BitWriter::endian(LimitedWriter::new(1), LittleEndian);
     assert!(w.write_var(4, 11u8).is_ok());
     assert_eq!(
@@ -1038,7 +1062,7 @@ fn test_writer_bits_errors() {
 fn test_counter_be() {
     use bitstream_io::{BigEndian, BitCounter, BitWrite};
 
-    /*writing individual bits*/
+    // writing individual bits
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
     w.write_bit(true).unwrap();
     w.write_bit(false).unwrap();
@@ -1058,7 +1082,7 @@ fn test_counter_be() {
     w.write_bit(true).unwrap();
     assert_eq!(w.written(), 16);
 
-    /*writing unsigned values*/
+    // writing unsigned values
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
     assert!(w.byte_aligned());
     w.write_var(2, 2u32).unwrap();
@@ -1073,7 +1097,7 @@ fn test_counter_be() {
     assert!(w.byte_aligned());
     assert_eq!(w.written(), 32);
 
-    /*writing signed values*/
+    // writing signed values
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
     w.write_signed_var(2, -2).unwrap();
     w.write_signed_var(3, -2).unwrap();
@@ -1082,7 +1106,7 @@ fn test_counter_be() {
     w.write_signed_var(19, -181311).unwrap();
     assert_eq!(w.written(), 32);
 
-    /*writing unary 0 values*/
+    // writing unary 0 values
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
     w.write_unary::<0>(1).unwrap();
     w.write_unary::<0>(2).unwrap();
@@ -1101,7 +1125,7 @@ fn test_counter_be() {
     w.write_var(1, 1u32).unwrap();
     assert_eq!(w.written(), 32);
 
-    /*writing unary 1 values*/
+    // writing unary 1 values
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
     w.write_unary::<1>(0).unwrap();
     w.write_unary::<1>(1).unwrap();
@@ -1123,7 +1147,7 @@ fn test_counter_be() {
     w.write_unary::<1>(5).unwrap();
     assert_eq!(w.written(), 32);
 
-    /*byte aligning*/
+    // byte aligning
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
     w.write_var(3, 5u32).unwrap();
     w.byte_align().unwrap();
@@ -1136,12 +1160,12 @@ fn test_counter_be() {
     w.byte_align().unwrap();
     assert_eq!(w.written(), 32);
 
-    /*writing bytes, aligned*/
+    // writing bytes, aligned
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
     w.write_bytes(b"\xB1\xED").unwrap();
     assert_eq!(w.written(), 16);
 
-    /*writing bytes, un-aligned*/
+    // writing bytes, un-aligned
     let mut w: BitCounter<u32, BigEndian> = BitCounter::new();
     w.write_var(4, 11u32).unwrap();
     w.write_bytes(b"\xB1\xED").unwrap();
@@ -1180,7 +1204,7 @@ fn test_counter_huffman_be() {
 fn test_counter_le() {
     use bitstream_io::{BitCounter, BitWrite, LittleEndian};
 
-    /*writing individual bits*/
+    // writing individual bits
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
     w.write_bit(true).unwrap();
     w.write_bit(false).unwrap();
@@ -1200,7 +1224,7 @@ fn test_counter_le() {
     w.write_bit(true).unwrap();
     assert_eq!(w.written(), 16);
 
-    /*writing unsigned values*/
+    // writing unsigned values
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
     assert!(w.byte_aligned());
     w.write_var(2, 1u32).unwrap();
@@ -1215,7 +1239,7 @@ fn test_counter_le() {
     assert!(w.byte_aligned());
     assert_eq!(w.written(), 32);
 
-    /*writing signed values*/
+    // writing signed values
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
     w.write_signed_var(2, 1).unwrap();
     w.write_signed_var(3, -4).unwrap();
@@ -1224,7 +1248,7 @@ fn test_counter_le() {
     w.write_signed_var(19, -128545).unwrap();
     assert_eq!(w.written(), 32);
 
-    /*writing unary 0 values*/
+    // writing unary 0 values
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
     w.write_unary::<0>(1).unwrap();
     w.write_unary::<0>(0).unwrap();
@@ -1243,7 +1267,7 @@ fn test_counter_le() {
     w.write_var(2, 3u32).unwrap();
     assert_eq!(w.written(), 32);
 
-    /*writing unary 1 values*/
+    // writing unary 1 values
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
     w.write_unary::<1>(0).unwrap();
     w.write_unary::<1>(3).unwrap();
@@ -1265,7 +1289,7 @@ fn test_counter_le() {
     w.write_unary::<1>(0).unwrap();
     assert_eq!(w.written(), 32);
 
-    /*byte aligning*/
+    // byte aligning
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
     w.write_var(3, 5u32).unwrap();
     w.byte_align().unwrap();
@@ -1278,12 +1302,12 @@ fn test_counter_le() {
     w.byte_align().unwrap();
     assert_eq!(w.written(), 32);
 
-    /*writing bytes, aligned*/
+    // writing bytes, aligned
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
     w.write_bytes(b"\xB1\xED").unwrap();
     assert_eq!(w.written(), 16);
 
-    /*writing bytes, un-aligned*/
+    // writing bytes, un-aligned
     let mut w: BitCounter<u32, LittleEndian> = BitCounter::new();
     w.write_var(4, 11u32).unwrap();
     w.write_bytes(b"\xB1\xED").unwrap();
@@ -1323,7 +1347,7 @@ fn test_recorder_be() {
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
-    /*writing individual bits*/
+    // writing individual bits
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
     w.write_bit(true).unwrap();
     w.write_bit(false).unwrap();
@@ -1346,7 +1370,7 @@ fn test_recorder_be() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data[0..2]);
 
-    /*writing unsigned values*/
+    // writing unsigned values
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
     assert!(w.byte_aligned());
     w.write_var(2, 2u32).unwrap();
@@ -1364,7 +1388,7 @@ fn test_recorder_be() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*writing signed values*/
+    // writing signed values
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
     w.write_signed_var(2, -2).unwrap();
     w.write_signed_var(3, -2).unwrap();
@@ -1376,7 +1400,7 @@ fn test_recorder_be() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*writing unary 0 values*/
+    // writing unary 0 values
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
     w.write_unary::<0>(1).unwrap();
     w.write_unary::<0>(2).unwrap();
@@ -1398,7 +1422,7 @@ fn test_recorder_be() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*writing unary 1 values*/
+    // writing unary 1 values
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
     w.write_unary::<1>(0).unwrap();
     w.write_unary::<1>(1).unwrap();
@@ -1423,7 +1447,7 @@ fn test_recorder_be() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*byte aligning*/
+    // byte aligning
     let aligned_data = [0xA0, 0xE0, 0x3B, 0xC0];
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
     w.write_var(3, 5u32).unwrap();
@@ -1440,7 +1464,7 @@ fn test_recorder_be() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &aligned_data);
 
-    /*writing bytes, aligned*/
+    // writing bytes, aligned
     let final_data = [0xB1, 0xED];
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
     w.write_bytes(b"\xB1\xED").unwrap();
@@ -1449,7 +1473,7 @@ fn test_recorder_be() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*writing bytes, un-aligned*/
+    // writing bytes, un-aligned
     let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
     let final_data = [0xBB, 0x1E, 0xD0];
     w.write_var(4, 11u32).unwrap();
@@ -1496,7 +1520,7 @@ fn test_recorder_le() {
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
-    /*writing individual bits*/
+    // writing individual bits
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
     w.write_bit(true).unwrap();
     w.write_bit(false).unwrap();
@@ -1519,7 +1543,7 @@ fn test_recorder_le() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data[0..2]);
 
-    /*writing unsigned values*/
+    // writing unsigned values
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
     assert!(w.byte_aligned());
     w.write_var(2, 1u32).unwrap();
@@ -1537,7 +1561,7 @@ fn test_recorder_le() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*writing signed values*/
+    // writing signed values
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
     w.write_signed_var(2, 1).unwrap();
     w.write_signed_var(3, -4).unwrap();
@@ -1549,7 +1573,7 @@ fn test_recorder_le() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*writing unary 0 values*/
+    // writing unary 0 values
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
     w.write_unary::<0>(1).unwrap();
     w.write_unary::<0>(0).unwrap();
@@ -1571,7 +1595,7 @@ fn test_recorder_le() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*writing unary 1 values*/
+    // writing unary 1 values
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
     w.write_unary::<1>(0).unwrap();
     w.write_unary::<1>(3).unwrap();
@@ -1596,7 +1620,7 @@ fn test_recorder_le() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*byte aligning*/
+    // byte aligning
     let aligned_data = [0x05, 0x07, 0x3B, 0x0C];
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
     w.write_var(3, 5u32).unwrap();
@@ -1613,7 +1637,7 @@ fn test_recorder_le() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &aligned_data);
 
-    /*writing bytes, aligned*/
+    // writing bytes, aligned
     let final_data = [0xB1, 0xED];
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
     w.write_bytes(b"\xB1\xED").unwrap();
@@ -1622,7 +1646,7 @@ fn test_recorder_le() {
     w.playback(&mut w2).unwrap();
     assert_eq!(w2.into_writer().as_slice(), &final_data);
 
-    /*writing bytes, un-aligned*/
+    // writing bytes, un-aligned
     let final_data = [0x1B, 0xDB, 0x0E];
     let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
     w.write_var(4, 11u32).unwrap();
