@@ -917,6 +917,183 @@ pub trait BitRead {
     {
         T::from_bits(|| self.read_bit())
     }
+
+    /// Creates a "by reference" adaptor for this `BitRead`
+    ///
+    /// The returned adapter also implements `BitRead`
+    /// and will borrow the current reader.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::{BitReader, BitRead, BigEndian};
+    ///
+    /// fn parse<R: BitRead>(r: R) {
+    ///     // perform some parsing
+    /// }
+    ///
+    /// let data: &[u8] = &[0];
+    /// let mut reader = BitReader::endian(data, BigEndian);
+    /// // performing parsing by reference
+    /// parse(reader.by_ref());
+    /// // original owned reader still available
+    /// assert_eq!(reader.read::<8, u8>().unwrap(), 0);
+    /// ```
+    #[inline]
+    fn by_ref(&mut self) -> &mut Self {
+        self
+    }
+}
+
+impl<R: BitRead + ?Sized> BitRead for &mut R {
+    #[inline]
+    fn read_bit(&mut self) -> io::Result<bool> {
+        (**self).read_bit()
+    }
+
+    #[inline]
+    fn read<const BITS: u32, I>(&mut self) -> io::Result<I>
+    where
+        I: Integer,
+    {
+        (**self).read::<BITS, I>()
+    }
+
+    #[inline]
+    fn read_var<I>(&mut self, bits: u32) -> io::Result<I>
+    where
+        I: Integer + Sized,
+    {
+        (**self).read_var(bits)
+    }
+
+    #[inline]
+    fn read_count<const MAX: u32>(&mut self) -> io::Result<BitCount<MAX>> {
+        (**self).read_count::<MAX>()
+    }
+
+    #[inline]
+    fn read_counted<const MAX: u32, I>(&mut self, bits: BitCount<MAX>) -> io::Result<I>
+    where
+        I: Integer + Sized,
+    {
+        (**self).read_counted::<MAX, I>(bits)
+    }
+
+    #[inline]
+    fn read_unsigned<const BITS: u32, U>(&mut self) -> io::Result<U>
+    where
+        U: UnsignedNumeric,
+    {
+        (**self).read_unsigned::<BITS, U>()
+    }
+
+    #[inline]
+    fn read_unsigned_var<U>(&mut self, bits: u32) -> io::Result<U>
+    where
+        U: UnsignedNumeric,
+    {
+        (**self).read_unsigned_var(bits)
+    }
+
+    #[inline]
+    fn read_unsigned_counted<const MAX: u32, U>(&mut self, bits: BitCount<MAX>) -> io::Result<U>
+    where
+        U: UnsignedNumeric,
+    {
+        (**self).read_unsigned_counted::<MAX, U>(bits)
+    }
+
+    #[inline]
+    fn read_signed<const BITS: u32, S>(&mut self) -> io::Result<S>
+    where
+        S: SignedNumeric,
+    {
+        (**self).read_signed::<BITS, S>()
+    }
+
+    #[inline]
+    fn read_signed_var<S>(&mut self, bits: u32) -> io::Result<S>
+    where
+        S: SignedNumeric,
+    {
+        (**self).read_signed_var(bits)
+    }
+
+    #[inline]
+    fn read_signed_counted<const MAX: u32, S>(&mut self, bits: BitCount<MAX>) -> io::Result<S>
+    where
+        S: SignedNumeric,
+    {
+        (**self).read_signed_counted::<MAX, S>(bits)
+    }
+
+    #[inline]
+    fn read_to<V>(&mut self) -> io::Result<V>
+    where
+        V: Primitive,
+    {
+        (**self).read_to::<V>()
+    }
+
+    #[inline]
+    fn read_as_to<F, V>(&mut self) -> io::Result<V>
+    where
+        F: Endianness,
+        V: Primitive,
+    {
+        (**self).read_as_to::<F, V>()
+    }
+
+    #[inline]
+    fn skip(&mut self, bits: u32) -> io::Result<()> {
+        (**self).skip(bits)
+    }
+
+    #[inline]
+    fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        (**self).read_bytes(buf)
+    }
+
+    #[inline]
+    fn read_to_vec(&mut self, bytes: usize) -> io::Result<Vec<u8>> {
+        (**self).read_to_vec(bytes)
+    }
+
+    #[inline]
+    fn read_unary<const STOP_BIT: u8>(&mut self) -> io::Result<u32> {
+        (**self).read_unary::<STOP_BIT>()
+    }
+
+    #[inline]
+    fn parse<F: FromBitStream>(&mut self) -> Result<F, F::Error> {
+        (**self).parse::<F>()
+    }
+
+    #[inline]
+    fn parse_with<'a, F: FromBitStreamWith<'a>>(
+        &mut self,
+        context: &F::Context,
+    ) -> Result<F, F::Error> {
+        (**self).parse_with::<F>(context)
+    }
+
+    #[inline]
+    fn byte_aligned(&self) -> bool {
+        (**self).byte_aligned()
+    }
+
+    #[inline]
+    fn byte_align(&mut self) {
+        (**self).byte_align()
+    }
+
+    #[inline]
+    fn read_huffman<T>(&mut self) -> io::Result<T::Symbol>
+    where
+        T: crate::huffman::FromBits,
+    {
+        (**self).read_huffman::<T>()
+    }
 }
 
 /// A compatibility trait for older code implementing [`BitRead`]

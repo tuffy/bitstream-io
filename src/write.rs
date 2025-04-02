@@ -1020,7 +1020,7 @@ pub trait BitWrite {
     /// assert_eq!(writer.into_writer(), [0x00, 0xFF]);
     /// ```
     fn byte_align(&mut self) -> io::Result<()> {
-        while !self.byte_aligned() {
+        while !BitWrite::byte_aligned(self) {
             self.write_bit(false)?;
         }
         Ok(())
@@ -1055,6 +1055,192 @@ pub trait BitWrite {
         T: crate::huffman::ToBits,
     {
         T::to_bits(value, |b| self.write_bit(b))
+    }
+
+    /// Creates a "by reference" adaptor for this `BitWrite`
+    ///
+    /// The returned adapter also implements `BitWrite`
+    /// and will borrow the current reader.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// fn build<W: BitWrite>(w: W) {
+    ///     // perform some building
+    /// }
+    ///
+    /// let mut writer = BitWriter::endian(vec![], BigEndian);
+    /// // performing building by reference
+    /// build(writer.by_ref());
+    /// // original owned writer still available
+    /// writer.write::<8, u8>(0).unwrap();
+    /// assert_eq!(writer.into_writer(), &[0]);
+    /// ```
+    #[inline]
+    fn by_ref(&mut self) -> &mut Self {
+        self
+    }
+}
+
+impl<W: BitWrite + ?Sized> BitWrite for &mut W {
+    #[inline]
+    fn write_bit(&mut self, bit: bool) -> io::Result<()> {
+        (**self).write_bit(bit)
+    }
+
+    #[inline]
+    fn write<const BITS: u32, I>(&mut self, value: I) -> io::Result<()>
+    where
+        I: Integer,
+    {
+        (**self).write::<BITS, I>(value)
+    }
+
+    #[inline]
+    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
+        (**self).write_const::<BITS, VALUE>()
+    }
+
+    #[inline]
+    fn write_var<I>(&mut self, bits: u32, value: I) -> io::Result<()>
+    where
+        I: Integer,
+    {
+        (**self).write_var(bits, value)
+    }
+
+    #[inline]
+    fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
+    where
+        U: UnsignedNumeric,
+    {
+        (**self).write_unsigned::<BITS, U>(value)
+    }
+
+    #[inline]
+    fn write_unsigned_var<U>(&mut self, bits: u32, value: U) -> io::Result<()>
+    where
+        U: UnsignedNumeric,
+    {
+        (**self).write_unsigned_var(bits, value)
+    }
+
+    #[inline]
+    fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
+    where
+        S: SignedNumeric,
+    {
+        (**self).write_signed::<BITS, S>(value)
+    }
+
+    #[inline(always)]
+    fn write_signed_var<S>(&mut self, bits: u32, value: S) -> io::Result<()>
+    where
+        S: SignedNumeric,
+    {
+        (**self).write_signed_var(bits, value)
+    }
+
+    #[inline]
+    fn write_count<const MAX: u32>(&mut self, count: BitCount<MAX>) -> io::Result<()> {
+        (**self).write_count::<MAX>(count)
+    }
+
+    #[inline]
+    fn write_counted<const MAX: u32, I>(&mut self, bits: BitCount<MAX>, value: I) -> io::Result<()>
+    where
+        I: Integer + Sized,
+    {
+        (**self).write_counted::<MAX, I>(bits, value)
+    }
+
+    #[inline]
+    fn write_unsigned_counted<const BITS: u32, U>(
+        &mut self,
+        bits: BitCount<BITS>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        U: UnsignedNumeric,
+    {
+        (**self).write_unsigned_counted::<BITS, U>(bits, value)
+    }
+
+    #[inline]
+    fn write_signed_counted<const MAX: u32, S>(
+        &mut self,
+        bits: BitCount<MAX>,
+        value: S,
+    ) -> io::Result<()>
+    where
+        S: SignedNumeric,
+    {
+        (**self).write_signed_counted::<MAX, S>(bits, value)
+    }
+
+    #[inline]
+    fn write_from<V>(&mut self, value: V) -> io::Result<()>
+    where
+        V: Primitive,
+    {
+        (**self).write_from::<V>(value)
+    }
+
+    #[inline]
+    fn write_as_from<F, V>(&mut self, value: V) -> io::Result<()>
+    where
+        F: Endianness,
+        V: Primitive,
+    {
+        (**self).write_as_from::<F, V>(value)
+    }
+
+    #[inline]
+    fn pad(&mut self, bits: u32) -> io::Result<()> {
+        (**self).pad(bits)
+    }
+
+    #[inline]
+    fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
+        (**self).write_bytes(buf)
+    }
+
+    #[inline]
+    fn write_unary<const STOP_BIT: u8>(&mut self, value: u32) -> io::Result<()> {
+        (**self).write_unary::<STOP_BIT>(value)
+    }
+
+    #[inline]
+    fn build<T: ToBitStream>(&mut self, build: &T) -> Result<(), T::Error> {
+        (**self).build(build)
+    }
+
+    #[inline]
+    fn build_with<'a, T: ToBitStreamWith<'a>>(
+        &mut self,
+        build: &T,
+        context: &T::Context,
+    ) -> Result<(), T::Error> {
+        (**self).build_with(build, context)
+    }
+
+    #[inline]
+    fn byte_aligned(&self) -> bool {
+        (**self).byte_aligned()
+    }
+
+    #[inline]
+    fn byte_align(&mut self) -> io::Result<()> {
+        (**self).byte_align()
+    }
+
+    #[inline]
+    fn write_huffman<T>(&mut self, value: T::Symbol) -> io::Result<()>
+    where
+        T: crate::huffman::ToBits,
+    {
+        (**self).write_huffman::<T>(value)
     }
 }
 
