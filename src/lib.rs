@@ -916,6 +916,14 @@ where
         .map(|()| byte)
 }
 
+#[inline(always)]
+fn write_byte<W>(mut writer: W, byte: u8) -> io::Result<()>
+where
+    W: io::Write,
+{
+    writer.write_all(core::slice::from_ref(&byte))
+}
+
 // These "read_bits" and "write_bits" functions are
 // to be used by the endianness traits to fill in their closures
 // and build specialized reading and writing routines
@@ -940,14 +948,6 @@ where
     U: UnsignedNumeric,
 {
     // TODO - take better advantage of BitCount
-
-    #[inline]
-    fn write_byte<W>(mut writer: W, byte: u8) -> io::Result<()>
-    where
-        W: io::Write,
-    {
-        writer.write_all(core::slice::from_ref(&byte))
-    }
 
     let mut value = source_align(value, bits);
     let available = u8::BITS_SIZE - *queue_bits;
@@ -1290,9 +1290,9 @@ impl BigEndian {
                 (bytes, 0) => {
                     // exact number of bytes needed beyond what's
                     // available in the queue
-
                     // so read a whole value from the reader
                     // and prepend what's left of our queue onto it
+
                     Ok(U::from_u8(
                         mem::take(queue).shr_default(u8::BITS_SIZE - mem::take(queue_bits)),
                     )
@@ -1330,31 +1330,92 @@ impl BigEndian {
         writer: &mut W,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        count: BitCount<MAX>,
+        BitCount { bits }: BitCount<MAX>,
         value: U,
     ) -> io::Result<()>
     where
         W: io::Write,
         U: UnsignedNumeric,
     {
-        write_bits::<MAX, W, U>(
-            writer,
-            queue_value,
-            queue_bits,
-            count,
-            value,
-            |value, bits| value << (U::BITS_SIZE - bits),
-            |source, source_bits, bits| {
-                let value = source.shr_default(U::BITS_SIZE - bits);
-                *source = source.shl_default(bits);
-                *source_bits -= bits;
-                value
-            },
-            |target, target_bits, bits, value| {
-                *target = target.shl_default(bits) | value;
-                *target_bits += bits;
-            },
-        )
+        fn write_bytes<W, U>(writer: &mut W, bytes: usize, value: U) -> io::Result<()>
+        where
+            W: io::Write,
+            U: UnsignedNumeric,
+        {
+            let buf = U::to_be_bytes(value);
+            writer.write_all(&buf.as_ref()[(mem::size_of::<U>() - bytes)..])
+        }
+
+        // the amount of available bits in the queue
+        let available_bits = u8::BITS_SIZE - *queue_bits;
+
+        if bits < available_bits {
+            // all bits fit in queue, so no write needed
+            *queue_value = queue_value.shl_default(bits) | U::to_u8(value);
+            *queue_bits += bits;
+            Ok(())
+        } else {
+            // at least one byte needs to be written
+
+            // bits beyond what can fit in the queue
+            let excess_bits = bits - available_bits;
+
+            match (excess_bits / 8, excess_bits % 8) {
+                (0, excess) => {
+                    // only one byte to be written,
+                    // while the excess bits are shared
+                    // between the written byte and the bit queue
+
+                    *queue_bits = excess;
+
+                    write_byte(
+                        writer,
+                        mem::replace(
+                            queue_value,
+                            U::to_u8(value & U::ALL.shr_default(U::BITS_SIZE - excess)),
+                        )
+                        .shl_default(available_bits)
+                            | U::to_u8(value.shr_default(excess)),
+                    )
+                }
+                (bytes, 0) => {
+                    // no excess bytes beyond what can fit the queue
+                    // so write a whole byte and
+                    // the remainder of the whole value
+
+                    *queue_bits = 0;
+
+                    write_byte(
+                        writer.by_ref(),
+                        mem::take(queue_value).shl_default(available_bits)
+                            | U::to_u8(value.shr_default(bytes * 8)),
+                    )?;
+
+                    write_bytes(writer, bytes as usize, value)
+                }
+                (bytes, excess) => {
+                    // write what's in the queue along
+                    // with the head of our whole value,
+                    // write the middle section of our whole value,
+                    // while also replacing the queue with
+                    // the tail of our whole value
+
+                    *queue_bits = excess;
+
+                    write_byte(
+                        writer.by_ref(),
+                        mem::replace(
+                            queue_value,
+                            U::to_u8(value & U::ALL.shr_default(U::BITS_SIZE - excess)),
+                        )
+                        .shl_default(available_bits)
+                            | U::to_u8(value.shr_default(excess + bytes * 8))
+                    )?;
+
+                    write_bytes(writer, bytes as usize, value.shr_default(excess))
+                }
+            }
+        }
     }
 }
 
@@ -1750,9 +1811,11 @@ impl LittleEndian {
                     // and the bit queue
                     let next_byte = read_byte(reader)?;
 
-                    Ok(U::from_u8(mem::replace(queue, next_byte.shr_default(needed)))
-                        | (U::from_u8(next_byte & (u8::ALL >> (u8::BITS_SIZE - needed)))
-                            << mem::replace(queue_bits, u8::BITS_SIZE - needed)))
+                    Ok(
+                        U::from_u8(mem::replace(queue, next_byte.shr_default(needed)))
+                            | (U::from_u8(next_byte & (u8::ALL >> (u8::BITS_SIZE - needed)))
+                                << mem::replace(queue_bits, u8::BITS_SIZE - needed)),
+                    )
                 }
                 (bytes, 0) => {
                     // exact number of bytes needed beyond what's
@@ -1773,10 +1836,11 @@ impl LittleEndian {
                     let whole: U = read_bytes(reader, bytes as usize)?;
                     let next_byte = read_byte(reader)?;
 
-                    Ok(U::from_u8(mem::replace(queue, next_byte.shr_default(needed)))
-                        | (whole << *queue_bits)
-                        | (U::from_u8(next_byte & (u8::ALL >> (u8::BITS_SIZE - needed)))
-                            << (mem::replace(queue_bits, u8::BITS_SIZE - needed) + bytes * 8))
+                    Ok(
+                        U::from_u8(mem::replace(queue, next_byte.shr_default(needed)))
+                            | (whole << *queue_bits)
+                            | (U::from_u8(next_byte & (u8::ALL >> (u8::BITS_SIZE - needed)))
+                                << (mem::replace(queue_bits, u8::BITS_SIZE - needed) + bytes * 8)),
                     )
                 }
             }
