@@ -428,7 +428,7 @@ pub trait UnsignedInteger: Numeric + Into<crate::write::UnsignedValue> {
     }
 }
 
-macro_rules! define_unsigned_numeric {
+macro_rules! define_unsigned_integer {
     ($t:ty, $s:ty) => {
         define_numeric!($t);
 
@@ -651,7 +651,7 @@ pub trait SignedInteger: Numeric + Into<crate::write::SignedValue> {
     fn as_negative_fixed<const BITS: u32>(self) -> Self::Unsigned;
 }
 
-macro_rules! define_signed_numeric {
+macro_rules! define_signed_integer {
     ($t:ty, $u:ty) => {
         define_numeric!($t);
 
@@ -711,17 +711,17 @@ macro_rules! define_signed_numeric {
     };
 }
 
-define_unsigned_numeric!(u8, i8);
-define_unsigned_numeric!(u16, i16);
-define_unsigned_numeric!(u32, i32);
-define_unsigned_numeric!(u64, i64);
-define_unsigned_numeric!(u128, i128);
+define_unsigned_integer!(u8, i8);
+define_unsigned_integer!(u16, i16);
+define_unsigned_integer!(u32, i32);
+define_unsigned_integer!(u64, i64);
+define_unsigned_integer!(u128, i128);
 
-define_signed_numeric!(i8, u8);
-define_signed_numeric!(i16, u16);
-define_signed_numeric!(i32, u32);
-define_signed_numeric!(i64, u64);
-define_signed_numeric!(i128, u128);
+define_signed_integer!(i8, u8);
+define_signed_integer!(i16, u16);
+define_signed_integer!(i32, u32);
+define_signed_integer!(i64, u64);
+define_signed_integer!(i128, u128);
 
 define_primitive_numeric!(f32);
 define_primitive_numeric!(f64);
