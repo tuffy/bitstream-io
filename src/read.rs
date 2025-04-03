@@ -1595,11 +1595,20 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert!(reader.skip(3).is_ok());
     /// assert_eq!(reader.read::<5, u8>().unwrap(), 0b10110);
     /// ```
-    fn skip(&mut self, bits: u32) -> io::Result<()> {
+    fn skip(&mut self, mut bits: u32) -> io::Result<()> {
         if BitRead::byte_aligned(self) && bits % 8 == 0 {
             skip_aligned(self.reader.by_ref(), bits / 8)
         } else {
-            (0..bits).try_for_each(|_| BitRead::read_bit(self).map(|_| ()))
+            loop {
+                match bits {
+                    0 => break Ok(()),
+                    bits @ 1..64 => break self.read_var(bits).map(|_: u64| ()),
+                    _ => {
+                        let _ = BitRead::read::<64, u64>(self)?;
+                        bits -= 64;
+                    }
+                }
+            }
         }
     }
 
