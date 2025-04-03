@@ -9,7 +9,8 @@
 extern crate bitstream_io;
 
 use bitstream_io::{
-    BigEndian, BitRead, BitReader, BitWrite, BitWriter, Endianness, LittleEndian, Primitive,
+    BigEndian, BitRead, BitReader, BitWrite, BitWriter, Endianness, Integer, LittleEndian,
+    Primitive,
 };
 
 fn roundtrip<E: Endianness>() {
@@ -61,6 +62,190 @@ fn test_rountrip_be() {
 #[test]
 fn test_roundtrip_le() {
     roundtrip::<LittleEndian>();
+}
+
+fn wide_roundtrip<const BITS: u32, E, I>(start: I, end: I, increment: I)
+where
+    E: Endianness,
+    I: Integer
+        + Copy
+        + std::fmt::Debug
+        + std::ops::AddAssign
+        + std::cmp::PartialEq
+        + std::cmp::PartialOrd,
+{
+    let mut w = BitWriter::<Vec<u8>, E>::new(vec![]);
+    // add an extra bit to check non byte-aligned values
+    w.write_bit(true).unwrap();
+    let mut v = start;
+    while v < end {
+        w.write::<BITS, I>(v).unwrap();
+        v += increment;
+    }
+    w.byte_align().unwrap();
+
+    let vec = w.into_writer();
+    let mut r = BitReader::<_, E>::new(vec.as_slice());
+    assert_eq!(r.read_bit().unwrap(), true);
+    let mut v = start;
+    while v < end {
+        assert_eq!(r.read::<BITS, I>().unwrap(), v);
+        v += increment;
+    }
+}
+
+#[test]
+fn test_roundtrip_u7_be() {
+    wide_roundtrip::<7, BigEndian, u8>(u8::MIN, u8::MAX / 2, 1);
+}
+
+#[test]
+fn test_roundtrip_u7_le() {
+    wide_roundtrip::<7, LittleEndian, u8>(u8::MIN, u8::MAX / 2, 1);
+}
+
+#[test]
+fn test_roundtrip_u8_be() {
+    wide_roundtrip::<8, BigEndian, u8>(u8::MIN, u8::MAX, 1);
+}
+
+#[test]
+fn test_roundtrip_u8_le() {
+    wide_roundtrip::<8, LittleEndian, u8>(u8::MIN, u8::MAX, 1);
+}
+
+#[test]
+fn test_roundtrip_i8_be() {
+    wide_roundtrip::<8, BigEndian, i8>(i8::MIN, i8::MAX, 1);
+}
+
+#[test]
+fn test_roundtrip_i8_le() {
+    wide_roundtrip::<8, LittleEndian, i8>(i8::MIN, i8::MAX, 1);
+}
+
+#[test]
+fn test_roundtrip_u9_be() {
+    wide_roundtrip::<9, BigEndian, u16>(u16::MIN, u8::MAX as u16 * 2 , 1);
+}
+
+#[test]
+fn test_roundtrip_u9_le() {
+    wide_roundtrip::<9, LittleEndian, u16>(u16::MIN, u8::MAX as u16 * 2, 1);
+}
+
+#[test]
+fn test_roundtrip_u15_be() {
+    wide_roundtrip::<15, BigEndian, u16>(u16::MIN, u16::MAX / 2, 1);
+}
+
+#[test]
+fn test_roundtrip_u15_le() {
+    wide_roundtrip::<15, LittleEndian, u16>(u16::MIN, u16::MAX / 2, 1);
+}
+
+#[test]
+fn test_roundtrip_u16_be() {
+    wide_roundtrip::<16, BigEndian, u16>(u16::MIN, u16::MAX, 1);
+}
+
+#[test]
+fn test_roundtrip_u16_le() {
+    wide_roundtrip::<16, LittleEndian, u16>(u16::MIN, u16::MAX, 1);
+}
+
+#[test]
+fn test_roundtrip_i16_be() {
+    wide_roundtrip::<16, BigEndian, i16>(i16::MIN, i16::MAX, 1);
+}
+
+#[test]
+fn test_roundtrip_i16_le() {
+    wide_roundtrip::<16, LittleEndian, i16>(i16::MIN, i16::MAX, 1);
+}
+
+#[test]
+fn test_roundtrip_u32_be() {
+    wide_roundtrip::<32, BigEndian, u32>(u32::MIN, u32::MAX - 65536, 65536);
+}
+
+#[test]
+fn test_roundtrip_u32_le() {
+    wide_roundtrip::<32, LittleEndian, u32>(u32::MIN, u32::MAX - 65536, 65536);
+}
+
+#[test]
+fn test_roundtrip_i32_be() {
+    wide_roundtrip::<32, BigEndian, i32>(i32::MIN, i32::MAX - 65536, 65536);
+}
+
+#[test]
+fn test_roundtrip_i32_le() {
+    wide_roundtrip::<32, LittleEndian, i32>(i32::MIN, i32::MAX - 65536, 65536);
+}
+
+#[test]
+fn test_roundtrip_u64_be() {
+    wide_roundtrip::<64, BigEndian, u64>(u64::MIN, u64::MAX - u64::MAX / 65536, u64::MAX / 65536);
+}
+
+#[test]
+fn test_roundtrip_u64_le() {
+    wide_roundtrip::<64, LittleEndian, u64>(
+        u64::MIN,
+        u64::MAX - u64::MAX / 65536,
+        u64::MAX / 65536,
+    );
+}
+
+#[test]
+fn test_roundtrip_i64_be() {
+    wide_roundtrip::<64, BigEndian, i64>(i64::MIN, i64::MAX - i64::MAX / 65536, i64::MAX / 65536);
+}
+
+#[test]
+fn test_roundtrip_i64_le() {
+    wide_roundtrip::<64, LittleEndian, i64>(
+        i64::MIN,
+        i64::MAX - i64::MAX / 65536,
+        i64::MAX / 65536,
+    );
+}
+
+#[test]
+fn test_roundtrip_u128_be() {
+    wide_roundtrip::<128, BigEndian, u128>(
+        u128::MIN,
+        u128::MAX - u128::MAX / 65536,
+        u128::MAX / 65536,
+    );
+}
+
+#[test]
+fn test_roundtrip_u128_le() {
+    wide_roundtrip::<128, LittleEndian, u128>(
+        u128::MIN,
+        u128::MAX - u128::MAX / 65536,
+        u128::MAX / 65536,
+    );
+}
+
+#[test]
+fn test_roundtrip_i128_be() {
+    wide_roundtrip::<128, BigEndian, i128>(
+        i128::MIN,
+        i128::MAX - i128::MAX / 65536,
+        i128::MAX / 65536,
+    );
+}
+
+#[test]
+fn test_roundtrip_i128_le() {
+    wide_roundtrip::<128, LittleEndian, i128>(
+        i128::MIN,
+        i128::MAX - i128::MAX / 65536,
+        i128::MAX / 65536,
+    );
 }
 
 fn unary<E: Endianness>() {
