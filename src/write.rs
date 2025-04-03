@@ -348,7 +348,7 @@ pub trait BitWrite {
     /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
     ///
     /// let mut w = BitWriter::endian(vec![], BigEndian);
-    /// // trying to write 9 bits to a u8 is a compile-time error
+    /// // trying to write 9 bits from a u8 is a compile-time error
     /// w.write::<9, u8>(1);
     /// ```
     #[inline]
@@ -426,7 +426,7 @@ pub trait BitWrite {
     /// let mut w = BitWriter::endian(vec![], BigEndian);
     /// // writing a value larger than 4 bits in 4 bits is a runtime error
     /// assert!(w.write_var::<u8>(4, u8::MAX).is_err());
-    /// // writing 9 bits to a u8 is also a runtime error
+    /// // writing 9 bits from a u8 is also a runtime error
     /// assert!(w.write_var::<u8>(9, 0).is_err());
     /// ```
     #[inline]
@@ -473,7 +473,7 @@ pub trait BitWrite {
     /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
     ///
     /// let mut writer = BitWriter::endian(vec![], BigEndian);
-    /// // trying to write 9 bits to a u8 is a compile-time error
+    /// // trying to write 9 bits from a u8 is a compile-time error
     /// writer.write_unsigned::<9, u8>(1);
     /// ```
     ///
@@ -593,7 +593,7 @@ pub trait BitWrite {
     /// use bitstream_io::{LittleEndian, BitWriter, BitWrite};
     ///
     /// let mut writer = BitWriter::endian(vec![], LittleEndian);
-    /// // writing 9 bits to an i8 is a compile-time error
+    /// // writing 9 bits from an i8 is a compile-time error
     /// assert!(writer.write_signed::<9, i8>(1).is_err());
     /// ```
     fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
