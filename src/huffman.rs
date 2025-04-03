@@ -219,6 +219,10 @@ impl<const STOP_BIT: u8, const MAXIMUM: u32> ToBits for LimitedUnary<STOP_BIT, M
     where
         F: FnMut(bool) -> Result<(), E>,
     {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
+
         match value {
             Some(bits) if bits < MAXIMUM => {
                 (0..bits).try_for_each(|_| {
