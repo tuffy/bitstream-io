@@ -328,29 +328,11 @@ pub trait Numeric:
     /// The value of 1 in this type
     const ONE: Self;
 
-    /// Returns true if this value is 0, in its type
-    fn is_zero(self) -> bool;
-
     /// Returns a `u8` value in this type
     fn from_u8(u: u8) -> Self;
 
     /// Assuming 0 <= value < 256, returns this value as a `u8` type
     fn to_u8(self) -> u8;
-
-    /// Counts the number of 1 bits
-    fn count_ones(self) -> u32;
-
-    /// Counts the number of leading zeros
-    fn leading_zeros(self) -> u32;
-
-    /// Counts the number of leading ones
-    fn leading_ones(self) -> u32;
-
-    /// Counts the number of trailing zeros
-    fn trailing_zeros(self) -> u32;
-
-    /// Counts the number of trailing ones
-    fn trailing_ones(self) -> u32;
 }
 
 macro_rules! define_numeric {
@@ -365,36 +347,12 @@ macro_rules! define_numeric {
             const ONE: Self = 1;
 
             #[inline(always)]
-            fn is_zero(self) -> bool {
-                self == 0
-            }
-            #[inline(always)]
             fn from_u8(u: u8) -> Self {
                 u as $t
             }
             #[inline(always)]
             fn to_u8(self) -> u8 {
                 self as u8
-            }
-            #[inline(always)]
-            fn count_ones(self) -> u32 {
-                self.count_ones()
-            }
-            #[inline(always)]
-            fn leading_zeros(self) -> u32 {
-                self.leading_zeros()
-            }
-            #[inline(always)]
-            fn leading_ones(self) -> u32 {
-                self.leading_ones()
-            }
-            #[inline(always)]
-            fn trailing_zeros(self) -> u32 {
-                self.trailing_zeros()
-            }
-            #[inline(always)]
-            fn trailing_ones(self) -> u32 {
-                self.trailing_ones()
             }
         }
     };
