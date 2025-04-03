@@ -8,127 +8,147 @@
 
 extern crate bitstream_io;
 
-use bitstream_io::{BigEndian, BitRead, BitReader, BitWrite, BitWriter, LittleEndian};
+use bitstream_io::{
+    BigEndian, BitRead, BitReader, BitWrite, BitWriter, Endianness, LittleEndian, Primitive,
+};
 
-macro_rules! define_roundtrip {
-    ($func_name:ident, $endianness:ident) => {
-        #[test]
-        fn $func_name() {
-            /*unsigned values*/
-            for bits in 1..17 {
-                let max = 1 << bits;
-                let mut output: Vec<u8> = Vec::with_capacity(max);
-                {
-                    let mut writer = BitWriter::endian(&mut output, $endianness);
-                    for value in 0..max {
-                        writer.write_var(bits, value as u32).unwrap();
-                    }
-                    writer.byte_align().unwrap();
-                }
-                {
-                    let mut reader = BitReader::endian(output.as_slice(), $endianness);
-                    for value in 0..max {
-                        assert_eq!(reader.read_var::<u32>(bits).unwrap(), value as u32);
-                    }
-                }
+fn roundtrip<E: Endianness>() {
+    /*unsigned values*/
+    for bits in 1..17 {
+        let max = 1 << bits;
+        let mut output: Vec<u8> = Vec::with_capacity(max);
+        {
+            let mut writer = BitWriter::<_, E>::new(&mut output);
+            for value in 0..max {
+                writer.write_var(bits, value as u32).unwrap();
             }
-
-            /*signed values*/
-            for bits in 2..17 {
-                let min = -1i32 << (bits - 1);
-                let max = 1i32 << (bits - 1);
-                let mut output: Vec<u8> = Vec::with_capacity(max as usize);
-                {
-                    let mut writer = BitWriter::endian(&mut output, $endianness);
-                    for value in min..max {
-                        writer.write_signed_var(bits, value as i32).unwrap();
-                    }
-                    writer.byte_align().unwrap();
-                }
-                {
-                    let mut reader = BitReader::endian(output.as_slice(), $endianness);
-                    for value in min..max {
-                        assert_eq!(reader.read_signed_var::<i32>(bits).unwrap(), value as i32);
-                    }
-                }
+            writer.byte_align().unwrap();
+        }
+        {
+            let mut reader = BitReader::<_, E>::new(output.as_slice());
+            for value in 0..max {
+                assert_eq!(reader.read_var::<u32>(bits).unwrap(), value as u32);
             }
         }
-    };
-}
+    }
 
-define_roundtrip!(test_roundtrip_be, BigEndian);
-define_roundtrip!(test_roundtrip_le, LittleEndian);
-
-macro_rules! define_unary_roundtrip {
-    ($func_name:ident, $endianness:ident) => {
-        #[test]
-        fn $func_name() {
-            let mut output: Vec<u8> = Vec::new();
-            {
-                let mut writer = BitWriter::endian(&mut output, $endianness);
-                for value in 0..1024 {
-                    writer.write_unary::<0>(value).unwrap();
-                }
-                writer.byte_align().unwrap();
+    /*signed values*/
+    for bits in 2..17 {
+        let min = -1i32 << (bits - 1);
+        let max = 1i32 << (bits - 1);
+        let mut output: Vec<u8> = Vec::with_capacity(max as usize);
+        {
+            let mut writer = BitWriter::<_, E>::new(&mut output);
+            for value in min..max {
+                writer.write_signed_var(bits, value as i32).unwrap();
             }
-            {
-                let mut c = output.as_slice();
-                let mut reader = BitReader::endian(&mut c, $endianness);
-                for value in 0..1024 {
-                    assert_eq!(reader.read_unary::<0>().unwrap(), value);
-                }
-            }
-
-            let mut output: Vec<u8> = Vec::new();
-            {
-                let mut writer = BitWriter::endian(&mut output, $endianness);
-                for value in 0..1024 {
-                    writer.write_unary::<1>(value).unwrap();
-                }
-                writer.byte_align().unwrap();
-            }
-            {
-                let mut c = output.as_slice();
-                let mut reader = BitReader::endian(&mut c, $endianness);
-                for value in 0..1024 {
-                    assert_eq!(reader.read_unary::<1>().unwrap(), value);
-                }
+            writer.byte_align().unwrap();
+        }
+        {
+            let mut reader = BitReader::<_, E>::new(output.as_slice());
+            for value in min..max {
+                assert_eq!(reader.read_signed_var::<i32>(bits).unwrap(), value as i32);
             }
         }
-    };
+    }
 }
 
-define_unary_roundtrip!(test_unary_roundtrip_be, BigEndian);
-define_unary_roundtrip!(test_unary_roundtrip_le, LittleEndian);
+#[test]
+fn test_rountrip_be() {
+    roundtrip::<BigEndian>();
+}
 
-macro_rules! define_float_roundtrip {
-    ($func_name:ident, $endianness:ident, $t:ty) => {
-        #[test]
-        fn $func_name() {
-            let mut output: Vec<u8> = Vec::new();
-            {
-                let mut writer = BitWriter::endian(&mut output, $endianness);
-                // these values should all be exact in floating-point
-                for value in 0..1024 {
-                    writer.write_from(value as $t).unwrap();
-                }
-                writer.byte_align().unwrap();
-            }
-            {
-                let mut c = output.as_slice();
-                let mut reader = BitReader::endian(&mut c, $endianness);
-                for value in 0..1024 {
-                    assert_eq!(reader.read_to::<$t>().unwrap(), value as $t);
-                }
-            }
+#[test]
+fn test_roundtrip_le() {
+    roundtrip::<LittleEndian>();
+}
+
+fn unary<E: Endianness>() {
+    let mut output: Vec<u8> = Vec::new();
+    {
+        let mut writer = BitWriter::<_, E>::new(&mut output);
+        for value in 0..1024 {
+            writer.write_unary::<0>(value).unwrap();
         }
-    };
+        writer.byte_align().unwrap();
+    }
+    {
+        let mut c = output.as_slice();
+        let mut reader = BitReader::<_, E>::new(&mut c);
+        for value in 0..1024 {
+            assert_eq!(reader.read_unary::<0>().unwrap(), value);
+        }
+    }
+
+    let mut output: Vec<u8> = Vec::new();
+    {
+        let mut writer = BitWriter::<_, E>::new(&mut output);
+        for value in 0..1024 {
+            writer.write_unary::<1>(value).unwrap();
+        }
+        writer.byte_align().unwrap();
+    }
+    {
+        let mut c = output.as_slice();
+        let mut reader = BitReader::<_, E>::new(&mut c);
+        for value in 0..1024 {
+            assert_eq!(reader.read_unary::<1>().unwrap(), value);
+        }
+    }
 }
 
-define_float_roundtrip!(test_f32_roundtrip_be, BigEndian, f32);
-define_float_roundtrip!(test_f64_roundtrip_be, BigEndian, f64);
-define_float_roundtrip!(test_f32_roundtrip_le, LittleEndian, f32);
-define_float_roundtrip!(test_f64_roundtrip_le, LittleEndian, f64);
+#[test]
+fn test_unary_roundtrip_be() {
+    unary::<BigEndian>()
+}
+
+#[test]
+fn test_unary_roundtrip_le() {
+    unary::<LittleEndian>()
+}
+
+fn float<E, P>()
+where
+    E: Endianness,
+    P: Primitive + From<u16> + core::fmt::Debug + core::cmp::PartialEq,
+{
+    let mut output: Vec<u8> = Vec::new();
+    {
+        let mut writer = BitWriter::<_, E>::new(&mut output);
+        // these values should all be exact in floating-point
+        for value in 0..1024 {
+            writer.write_from(P::from(value)).unwrap();
+        }
+        writer.byte_align().unwrap();
+    }
+    {
+        let mut c = output.as_slice();
+        let mut reader = BitReader::<_, E>::new(&mut c);
+        for value in 0..1024 {
+            assert_eq!(reader.read_to::<P>().unwrap(), P::from(value));
+        }
+    }
+}
+
+#[test]
+fn test_f32_roundtrip_be() {
+    float::<BigEndian, f32>()
+}
+
+#[test]
+fn test_f64_roundtrip_be() {
+    float::<BigEndian, f64>()
+}
+
+#[test]
+fn test_f32_roundtrip_le() {
+    float::<LittleEndian, f32>()
+}
+
+#[test]
+fn test_f64_roundtrip_le() {
+    float::<LittleEndian, f64>()
+}
 
 #[test]
 fn test_auto_signedness() {
