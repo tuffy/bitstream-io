@@ -176,7 +176,7 @@ use core::{
 use std::io;
 
 use super::{
-    BitCount, Endianness, Integer, Numeric, PhantomData, Primitive, SignedNumeric, UnsignedNumeric,
+    BitCount, Endianness, Integer, Numeric, PhantomData, Primitive, SignedInteger, UnsignedInteger,
 };
 
 /// For writing bit values to an underlying stream in a given endianness.
@@ -490,7 +490,7 @@ pub trait BitWrite {
     #[inline]
     fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         self.write_unsigned_var(BITS, value)
     }
@@ -544,7 +544,7 @@ pub trait BitWrite {
     /// ```
     fn write_unsigned_var<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         self.write_unsigned_counted(BitCount::unknown(bits), value)
     }
@@ -598,7 +598,7 @@ pub trait BitWrite {
     /// ```
     fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         self.write_signed_var(BITS, value)
     }
@@ -637,7 +637,7 @@ pub trait BitWrite {
     #[inline(always)]
     fn write_signed_var<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         self.write_signed_counted(BitCount::unknown(bits), value)
     }
@@ -773,7 +773,7 @@ pub trait BitWrite {
         value: U,
     ) -> io::Result<()>
     where
-        U: UnsignedNumeric;
+        U: UnsignedInteger;
 
     /// Writes an unsigned value to the stream with
     /// the given number of bits.
@@ -804,7 +804,7 @@ pub trait BitWrite {
         value: S,
     ) -> io::Result<()>
     where
-        S: SignedNumeric;
+        S: SignedInteger;
 
     /// Writes whole value to the stream whose size in bits
     /// is equal to its type's size.
@@ -1113,7 +1113,7 @@ impl<W: BitWrite + ?Sized> BitWrite for &mut W {
     #[inline]
     fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         (**self).write_unsigned::<BITS, U>(value)
     }
@@ -1121,7 +1121,7 @@ impl<W: BitWrite + ?Sized> BitWrite for &mut W {
     #[inline]
     fn write_unsigned_var<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         (**self).write_unsigned_var(bits, value)
     }
@@ -1129,7 +1129,7 @@ impl<W: BitWrite + ?Sized> BitWrite for &mut W {
     #[inline]
     fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         (**self).write_signed::<BITS, S>(value)
     }
@@ -1137,7 +1137,7 @@ impl<W: BitWrite + ?Sized> BitWrite for &mut W {
     #[inline(always)]
     fn write_signed_var<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         (**self).write_signed_var(bits, value)
     }
@@ -1162,7 +1162,7 @@ impl<W: BitWrite + ?Sized> BitWrite for &mut W {
         value: U,
     ) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         (**self).write_unsigned_counted::<BITS, U>(bits, value)
     }
@@ -1174,7 +1174,7 @@ impl<W: BitWrite + ?Sized> BitWrite for &mut W {
         value: S,
     ) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         (**self).write_signed_counted::<MAX, S>(bits, value)
     }
@@ -1313,7 +1313,7 @@ pub trait BitWrite2 {
     /// to fit the given number of bits.
     fn write_unsigned<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric;
+        U: UnsignedInteger;
 
     /// Writes an unsigned value to the stream using the given
     /// const number of bits.
@@ -1328,7 +1328,7 @@ pub trait BitWrite2 {
     #[inline]
     fn write_unsigned_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         self.write_unsigned(BITS, value)
     }
@@ -1347,7 +1347,7 @@ pub trait BitWrite2 {
     /// to fit the given number of bits.
     fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
-        S: SignedNumeric;
+        S: SignedInteger;
 
     /// Writes a twos-complement signed value to the stream
     /// with the given const number of bits.
@@ -1363,7 +1363,7 @@ pub trait BitWrite2 {
     /// is larger than the output type.
     fn write_signed_out<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         self.write_signed(BITS, value)
     }
@@ -1547,7 +1547,7 @@ impl<W: BitWrite> BitWrite2 for W {
     #[inline]
     fn write_unsigned<U>(&mut self, bits: u32, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         BitWrite::write_unsigned_var::<U>(self, bits, value)
     }
@@ -1555,7 +1555,7 @@ impl<W: BitWrite> BitWrite2 for W {
     #[inline]
     fn write_unsigned_out<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         BitWrite::write_unsigned::<BITS, U>(self, value)
     }
@@ -1563,7 +1563,7 @@ impl<W: BitWrite> BitWrite2 for W {
     #[inline]
     fn write_signed<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         BitWrite::write_signed_var::<S>(self, bits, value)
     }
@@ -1571,7 +1571,7 @@ impl<W: BitWrite> BitWrite2 for W {
     #[inline]
     fn write_signed_out<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         BitWrite::write_signed::<BITS, S>(self, value)
     }
@@ -1646,7 +1646,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     #[inline(always)]
     fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         let Self {
             value: queue_value,
@@ -1663,7 +1663,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         value: U,
     ) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         let Self {
             value: queue_value,
@@ -1681,7 +1681,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         value: S,
     ) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         E::write_signed::<BITS, _, _>(self, bits, value)
     }
@@ -1689,7 +1689,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     #[inline]
     fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         const {
             assert!(BITS > 0, "signed writes need at least 1 bit for sign");
@@ -1924,7 +1924,7 @@ where
     #[inline]
     fn write_signed_var<S>(&mut self, bits: u32, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         self.write_signed_counted(BitCount::unknown(bits), value)
     }
@@ -1932,7 +1932,7 @@ where
     #[inline]
     fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         const {
             assert!(BITS > 0, "signed writes need at least 1 bit for sign");
@@ -1974,7 +1974,7 @@ where
         value: S,
     ) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         E::write_signed::<BITS, _, _>(self, bits, value)
     }
@@ -2211,7 +2211,7 @@ where
     #[inline]
     fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         BitWrite::write_unsigned::<BITS, U>(&mut self.counter, value)?;
         self.records.push(WriteRecord::Unsigned {
@@ -2228,7 +2228,7 @@ where
         value: U,
     ) -> io::Result<()>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         self.counter.write_unsigned_counted(bits, value)?;
         self.records.push(WriteRecord::Unsigned {
@@ -2245,7 +2245,7 @@ where
         value: S,
     ) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         self.counter.write_signed_counted(bits, value)?;
         self.records.push(WriteRecord::Signed {
@@ -2258,7 +2258,7 @@ where
     #[inline]
     fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         BitWrite::write_signed::<BITS, S>(&mut self.counter, value)?;
         self.records.push(WriteRecord::Signed {

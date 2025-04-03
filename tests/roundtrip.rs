@@ -126,7 +126,7 @@ fn test_roundtrip_i8_le() {
 
 #[test]
 fn test_roundtrip_u9_be() {
-    wide_roundtrip::<9, BigEndian, u16>(u16::MIN, u8::MAX as u16 * 2 , 1);
+    wide_roundtrip::<9, BigEndian, u16>(u16::MIN, u8::MAX as u16 * 2, 1);
 }
 
 #[test]
@@ -339,7 +339,7 @@ fn test_f64_roundtrip_le() {
 fn test_auto_signedness() {
     use bitstream_io::{
         BigEndian, BitRead, BitReader, BitWrite, BitWriter, Endianness, Integer, LittleEndian,
-        SignedNumeric, UnsignedNumeric,
+        SignedInteger, UnsignedInteger,
     };
 
     macro_rules! define_roundtrip {
@@ -374,7 +374,7 @@ fn test_auto_signedness() {
 
     define_roundtrip!(
         test_writer_unsigned,
-        UnsignedNumeric,
+        UnsignedInteger,
         write_var,
         read_unsigned_var
     );
@@ -383,7 +383,7 @@ fn test_auto_signedness() {
 
     define_roundtrip!(
         test_writer_signed,
-        SignedNumeric,
+        SignedInteger,
         write_var,
         read_signed_var
     );
@@ -392,7 +392,7 @@ fn test_auto_signedness() {
 
     define_roundtrip!(
         test_reader_unsigned,
-        UnsignedNumeric,
+        UnsignedInteger,
         write_unsigned_var,
         read_var
     );
@@ -401,7 +401,7 @@ fn test_auto_signedness() {
 
     define_roundtrip!(
         test_reader_signed,
-        SignedNumeric,
+        SignedInteger,
         write_signed_var,
         read_var
     );

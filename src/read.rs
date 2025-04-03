@@ -178,7 +178,7 @@ use alloc::{vec, vec::Vec};
 use std::io;
 
 use super::{
-    BitCount, Endianness, Integer, PhantomData, Primitive, SignedNumeric, UnsignedNumeric,
+    BitCount, Endianness, Integer, PhantomData, Primitive, SignedInteger, UnsignedInteger,
 };
 
 /// A trait for anything that can read a variable number of
@@ -435,7 +435,7 @@ pub trait BitRead {
     /// ```
     fn read_unsigned<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         self.read_unsigned_var(BITS)
     }
@@ -480,7 +480,7 @@ pub trait BitRead {
     #[inline(always)]
     fn read_unsigned_var<U>(&mut self, bits: u32) -> io::Result<U>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         self.read_unsigned_counted(BitCount::unknown(bits))
     }
@@ -509,7 +509,7 @@ pub trait BitRead {
     /// ```
     fn read_unsigned_counted<const MAX: u32, U>(&mut self, bits: BitCount<MAX>) -> io::Result<U>
     where
-        U: UnsignedNumeric;
+        U: UnsignedInteger;
 
     /// Reads a twos-complement signed value from the stream with
     /// the given constant number of bits.
@@ -553,7 +553,7 @@ pub trait BitRead {
     /// ```
     fn read_signed<const BITS: u32, S>(&mut self) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         self.read_signed_var(BITS)
     }
@@ -598,7 +598,7 @@ pub trait BitRead {
     /// ```
     fn read_signed_var<S>(&mut self, bits: u32) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         self.read_signed_counted(BitCount::unknown(bits))
     }
@@ -629,7 +629,7 @@ pub trait BitRead {
     /// ```
     fn read_signed_counted<const MAX: u32, S>(&mut self, bits: BitCount<MAX>) -> io::Result<S>
     where
-        S: SignedNumeric;
+        S: SignedInteger;
 
     /// Reads whole value from the stream whose size in bits is equal
     /// to its type's size.
@@ -982,7 +982,7 @@ impl<R: BitRead + ?Sized> BitRead for &mut R {
     #[inline]
     fn read_unsigned<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         (**self).read_unsigned::<BITS, U>()
     }
@@ -990,7 +990,7 @@ impl<R: BitRead + ?Sized> BitRead for &mut R {
     #[inline]
     fn read_unsigned_var<U>(&mut self, bits: u32) -> io::Result<U>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         (**self).read_unsigned_var(bits)
     }
@@ -998,7 +998,7 @@ impl<R: BitRead + ?Sized> BitRead for &mut R {
     #[inline]
     fn read_unsigned_counted<const MAX: u32, U>(&mut self, bits: BitCount<MAX>) -> io::Result<U>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         (**self).read_unsigned_counted::<MAX, U>(bits)
     }
@@ -1006,7 +1006,7 @@ impl<R: BitRead + ?Sized> BitRead for &mut R {
     #[inline]
     fn read_signed<const BITS: u32, S>(&mut self) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         (**self).read_signed::<BITS, S>()
     }
@@ -1014,7 +1014,7 @@ impl<R: BitRead + ?Sized> BitRead for &mut R {
     #[inline]
     fn read_signed_var<S>(&mut self, bits: u32) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         (**self).read_signed_var(bits)
     }
@@ -1022,7 +1022,7 @@ impl<R: BitRead + ?Sized> BitRead for &mut R {
     #[inline]
     fn read_signed_counted<const MAX: u32, S>(&mut self, bits: BitCount<MAX>) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         (**self).read_signed_counted::<MAX, S>(bits)
     }
@@ -1161,7 +1161,7 @@ pub trait BitRead2 {
     /// to hold the requested number of bits.
     fn read_signed<S>(&mut self, bits: u32) -> io::Result<S>
     where
-        S: SignedNumeric;
+        S: SignedInteger;
 
     /// Reads a twos-complement signed value from the stream with
     /// the given constant number of bits.
@@ -1175,7 +1175,7 @@ pub trait BitRead2 {
     /// is larger than the output type.
     fn read_signed_in<const BITS: u32, S>(&mut self) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         self.read_signed(BITS)
     }
@@ -1355,7 +1355,7 @@ impl<R: BitRead> BitRead2 for R {
     #[inline(always)]
     fn read_signed<S>(&mut self, bits: u32) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         self.read_signed_var(bits)
     }
@@ -1363,7 +1363,7 @@ impl<R: BitRead> BitRead2 for R {
     #[inline(always)]
     fn read_signed_in<const BITS: u32, S>(&mut self) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         BitRead::read_signed::<BITS, S>(self)
     }
@@ -1515,7 +1515,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     #[inline(always)]
     fn read_unsigned_counted<const BITS: u32, U>(&mut self, bits: BitCount<BITS>) -> io::Result<U>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         let Self {
             value: queue_value,
@@ -1529,7 +1529,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     #[inline]
     fn read_unsigned<const BITS: u32, U>(&mut self) -> io::Result<U>
     where
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         let Self {
             value,
@@ -1543,7 +1543,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     #[inline(always)]
     fn read_signed_counted<const BITS: u32, S>(&mut self, bits: BitCount<BITS>) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         E::read_signed(self, bits)
     }
@@ -1551,7 +1551,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     #[inline]
     fn read_signed<const BITS: u32, S>(&mut self) -> io::Result<S>
     where
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         const {
             assert!(BITS > 0, "signed reads need at least 1 bit for sign");

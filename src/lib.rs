@@ -360,7 +360,7 @@ macro_rules! define_numeric {
 
 /// This trait extends many common unsigned integer types
 /// so that they can be used with the bitstream handling traits.
-pub trait UnsignedNumeric: Numeric + Into<crate::write::UnsignedValue> {
+pub trait UnsignedInteger: Numeric + Into<crate::write::UnsignedValue> {
     /// This type's most-significant bit
     const MSB_BIT: Self;
 
@@ -371,7 +371,7 @@ pub trait UnsignedNumeric: Numeric + Into<crate::write::UnsignedValue> {
     const ALL: Self;
 
     /// The signed variant of ourself
-    type Signed: SignedNumeric<Unsigned = Self>;
+    type Signed: SignedInteger<Unsigned = Self>;
 
     /// Given a twos-complement value,
     /// return this value is a non-negative signed number.
@@ -380,7 +380,7 @@ pub trait UnsignedNumeric: Numeric + Into<crate::write::UnsignedValue> {
     ///
     /// # Example
     /// ```
-    /// use bitstream_io::UnsignedNumeric;
+    /// use bitstream_io::UnsignedInteger;
     /// assert_eq!(0b00000001u8.as_non_negative(), 1i8);
     /// ```
     fn as_non_negative(self) -> Self::Signed;
@@ -392,7 +392,7 @@ pub trait UnsignedNumeric: Numeric + Into<crate::write::UnsignedValue> {
     ///
     /// # Example
     /// ```
-    /// use bitstream_io::UnsignedNumeric;
+    /// use bitstream_io::UnsignedInteger;
     /// assert_eq!(0b01111111u8.as_negative(8), -1i8);
     /// ```
     fn as_negative(self, bits: u32) -> Self::Signed;
@@ -402,7 +402,7 @@ pub trait UnsignedNumeric: Numeric + Into<crate::write::UnsignedValue> {
     ///
     /// # Example
     /// ```
-    /// use bitstream_io::UnsignedNumeric;
+    /// use bitstream_io::UnsignedInteger;
     /// assert_eq!(0b01111111u8.as_negative_fixed::<8>(), -1i8);
     /// ```
     fn as_negative_fixed<const BITS: u32>(self) -> Self::Signed;
@@ -432,7 +432,7 @@ macro_rules! define_unsigned_numeric {
     ($t:ty, $s:ty) => {
         define_numeric!($t);
 
-        impl UnsignedNumeric for $t {
+        impl UnsignedInteger for $t {
             type Signed = $s;
 
             const MSB_BIT: Self = 1 << (Self::BITS_SIZE - 1);
@@ -599,15 +599,19 @@ macro_rules! define_unsigned_numeric {
 
 /// This trait extends many common signed integer types
 /// so that they can be used with the bitstream handling traits.
-pub trait SignedNumeric: Numeric + Into<crate::write::SignedValue> {
+///
+/// This trait was formerly named `SignedNumeric` in 2.X.X code.
+/// If backwards-compatibility is needed one can
+/// import `SignedInteger` as `SignedNumeric`.
+pub trait SignedInteger: Numeric + Into<crate::write::SignedValue> {
     /// The unsigned variant of ourself
-    type Unsigned: UnsignedNumeric<Signed = Self>;
+    type Unsigned: UnsignedInteger<Signed = Self>;
 
     /// Returns true if this value is negative
     ///
     /// # Example
     /// ```
-    /// use bitstream_io::SignedNumeric;
+    /// use bitstream_io::SignedInteger;
     /// assert!(!1i8.is_negative());
     /// assert!((-1i8).is_negative());
     /// ```
@@ -619,7 +623,7 @@ pub trait SignedNumeric: Numeric + Into<crate::write::SignedValue> {
     ///
     /// # Example
     /// ```
-    /// use bitstream_io::SignedNumeric;
+    /// use bitstream_io::SignedInteger;
     /// assert_eq!(1i8.as_non_negative(), 0b00000001u8);
     /// ```
     fn as_non_negative(self) -> Self::Unsigned;
@@ -631,7 +635,7 @@ pub trait SignedNumeric: Numeric + Into<crate::write::SignedValue> {
     ///
     /// # Example
     /// ```
-    /// use bitstream_io::SignedNumeric;
+    /// use bitstream_io::SignedInteger;
     /// assert_eq!((-1i8).as_negative(8), 0b01111111u8);
     /// ```
     fn as_negative(self, bits: u32) -> Self::Unsigned;
@@ -641,7 +645,7 @@ pub trait SignedNumeric: Numeric + Into<crate::write::SignedValue> {
     ///
     /// # Example
     /// ```
-    /// use bitstream_io::SignedNumeric;
+    /// use bitstream_io::SignedInteger;
     /// assert_eq!((-1i8).as_negative_fixed::<8>(), 0b01111111u8);
     /// ```
     fn as_negative_fixed<const BITS: u32>(self) -> Self::Unsigned;
@@ -651,7 +655,7 @@ macro_rules! define_signed_numeric {
     ($t:ty, $u:ty) => {
         define_numeric!($t);
 
-        impl SignedNumeric for $t {
+        impl SignedInteger for $t {
             type Unsigned = $u;
 
             #[inline(always)]
@@ -766,7 +770,7 @@ pub trait Endianness: Sized {
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric;
+        U: UnsignedInteger;
 
     /// For performing bulk reads from a bit source to an output type.
     fn read_bits_fixed<const BITS: u32, R, U>(
@@ -776,7 +780,7 @@ pub trait Endianness: Sized {
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric;
+        U: UnsignedInteger;
 
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits<const MAX: u32, W, U>(
@@ -788,7 +792,7 @@ pub trait Endianness: Sized {
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric;
+        U: UnsignedInteger;
 
     /// For performing bulk writes of a constant value to a bit sink.
     fn write_bits_const<const BITS: u32, const VALUE: u32, W>(
@@ -808,19 +812,19 @@ pub trait Endianness: Sized {
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric;
+        U: UnsignedInteger;
 
     /// Reads signed value from reader in this endianness
     fn read_signed<const MAX: u32, R, S>(r: &mut R, bits: BitCount<MAX>) -> io::Result<S>
     where
         R: BitRead,
-        S: SignedNumeric;
+        S: SignedInteger;
 
     /// Reads signed value from reader in this endianness
     fn read_signed_fixed<R, const B: u32, S>(r: &mut R) -> io::Result<S>
     where
         R: BitRead,
-        S: SignedNumeric;
+        S: SignedInteger;
 
     /// Writes signed value to writer in this endianness
     fn write_signed<const MAX: u32, W, S>(
@@ -830,13 +834,13 @@ pub trait Endianness: Sized {
     ) -> io::Result<()>
     where
         W: BitWrite,
-        S: SignedNumeric;
+        S: SignedInteger;
 
     /// Writes signed value to writer in this endianness
     fn write_signed_fixed<W, const B: u32, S>(w: &mut W, value: S) -> io::Result<()>
     where
         W: BitWrite,
-        S: SignedNumeric;
+        S: SignedInteger;
 
     /// Reads convertable numeric value from reader in this endianness
     fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
@@ -1140,7 +1144,7 @@ impl BigEndian {
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         // reads a whole value with the given number of
         // bytes in our endianness, where the number of bytes
@@ -1149,7 +1153,7 @@ impl BigEndian {
         fn read_bytes<R, U>(reader: &mut R, bytes: usize) -> io::Result<U>
         where
             R: io::Read,
-            U: UnsignedNumeric,
+            U: UnsignedInteger,
         {
             let mut buf = U::buffer();
             reader
@@ -1232,12 +1236,12 @@ impl BigEndian {
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         fn write_bytes<W, U>(writer: &mut W, bytes: usize, value: U) -> io::Result<()>
         where
             W: io::Write,
-            U: UnsignedNumeric,
+            U: UnsignedInteger,
         {
             let buf = U::to_be_bytes(value);
             writer.write_all(&buf.as_ref()[(mem::size_of::<U>() - bytes)..])
@@ -1333,7 +1337,7 @@ impl Endianness for BigEndian {
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             Self::read_bits_checked::<MAX, R, U>(reader, queue_value, queue_bits, count)
@@ -1353,7 +1357,7 @@ impl Endianness for BigEndian {
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         const {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
@@ -1377,7 +1381,7 @@ impl Endianness for BigEndian {
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             if bits == 0 {
@@ -1437,7 +1441,7 @@ impl Endianness for BigEndian {
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         const {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
@@ -1524,7 +1528,7 @@ impl Endianness for BigEndian {
     ) -> io::Result<S>
     where
         R: BitRead,
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
             let is_negative = r.read_bit()?;
@@ -1550,7 +1554,7 @@ impl Endianness for BigEndian {
     fn read_signed_fixed<R, const B: u32, S>(r: &mut R) -> io::Result<S>
     where
         R: BitRead,
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         if B == S::BITS_SIZE {
             r.read_to()
@@ -1572,7 +1576,7 @@ impl Endianness for BigEndian {
     ) -> io::Result<()>
     where
         W: BitWrite,
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
             w.write_bit(value.is_negative())?;
@@ -1598,7 +1602,7 @@ impl Endianness for BigEndian {
     fn write_signed_fixed<W, const B: u32, S>(w: &mut W, value: S) -> io::Result<()>
     where
         W: BitWrite,
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         if B == S::BITS_SIZE {
             w.write_bytes(value.to_be_bytes().as_ref())
@@ -1672,7 +1676,7 @@ impl LittleEndian {
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         // reads a whole value with the given number of
         // bytes in our endianness, where the number of bytes
@@ -1681,7 +1685,7 @@ impl LittleEndian {
         fn read_bytes<R, U>(reader: &mut R, bytes: usize) -> io::Result<U>
         where
             R: io::Read,
-            U: UnsignedNumeric,
+            U: UnsignedInteger,
         {
             let mut buf = U::buffer();
             reader
@@ -1758,12 +1762,12 @@ impl LittleEndian {
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         fn write_bytes<W, U>(writer: &mut W, bytes: usize, value: U) -> io::Result<()>
         where
             W: io::Write,
-            U: UnsignedNumeric,
+            U: UnsignedInteger,
         {
             let buf = U::to_le_bytes(value);
             writer.write_all(&buf.as_ref()[0..bytes])
@@ -1851,7 +1855,7 @@ impl Endianness for LittleEndian {
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             Self::read_bits_checked::<MAX, R, U>(reader, queue_value, queue_bits, count)
@@ -1871,7 +1875,7 @@ impl Endianness for LittleEndian {
     ) -> io::Result<U>
     where
         R: io::Read,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         const {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
@@ -1895,7 +1899,7 @@ impl Endianness for LittleEndian {
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             if bits == 0 {
@@ -1955,7 +1959,7 @@ impl Endianness for LittleEndian {
     ) -> io::Result<()>
     where
         W: io::Write,
-        U: UnsignedNumeric,
+        U: UnsignedInteger,
     {
         const {
             assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
@@ -2042,7 +2046,7 @@ impl Endianness for LittleEndian {
     ) -> io::Result<S>
     where
         R: BitRead,
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
             let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(
@@ -2068,7 +2072,7 @@ impl Endianness for LittleEndian {
     fn read_signed_fixed<R, const B: u32, S>(r: &mut R) -> io::Result<S>
     where
         R: BitRead,
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         if B == S::BITS_SIZE {
             r.read_to()
@@ -2090,7 +2094,7 @@ impl Endianness for LittleEndian {
     ) -> io::Result<()>
     where
         W: BitWrite,
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
             w.write_unsigned_counted(
@@ -2116,7 +2120,7 @@ impl Endianness for LittleEndian {
     fn write_signed_fixed<W, const B: u32, S>(w: &mut W, value: S) -> io::Result<()>
     where
         W: BitWrite,
-        S: SignedNumeric,
+        S: SignedInteger,
     {
         if B == S::BITS_SIZE {
             w.write_bytes(value.to_le_bytes().as_ref())
