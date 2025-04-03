@@ -143,3 +143,108 @@ macro_rules! compile_write_tree_nodes {
         }
     };
 }
+
+/// A limited unary reader which stops at the given maximum.
+///
+/// Counts non-`STOP_BIT` values (which must be 0 or 1)
+/// until `STOP_BIT`, or until `MAXIMUM` is reached.
+/// Returns the number of non-`STOP_BIT` bits, or `None` if
+/// maximum is reached beforehand.
+///
+/// # Examples
+/// ```
+/// use bitstream_io::{BitReader, BitRead, BigEndian, huffman::LimitedUnary};
+///
+/// let data: &[u8] = &[0b001_00000, 0b1111_1111];
+/// let mut r = BitReader::endian(data, BigEndian);
+/// // get 2 bits until the next 1 bit
+/// assert_eq!(r.read_huffman::<LimitedUnary<1, 5>>().unwrap(), Some(2));
+/// // but 5 bits in a row is our maximum
+/// assert_eq!(r.read_huffman::<LimitedUnary<1, 5>>().unwrap(), None);
+/// // the remaining 8 bits are ok to be read
+/// assert_eq!(r.read::<8, u8>().unwrap(), 0b1111_1111);
+/// ```
+///
+/// ```
+/// use bitstream_io::{BitWriter, BitWrite, BigEndian, huffman::LimitedUnary};
+///
+/// let mut w = BitWriter::endian(vec![], BigEndian);
+/// // writes 2 as a regular unary value which stops at the 1 bit
+/// w.write_huffman::<LimitedUnary<1, 5>>(Some(2)).unwrap();
+/// // writing values beyond the maximum does nothing
+/// w.write_huffman::<LimitedUnary<1, 5>>(Some(10)).unwrap();
+/// // writes 5, 0 bits (which is our maximum)
+/// w.write_huffman::<LimitedUnary<1, 5>>(None).unwrap();
+/// // write some 1 bits to pad out the stream
+/// w.write::<8, u8>(0b1111_1111);
+///
+/// assert_eq!(w.into_writer(), &[0b001_00000, 0b1111_1111]);
+/// ```
+#[derive(Copy, Clone, Debug)]
+pub struct LimitedUnary<const STOP_BIT: u8, const MAXIMUM: u32>;
+
+impl<const STOP_BIT: u8, const MAXIMUM: u32> FromBits for LimitedUnary<STOP_BIT, MAXIMUM> {
+    type Symbol = Option<u32>;
+
+    fn from_bits<F, E>(mut next: F) -> Result<Self::Symbol, E>
+    where
+        F: FnMut() -> Result<bool, E>,
+    {
+        const {
+            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
+        }
+
+        let mut bits = 0;
+        while bits < MAXIMUM {
+            if next()?
+                != match STOP_BIT {
+                    0 => false,
+                    1 => true,
+                    _ => unreachable!(),
+                }
+            {
+                bits += 1;
+            } else {
+                return Ok(Some(bits));
+            }
+        }
+        Ok(None)
+    }
+}
+
+impl<const STOP_BIT: u8, const MAXIMUM: u32> ToBits for LimitedUnary<STOP_BIT, MAXIMUM> {
+    type Symbol = Option<u32>;
+
+    fn to_bits<F, E>(value: Option<u32>, mut write: F) -> Result<(), E>
+    where
+        F: FnMut(bool) -> Result<(), E>,
+    {
+        match value {
+            Some(bits) if bits < MAXIMUM => {
+                (0..bits).try_for_each(|_| {
+                    write(match STOP_BIT {
+                        0 => true,
+                        1 => false,
+                        _ => unreachable!(),
+                    })
+                })?;
+                write(match STOP_BIT {
+                    0 => false,
+                    1 => true,
+                    _ => unreachable!(),
+                })
+            }
+            Some(_) => {
+                /*more bits than MAXIMUM, so output nothing*/
+                Ok(())
+            }
+            None => (0..MAXIMUM).try_for_each(|_| {
+                write(match STOP_BIT {
+                    0 => true,
+                    1 => false,
+                    _ => unreachable!(),
+                })
+            }),
+        }
+    }
+}
