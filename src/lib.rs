@@ -532,6 +532,7 @@ macro_rules! define_unsigned_integer {
         /// assert_eq!(w.into_writer(), &[0b000_00000]);
         /// ```
         impl Integer for NonZero<$t> {
+            #[inline]
             fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
             where
                 Self: Sized,
@@ -546,6 +547,7 @@ macro_rules! define_unsigned_integer {
                 <$t as Integer>::read::<BITS, R>(reader).map(|u| NonZero::new(u + 1).unwrap())
             }
 
+            #[inline]
             fn read_var<const MAX: u32, R>(
                 reader: &mut R,
                 count @ BitCount { bits }: BitCount<MAX>,
@@ -565,6 +567,7 @@ macro_rules! define_unsigned_integer {
                 }
             }
 
+            #[inline]
             fn write<const BITS: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
@@ -579,6 +582,7 @@ macro_rules! define_unsigned_integer {
                 <$t as Integer>::write::<BITS, W>(self.get() - 1, writer)
             }
 
+            #[inline]
             fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
@@ -592,6 +596,46 @@ macro_rules! define_unsigned_integer {
                         "bit count must be less than the type's size in bits",
                     ))
                 }
+            }
+        }
+
+        impl Integer for Option<NonZero<$t>> {
+            #[inline]
+            fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+            where
+                Self: Sized,
+            {
+                <$t as Integer>::read::<BITS, R>(reader).map(NonZero::new)
+            }
+
+            #[inline]
+            fn read_var<const MAX: u32, R>(reader: &mut R, count: BitCount<MAX>) -> io::Result<Self>
+            where
+                R: BitRead + ?Sized,
+                Self: Sized,
+            {
+                <$t as Integer>::read_var::<MAX, R>(reader, count).map(NonZero::new)
+            }
+
+            #[inline]
+            fn write<const BITS: u32, W: BitWrite + ?Sized>(
+                self,
+                writer: &mut W,
+            ) -> io::Result<()> {
+                <$t as Integer>::write::<BITS, W>(self.map(|n| n.get()).unwrap_or(0), writer)
+            }
+
+            #[inline]
+            fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
+                self,
+                writer: &mut W,
+                count: BitCount<MAX>,
+            ) -> io::Result<()> {
+                <$t as Integer>::write_var::<MAX, W>(
+                    self.map(|n| n.get()).unwrap_or(0),
+                    writer,
+                    count,
+                )
             }
         }
     };
