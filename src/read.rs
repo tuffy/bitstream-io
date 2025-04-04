@@ -1478,6 +1478,15 @@ impl<R: io::Read, E: Endianness> BitReader<R, E> {
         }
     }
 
+    /// Returns byte-aligned mutable reference to internal reader.
+    ///
+    /// Bytes aligns stream if it is not already aligned.
+    #[inline]
+    pub fn aligned_reader(&mut self) -> &mut R {
+        BitRead::byte_align(self);
+        &mut self.reader
+    }
+
     /// Converts `BitReader` to `ByteReader` in the same endianness.
     ///
     /// # Warning

@@ -240,6 +240,19 @@ impl<W: io::Write, E: Endianness> BitWriter<W, E> {
         }
     }
 
+    /// Returns byte-aligned mutable reference to internal writer.
+    ///
+    /// Bytes aligns stream if it is not already aligned.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    #[inline]
+    pub fn aligned_writer(&mut self) -> io::Result<&mut W> {
+        BitWrite::byte_align(self)?;
+        Ok(&mut self.writer)
+    }
+
     /// Converts `BitWriter` to `ByteWriter` in the same endianness.
     ///
     /// # Warning
