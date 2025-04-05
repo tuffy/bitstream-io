@@ -2200,6 +2200,13 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
             .iter()
             .try_for_each(|record| record.playback(writer))
     }
+
+    /// Clears recorder, removing all values
+    #[inline]
+    pub fn clear(&mut self) {
+        self.counter = BitCounter::new();
+        self.records.clear()
+    }
 }
 
 impl<N, E> BitWrite for BitRecorder<N, E>
@@ -2327,6 +2334,62 @@ where
     #[inline]
     fn byte_aligned(&self) -> bool {
         BitWrite::byte_aligned(&self.counter)
+    }
+}
+
+impl<N: PartialOrd + Default + Copy, E: Endianness> BitRecorder<N, E> {
+    /// Returns shortest option between ourself and candidate
+    ///
+    /// Executes fallible closure on emptied candidate recorder,
+    /// compares the lengths of ourself and the candidate,
+    /// and returns the shorter of the two.
+    ///
+    /// If the new candidate is shorter, we swap ourself and
+    /// the candidate so any recorder capacity can be reused.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::{BitRecorder, BitWrite, BigEndian};
+    ///
+    /// let mut best = BitRecorder::<u8, BigEndian>::new();
+    /// let mut candidate = BitRecorder::new();
+    ///
+    /// // write an 8 bit value to our initial candidate
+    /// best.write::<8, u8>(0);
+    /// assert_eq!(best.written(), 8);
+    ///
+    /// // try another candidate which writes 4 bits
+    /// best = best.best(&mut candidate, |w| {
+    ///     w.write::<4, u8>(0)
+    /// }).unwrap();
+    ///
+    /// // which becomes our new best candidate
+    /// assert_eq!(best.written(), 4);
+    ///
+    /// // finally, try a not-so-best candidate
+    /// // which writes 10 bits
+    /// best = best.best(&mut candidate, |w| {
+    ///     w.write::<10, u16>(0)
+    /// }).unwrap();
+    ///
+    /// // so our best candidate remains 4 bits
+    /// assert_eq!(best.written(), 4);
+    /// ```
+    pub fn best<F>(
+        mut self,
+        candidate: &mut Self,
+        f: impl FnOnce(&mut Self) -> Result<(), F>,
+    ) -> Result<Self, F> {
+        candidate.clear();
+
+        f(candidate)?;
+
+        if candidate.written() < self.written() {
+            core::mem::swap(&mut self, candidate);
+        }
+
+        Ok(self)
     }
 }
 
