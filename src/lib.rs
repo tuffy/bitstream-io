@@ -1039,26 +1039,37 @@ impl<const MAX: u32> BitCount<MAX> {
     }
 
     /// Subtracts a number of bits from our count,
-    /// returning a new count with the same maximum.
+    /// returning a new count with a new maximum.
     ///
-    /// Returns `None` if the new count goes below 0.
+    /// Returns `None` if the new count goes below 0
+    /// or below our new maximum.
+    /// A compile-time error occurs if `NEW_MAX` is larger
+    /// than the largest supported type.
     ///
     /// # Example
     /// ```
     /// use bitstream_io::BitCount;
-    /// let count = BitCount::<5>::new::<1>();
-    /// // subtracting 1 from 1 yields a new count of 0
-    /// assert_eq!(count.checked_sub(1), Some(BitCount::<5>::new::<0>()));
-    /// // subtracting 2 from 1 yields None
-    /// assert!(count.checked_sub(2).is_none());
+    /// let count = BitCount::<5>::new::<5>();
+    /// // subtracting 1 from 5 yields a new count of 4
+    /// assert_eq!(count.checked_sub::<5>(1), Some(BitCount::<5>::new::<4>()));
+    /// // subtracting 6 from 5 yields None
+    /// assert!(count.checked_sub::<5>(6).is_none());
+    /// // subtracting 1 with a new maximum of 3 also yields None
+    /// // because 4 is larger than the maximum of 3
+    /// assert!(count.checked_sub::<3>(1).is_none());
     /// ```
     #[inline]
-    pub const fn checked_sub(self, bits: u32) -> Option<Self> {
-        // it's okay for the number of bits to be smaller than MAX
-        // so subtracting into a smaller number of bits is fine
+    pub const fn checked_sub<const NEW_MAX: u32>(self, bits: u32) -> Option<Self> {
+        const {
+            assert!(
+                NEW_MAX <= BitCount::<NEW_MAX>::MAX,
+                "NEW_MAX must be <= BitCount::MAX"
+            );
+        }
+
         match self.bits.checked_sub(bits) {
-            Some(bits) => Some(Self { bits }),
-            None => None,
+            Some(bits) if bits <= NEW_MAX => Some(BitCount { bits }),
+            _ => None,
         }
     }
 
@@ -1577,7 +1588,7 @@ impl Endianness for BigEndian {
         if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
             let is_negative = r.read_bit()?;
             let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(
-                count.checked_sub(1).ok_or(io::Error::new(
+                count.checked_sub::<MAX>(1).ok_or(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "signed reads need at least 1 bit for sign",
                 ))?,
@@ -1625,7 +1636,7 @@ impl Endianness for BigEndian {
         if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
             w.write_bit(value.is_negative())?;
             w.write_unsigned_counted(
-                count.checked_sub(1).ok_or(io::Error::new(
+                count.checked_sub::<MAX>(1).ok_or(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "signed writes need at least 1 bit for sign",
                 ))?,
@@ -2094,7 +2105,7 @@ impl Endianness for LittleEndian {
     {
         if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
             let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(
-                count.checked_sub(1).ok_or(io::Error::new(
+                count.checked_sub::<MAX>(1).ok_or(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "signed reads need at least 1 bit for sign",
                 ))?,
@@ -2142,7 +2153,7 @@ impl Endianness for LittleEndian {
     {
         if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
             w.write_unsigned_counted(
-                count.checked_sub(1).ok_or(io::Error::new(
+                count.checked_sub::<MAX>(1).ok_or(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "signed writes need at least 1 bit for sign",
                 ))?,
