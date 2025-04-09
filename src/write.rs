@@ -351,10 +351,14 @@ pub trait BitWrite {
     /// assert!(w.write::<4, u8>(1).is_ok());
     /// // writing signed value is ok
     /// assert!(w.write::<4, i8>(-1).is_ok());
+    /// // writing an array of bits is ok too
+    /// assert!(w.write::<1, [bool; 4]>([true, false, true, true]).is_ok());
+    /// // writing an array of any Integer type is ok
+    /// assert!(w.write::<2, [u8; 2]>([0b11, 0b00]).is_ok());
     /// // trying to write a value larger than 4 bits in 4 bits is an error
     /// assert!(w.write::<4, u8>(u8::MAX).is_err());
     ///
-    /// assert_eq!(w.into_writer(), &[0b0001_1111]);
+    /// assert_eq!(w.into_writer(), &[0b0001_1111, 0b1011_11_00]);
     /// ```
     ///
     /// ```rust,compile_fail

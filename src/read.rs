@@ -239,18 +239,24 @@ pub trait BitRead {
     /// # Examples
     /// ```
     /// use bitstream_io::{BitReader, BitRead, BigEndian};
-    /// let bytes: &[u8] = &[0b0001_1111];
+    ///
+    /// let bytes: &[u8] = &[0b0001_1111, 0b1011_11_00];
     /// let mut r = BitReader::endian(bytes, BigEndian);
     /// // reading unsigned value is ok
     /// assert_eq!(r.read::<4, u8>().unwrap(), 1);
     /// // reading signed value is also ok
     /// assert_eq!(r.read::<4, i8>().unwrap(), -1);
+    /// // reading an array of bits is ok too
+    /// assert_eq!(r.read::<1, [bool; 4]>().unwrap(), [true, false, true, true]);
+    /// // reading an array of any Integer type is ok
+    /// assert_eq!(r.read::<2, [u8; 2]>().unwrap(), [0b11, 0b00]);
     /// // reading more bytes than we have is an error
     /// assert!(r.read::<4, u8>().is_err());
     /// ```
     ///
     /// ```rust,compile_fail
     /// use bitstream_io::{BitReader, BitRead, BigEndian};
+    ///
     /// let bytes: &[u8] = &[0b0001_1111, 0, 0];
     /// let mut r = BitReader::endian(bytes, BigEndian);
     /// // reading 9 bits to a u8 is a compile-time error

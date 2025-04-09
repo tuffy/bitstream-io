@@ -296,6 +296,137 @@ pub trait Integer {
     ) -> io::Result<()>;
 }
 
+/// Reading and writing booleans as `Integer` requires the number of bits to be 1.
+///
+/// This is more useful when combined with the fixed array target
+/// for reading blocks of bit flags.
+///
+/// # Example
+/// ```
+/// use bitstream_io::{BitReader, BitRead, BigEndian};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct Flags {
+///     a: bool,
+///     b: bool,
+///     c: bool,
+///     d: bool,
+/// }
+///
+/// let data: &[u8] = &[0b1011_0000];
+/// let mut r = BitReader::endian(data, BigEndian);
+/// // note the number of bits must be 1 per read
+/// // while the quantity of flags is indicated by the array length
+/// let flags = r.read::<1, [bool; 4]>().map(|[a, b, c, d]| Flags { a, b, c, d }).unwrap();
+/// assert_eq!(flags, Flags { a: true, b: false, c: true, d: true });
+/// ```
+impl Integer for bool {
+    #[inline(always)]
+    fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        const {
+            assert!(BITS == 1, "booleans require exactly 1 bit");
+        }
+
+        reader.read_bit()
+    }
+
+    fn read_var<const MAX: u32, R>(
+        reader: &mut R,
+        BitCount { bits }: BitCount<MAX>,
+    ) -> io::Result<Self>
+    where
+        R: BitRead + ?Sized,
+        Self: Sized,
+    {
+        if bits == 1 {
+            reader.read_bit()
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "booleans require exactly 1 bit",
+            ))
+        }
+    }
+
+    #[inline(always)]
+    fn write<const BITS: u32, W: BitWrite + ?Sized>(self, writer: &mut W) -> io::Result<()> {
+        const {
+            assert!(BITS == 1, "booleans require exactly 1 bit");
+        }
+
+        writer.write_bit(self)
+    }
+
+    fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
+        self,
+        writer: &mut W,
+        BitCount { bits }: BitCount<MAX>,
+    ) -> io::Result<()> {
+        if bits == 1 {
+            writer.write_bit(self)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "booleans require exactly 1 bit",
+            ))
+        }
+    }
+}
+
+impl<const SIZE: usize, I: Integer> Integer for [I; SIZE] {
+    #[inline]
+    fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        // could use MaybeUninit here, but bringing in unsafe
+        // for a minor implementation seems like overkill
+
+        let mut a = [const { None }; SIZE];
+        a.iter_mut()
+            .try_for_each(|v| {
+                *v = reader.read::<BITS, I>().map(Some)?;
+                Ok::<(), io::Error>(())
+            })
+            .map(|()| a.map(|v| v.unwrap()))
+    }
+
+    #[inline]
+    fn read_var<const MAX: u32, R>(reader: &mut R, count: BitCount<MAX>) -> io::Result<Self>
+    where
+        R: BitRead + ?Sized,
+        Self: Sized,
+    {
+        // could use MaybeUninit here, but bringing in unsafe
+        // for a minor implementation seems like overkill
+
+        let mut a = [const { None }; SIZE];
+        a.iter_mut()
+            .try_for_each(|v| {
+                *v = reader.read_counted(count).map(Some)?;
+                Ok::<(), io::Error>(())
+            })
+            .map(|()| a.map(|v| v.unwrap()))
+    }
+
+    #[inline]
+    fn write<const BITS: u32, W: BitWrite + ?Sized>(self, writer: &mut W) -> io::Result<()> {
+        IntoIterator::into_iter(self).try_for_each(|v| writer.write::<BITS, I>(v))
+    }
+
+    #[inline]
+    fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
+        self,
+        writer: &mut W,
+        count: BitCount<MAX>,
+    ) -> io::Result<()> {
+        IntoIterator::into_iter(self).try_for_each(|v| writer.write_counted(count, v))
+    }
+}
+
 /// This trait extends many common integer types (both unsigned and signed)
 /// with a few trivial methods so that they can be used
 /// with the bitstream handling traits.
