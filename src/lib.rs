@@ -376,22 +376,20 @@ impl Integer for bool {
     }
 }
 
-impl<const SIZE: usize, I: Integer> Integer for [I; SIZE] {
+impl<const SIZE: usize, I: Integer + Copy + Default> Integer for [I; SIZE] {
     #[inline]
     fn read<const BITS: u32, R: BitRead + ?Sized>(reader: &mut R) -> io::Result<Self>
     where
         Self: Sized,
     {
-        // could use MaybeUninit here, but bringing in unsafe
-        // for a minor implementation seems like overkill
+        let mut a = [I::default(); SIZE];
 
-        let mut a = [const { None }; SIZE];
-        a.iter_mut()
-            .try_for_each(|v| {
-                *v = reader.read::<BITS, I>().map(Some)?;
-                Ok::<(), io::Error>(())
-            })
-            .map(|()| a.map(|v| v.unwrap()))
+        a.iter_mut().try_for_each(|v| {
+            *v = reader.read::<BITS, I>()?;
+            Ok::<(), io::Error>(())
+        })?;
+
+        Ok(a)
     }
 
     #[inline]
@@ -400,16 +398,14 @@ impl<const SIZE: usize, I: Integer> Integer for [I; SIZE] {
         R: BitRead + ?Sized,
         Self: Sized,
     {
-        // could use MaybeUninit here, but bringing in unsafe
-        // for a minor implementation seems like overkill
+        let mut a = [I::default(); SIZE];
 
-        let mut a = [const { None }; SIZE];
-        a.iter_mut()
-            .try_for_each(|v| {
-                *v = reader.read_counted(count).map(Some)?;
-                Ok::<(), io::Error>(())
-            })
-            .map(|()| a.map(|v| v.unwrap()))
+        a.iter_mut().try_for_each(|v| {
+            *v = reader.read_counted(count)?;
+            Ok::<(), io::Error>(())
+        })?;
+
+        Ok(a)
     }
 
     #[inline]
