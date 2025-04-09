@@ -965,15 +965,6 @@ pub trait Endianness: Sized {
         W: io::Write,
         U: UnsignedInteger;
 
-    /// For performing bulk writes of a constant value to a bit sink.
-    fn write_bits_const<const BITS: u32, const VALUE: u32, W>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-    ) -> io::Result<()>
-    where
-        W: io::Write;
-
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits_fixed<const BITS: u32, W, U>(
         writer: &mut W,
@@ -1584,36 +1575,6 @@ impl Endianness for BigEndian {
         }
     }
 
-    /// For performing bulk writes of a constant value to a bit sink.
-    fn write_bits_const<const BITS: u32, const VALUE: u32, W>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-    ) -> io::Result<()>
-    where
-        W: io::Write,
-    {
-        const {
-            assert!(BITS <= u32::BITS_SIZE, "excessive bits for type written");
-            assert!(
-                BITS == 0 || VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
-                "excessive value for bits written"
-            );
-        }
-
-        if BITS == 0 {
-            Ok(())
-        } else {
-            Self::write_bits_checked::<BITS, W, u32>(
-                writer,
-                queue_value,
-                queue_bits,
-                BitCount::new::<BITS>(),
-                VALUE,
-            )
-        }
-    }
-
     /// For performing bulk writes of a type to a bit sink.
     fn write_bits_fixed<const BITS: u32, W, U>(
         writer: &mut W,
@@ -2099,36 +2060,6 @@ impl Endianness for LittleEndian {
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
             ))
-        }
-    }
-
-    /// For performing bulk writes of a constant value to a bit sink.
-    fn write_bits_const<const BITS: u32, const VALUE: u32, W>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-    ) -> io::Result<()>
-    where
-        W: io::Write,
-    {
-        const {
-            assert!(BITS <= u32::BITS_SIZE, "excessive bits for type written");
-            assert!(
-                BITS == 0 || VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
-                "excessive value for bits written"
-            );
-        }
-
-        if BITS == 0 {
-            Ok(())
-        } else {
-            Self::write_bits_checked::<BITS, W, u32>(
-                writer,
-                queue_value,
-                queue_bits,
-                BitCount::new::<BITS>(),
-                VALUE,
-            )
         }
     }
 

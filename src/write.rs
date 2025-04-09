@@ -376,44 +376,6 @@ pub trait BitWrite {
         Integer::write::<BITS, Self>(value, self)
     }
 
-    /// Writes the given constant value to the stream with
-    /// the given number of bits.
-    ///
-    /// Due to current limitations of constant parameters,
-    /// this is limited to `u32` values.
-    ///
-    /// # Errors
-    ///
-    /// Passes along any I/O error from the underlying stream.
-    /// A compile-time error occurs if the number of bits is larger
-    /// than 32 or if the value is too large too fit the
-    /// requested number of bits.
-    /// ```
-    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
-    ///
-    /// let mut w = BitWriter::endian(vec![], BigEndian);
-    /// assert!(w.write_const::<4, 0b1000>().is_ok());
-    /// assert!(w.write_const::<4, 0b1011>().is_ok());
-    /// assert_eq!(w.into_writer(), &[0b1000_1011]);
-    /// ```
-    ///
-    /// ```rust,compile_fail
-    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
-    ///
-    /// let mut w = BitWriter::endian(vec![], BigEndian);
-    /// // trying to write a 5 bit value in 4 bits is a compile-time error
-    /// w.write_const::<4, 0b11111>();
-    /// ```
-    ///
-    /// ```rust,compile_fail
-    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
-    ///
-    /// let mut w = BitWriter::endian(vec![], BigEndian);
-    /// // trying to write a 33 bit value is also a compile-time error
-    /// w.write_const::<33, 1>();
-    /// ```
-    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()>;
-
     /// Writes a signed or unsigned value to the stream using the given
     /// number of bits.
     ///
@@ -822,6 +784,57 @@ pub trait BitWrite {
     ) -> io::Result<()>
     where
         S: SignedInteger;
+
+    /// Writes the given constant value to the stream with
+    /// the given number of bits.
+    ///
+    /// Due to current limitations of constant parameters,
+    /// this is limited to `u32` values.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// A compile-time error occurs if the number of bits is larger
+    /// than 32 or if the value is too large too fit the
+    /// requested number of bits.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// assert!(w.write_const::<4, 0b1000>().is_ok());
+    /// assert!(w.write_const::<4, 0b1011>().is_ok());
+    /// assert_eq!(w.into_writer(), &[0b1000_1011]);
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // trying to write a 5 bit value in 4 bits is a compile-time error
+    /// w.write_const::<4, 0b11111>();
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::{BitWriter, BitWrite, BigEndian};
+    ///
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// // trying to write a 33 bit value is also a compile-time error
+    /// w.write_const::<33, 1>();
+    /// ```
+    #[inline]
+    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
+        const {
+            assert!(
+                BITS == 0 || VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
+                "excessive value for bits written"
+            );
+        }
+
+        self.write::<BITS, u32>(VALUE)
+    }
 
     /// Writes whole value to the stream whose size in bits
     /// is equal to its type's size.
@@ -1642,17 +1655,6 @@ impl<W: BitWrite> BitWrite2 for W {
 }
 
 impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
-    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
-        let Self {
-            value,
-            bits,
-            writer,
-            ..
-        } = self;
-
-        E::write_bits_const::<BITS, VALUE, W>(writer, value, bits)
-    }
-
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
         match E::push_bit_flush(&mut self.value, &mut self.bits, bit) {
             None => Ok(()),

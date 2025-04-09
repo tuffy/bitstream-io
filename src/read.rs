@@ -637,6 +637,70 @@ pub trait BitRead {
     where
         S: SignedInteger;
 
+    /// Reads the given constant value from the stream with the
+    /// given number of bits.
+    ///
+    /// Due to current limitations of constant paramters,
+    /// this is limited to `u32` values.
+    ///
+    /// If the constant read from the stream doesn't match the expected
+    /// value, returns the generated error from the closure.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream,
+    /// converted to the mismatch error.  Returns the generated
+    /// error if the read value doesn't match the expected constant.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bitstream_io::{BitReader, BitRead, BigEndian};
+    ///
+    /// enum Error {
+    ///     Mismatch,
+    ///     Io,
+    /// }
+    ///
+    /// impl From<std::io::Error> for Error {
+    ///     fn from(_err: std::io::Error) -> Self {
+    ///         Self::Io
+    ///     }
+    /// }
+    ///
+    /// let data: &[u8] = &[0b1000_1011, 0b0000_0001];
+    /// let mut r = BitReader::endian(data, BigEndian);
+    /// assert!(r.read_const::<4, 0b1000, _>(|| Error::Mismatch).is_ok());
+    /// assert!(r.read_const::<4, 0b1011, _>(|| Error::Mismatch).is_ok());
+    /// // 0b1000 doesn't match 0b0000
+    /// assert!(matches!(r.read_const::<4, 0b1000, _>(|| Error::Mismatch), Err(Error::Mismatch)));
+    /// // 0b1011 doesn't match 0b0001
+    /// assert!(matches!(r.read_const::<4, 0b1011, _>(|| Error::Mismatch), Err(Error::Mismatch)));
+    /// // run out of bits to check
+    /// assert!(matches!(r.read_const::<4, 0b0000, _>(|| Error::Mismatch), Err(Error::Io)));
+    /// ```
+    #[inline]
+    fn read_const<const BITS: u32, const VALUE: u32, E>(
+        &mut self,
+        err: impl FnOnce() -> E,
+    ) -> Result<(), E>
+    where
+        E: From<io::Error>,
+    {
+        use super::Numeric;
+
+        const {
+            assert!(
+                BITS == 0 || VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
+                "excessive value for bits read"
+            );
+        }
+
+        (self.read::<BITS, u32>()? == VALUE)
+            .then_some(())
+            .ok_or_else(err)
+    }
+
     /// Reads whole value from the stream whose size in bits is equal
     /// to its type's size.
     ///
