@@ -670,20 +670,17 @@ pub trait BitRead {
     ///
     /// let data: &[u8] = &[0b1000_1011, 0b0000_0001];
     /// let mut r = BitReader::endian(data, BigEndian);
-    /// assert!(r.read_const::<4, 0b1000, _>(|| Error::Mismatch).is_ok());
-    /// assert!(r.read_const::<4, 0b1011, _>(|| Error::Mismatch).is_ok());
+    /// assert!(r.read_const::<4, 0b1000, _>(Error::Mismatch).is_ok());
+    /// assert!(r.read_const::<4, 0b1011, _>(Error::Mismatch).is_ok());
     /// // 0b1000 doesn't match 0b0000
-    /// assert!(matches!(r.read_const::<4, 0b1000, _>(|| Error::Mismatch), Err(Error::Mismatch)));
+    /// assert!(matches!(r.read_const::<4, 0b1000, _>(Error::Mismatch), Err(Error::Mismatch)));
     /// // 0b1011 doesn't match 0b0001
-    /// assert!(matches!(r.read_const::<4, 0b1011, _>(|| Error::Mismatch), Err(Error::Mismatch)));
+    /// assert!(matches!(r.read_const::<4, 0b1011, _>(Error::Mismatch), Err(Error::Mismatch)));
     /// // run out of bits to check
-    /// assert!(matches!(r.read_const::<4, 0b0000, _>(|| Error::Mismatch), Err(Error::Io)));
+    /// assert!(matches!(r.read_const::<4, 0b0000, _>(Error::Mismatch), Err(Error::Io)));
     /// ```
     #[inline]
-    fn read_const<const BITS: u32, const VALUE: u32, E>(
-        &mut self,
-        err: impl FnOnce() -> E,
-    ) -> Result<(), E>
+    fn read_const<const BITS: u32, const VALUE: u32, E>(&mut self, err: E) -> Result<(), E>
     where
         E: From<io::Error>,
     {
@@ -698,7 +695,7 @@ pub trait BitRead {
 
         (self.read::<BITS, u32>()? == VALUE)
             .then_some(())
-            .ok_or_else(err)
+            .ok_or(err)
     }
 
     /// Reads whole value from the stream whose size in bits is equal
