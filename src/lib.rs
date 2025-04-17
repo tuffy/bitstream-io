@@ -1233,9 +1233,6 @@ impl<const MAX: u32> core::convert::TryFrom<u32> for BitCount<MAX> {
 impl BitCount<{ u32::MAX }> {
     /// Builds a bit count where the maximum bits is unknown.
     ///
-    /// In this case, `u128::BITS_SIZE` is assumed,
-    /// because that's the largest type supported.
-    ///
     /// # Example
     /// ```
     /// use bitstream_io::BitCount;
