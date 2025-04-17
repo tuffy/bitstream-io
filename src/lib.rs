@@ -1067,9 +1067,8 @@ pub struct BitCount<const MAX: u32> {
 impl<const MAX: u32> BitCount<MAX> {
     /// The largest possible BitCount maximum value
     ///
-    /// This corresponds to the largest unsigned integer
-    /// type supported.
-    const MAX: u32 = u128::BITS_SIZE;
+    /// This corresponds to `u32::MAX`
+    const MAX: u32 = u32::MAX;
 
     /// Builds a bit count from a constant number
     /// of bits, which must not be greater than `MAX`
@@ -1099,16 +1098,8 @@ impl<const MAX: u32> BitCount<MAX> {
     /// // fails to compile at all
     /// let count = BitCount::<8>::new::<10>();
     /// ```
-    ///
-    /// ```rust,compile_fail
-    /// use bitstream_io::BitCount;
-    /// // trying to build a count of 10 with a maximum of 129
-    /// // fails to compile at all
-    /// let count = BitCount::<129>::new::<10>();
-    /// ```
     pub const fn new<const BITS: u32>() -> Self {
         const {
-            assert!(MAX <= BitCount::<BITS>::MAX, "MAX must be <= BitCount::MAX");
             assert!(BITS <= MAX, "BITS must be <= MAX");
         }
 
@@ -1133,23 +1124,8 @@ impl<const MAX: u32> BitCount<MAX> {
     /// // adding 2 to 1 without increasing the max yields None
     /// assert_eq!(count.checked_add::<2>(2), None);
     /// ```
-    ///
-    /// ```rust,compile_fail
-    /// use bitstream_io::BitCount;
-    ///
-    /// let count = BitCount::<2>::new::<1>();
-    /// // a new maximum of 129 is larger than our largest supported type
-    /// let count2 = count.checked_add::<129>(1);
-    /// ```
     #[inline]
     pub const fn checked_add<const NEW_MAX: u32>(self, bits: u32) -> Option<BitCount<NEW_MAX>> {
-        const {
-            assert!(
-                NEW_MAX <= BitCount::<NEW_MAX>::MAX,
-                "NEW_MAX must be <= BitCount::MAX"
-            );
-        }
-
         match self.bits.checked_add(bits) {
             Some(bits) if bits <= NEW_MAX => Some(BitCount { bits }),
             _ => None,
@@ -1178,13 +1154,6 @@ impl<const MAX: u32> BitCount<MAX> {
     /// ```
     #[inline]
     pub const fn checked_sub<const NEW_MAX: u32>(self, bits: u32) -> Option<Self> {
-        const {
-            assert!(
-                NEW_MAX <= BitCount::<NEW_MAX>::MAX,
-                "NEW_MAX must be <= BitCount::MAX"
-            );
-        }
-
         match self.bits.checked_sub(bits) {
             Some(bits) if bits <= NEW_MAX => Some(BitCount { bits }),
             _ => None,
@@ -1228,16 +1197,15 @@ impl<const MAX: u32> BitCount<MAX> {
     where
         F: FnOnce(u32) -> Option<u32>,
     {
-        const {
-            assert!(
-                NEW_MAX <= BitCount::<NEW_MAX>::MAX,
-                "NEW_MAX must be <= BitCount::MAX"
-            );
-        }
-
         f(self.bits)
             .filter(|bits| *bits <= NEW_MAX)
             .map(|bits| BitCount { bits })
+    }
+
+    /// Returns our maximum bit count
+    #[inline(always)]
+    pub const fn max(&self) -> u32 {
+        Self::MAX
     }
 }
 
@@ -1257,24 +1225,12 @@ impl<const MAX: u32> core::convert::TryFrom<u32> for BitCount<MAX> {
     /// assert_eq!(8u32.try_into(), Ok(BitCount::<8>::new::<8>()));
     /// assert_eq!(9u32.try_into(), Err::<BitCount<8>, _>(9));
     /// ```
-    ///
-    /// ```rust,compile_fail
-    /// use bitstream_io::BitCount;
-    /// use std::convert::TryInto;
-    ///
-    /// // largest bit count is 128
-    /// assert_eq!(129u32.try_into(), Err::<BitCount<129>, _>(129));
-    /// ```
     fn try_from(bits: u32) -> Result<Self, Self::Error> {
-        const {
-            assert!(MAX <= BitCount::<MAX>::MAX, "MAX must be <= BitCount::MAX");
-        }
-
         (bits <= MAX).then_some(Self { bits }).ok_or(bits)
     }
 }
 
-impl BitCount<{ u128::BITS_SIZE }> {
+impl BitCount<{ u32::MAX }> {
     /// Builds a bit count where the maximum bits is unknown.
     ///
     /// In this case, `u128::BITS_SIZE` is assumed,
@@ -1283,11 +1239,17 @@ impl BitCount<{ u128::BITS_SIZE }> {
     /// # Example
     /// ```
     /// use bitstream_io::BitCount;
-    /// assert_eq!(BitCount::unknown(5), BitCount::<128>::new::<5>());
+    /// assert_eq!(BitCount::unknown(5), BitCount::<{ u32::MAX }>::new::<5>());
     /// ```
     pub const fn unknown(bits: u32) -> Self {
         Self { bits }
     }
+}
+
+#[test]
+fn test_unknown_bitcount() {
+    let count = BitCount::unknown(u32::MAX);
+    assert!(u32::from(count) <= count.max());
 }
 
 impl<const MAX: u32> From<BitCount<MAX>> for u32 {
