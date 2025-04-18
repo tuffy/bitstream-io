@@ -1710,10 +1710,6 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     where
         S: SignedInteger,
     {
-        const {
-            assert!(BITS > 0, "signed writes need at least 1 bit for sign");
-            assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
-        }
         E::write_signed_fixed::<_, BITS, S>(self, value)
     }
 

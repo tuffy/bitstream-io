@@ -1629,10 +1629,6 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     where
         S: SignedInteger,
     {
-        const {
-            assert!(BITS > 0, "signed reads need at least 1 bit for sign");
-            assert!(BITS <= S::BITS_SIZE, "excessive bits for type read");
-        }
         E::read_signed_fixed::<_, BITS, S>(self)
     }
 

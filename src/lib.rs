@@ -977,13 +977,53 @@ pub trait Endianness: Sized {
         U: UnsignedInteger;
 
     /// Reads signed value from reader in this endianness
-    fn read_signed<const MAX: u32, R, S>(r: &mut R, bits: BitCount<MAX>) -> io::Result<S>
+    #[inline]
+    fn read_signed<const MAX: u32, R, S>(
+        r: &mut R,
+        count @ BitCount { bits }: BitCount<MAX>,
+    ) -> io::Result<S>
     where
         R: BitRead,
-        S: SignedInteger;
+        S: SignedInteger,
+    {
+        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+            Self::read_signed_counted(
+                r,
+                count.signed_count().ok_or(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "signed reads need at least 1 bit for sign",
+                ))?,
+            )
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
+        }
+    }
 
     /// Reads signed value from reader in this endianness
-    fn read_signed_fixed<R, const B: u32, S>(r: &mut R) -> io::Result<S>
+    #[inline]
+    fn read_signed_fixed<R, const BITS: u32, S>(r: &mut R) -> io::Result<S>
+    where
+        R: BitRead,
+        S: SignedInteger,
+    {
+        let count = const {
+            assert!(BITS <= S::BITS_SIZE, "excessive bits for type read");
+            let count = BitCount::<BITS>::new::<BITS>().signed_count();
+            assert!(count.is_some(), "signed reads need at least 1 bit for sign");
+            count.unwrap()
+        };
+
+        Self::read_signed_counted(r, count)
+    }
+
+    /// Reads signed value from reader in this endianness
+    fn read_signed_counted<const MAX: u32, R, S>(
+        r: &mut R,
+        bits: SignedBitCount<MAX>,
+    ) -> io::Result<S>
     where
         R: BitRead,
         S: SignedInteger;
@@ -991,15 +1031,55 @@ pub trait Endianness: Sized {
     /// Writes signed value to writer in this endianness
     fn write_signed<const MAX: u32, W, S>(
         w: &mut W,
-        bits: BitCount<MAX>,
+        count @ BitCount { bits }: BitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where
         W: BitWrite,
-        S: SignedInteger;
+        S: SignedInteger,
+    {
+        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+            Self::write_signed_counted(
+                w,
+                count.signed_count().ok_or(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "signed writes need at least 1 bit for sign",
+                ))?,
+                value,
+            )
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
+        }
+    }
 
     /// Writes signed value to writer in this endianness
-    fn write_signed_fixed<W, const B: u32, S>(w: &mut W, value: S) -> io::Result<()>
+    fn write_signed_fixed<W, const BITS: u32, S>(w: &mut W, value: S) -> io::Result<()>
+    where
+        W: BitWrite,
+        S: SignedInteger,
+    {
+        let count = const {
+            assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
+            let count = BitCount::<BITS>::new::<BITS>().signed_count();
+            assert!(
+                count.is_some(),
+                "signed writes need at least 1 bit for sign"
+            );
+            count.unwrap()
+        };
+
+        Self::write_signed_counted(w, count, value)
+    }
+
+    /// Writes signed value to writer in this endianness
+    fn write_signed_counted<const MAX: u32, W, S>(
+        w: &mut W,
+        bits: SignedBitCount<MAX>,
+        value: S,
+    ) -> io::Result<()>
     where
         W: BitWrite,
         S: SignedInteger;
@@ -1047,14 +1127,6 @@ where
 {
     writer.write_all(core::slice::from_ref(&byte))
 }
-
-// These "read_bits" and "write_bits" functions are
-// to be used by the endianness traits to fill in their closures
-// and build specialized reading and writing routines
-// that shift and consume bits in the proper directions.
-//
-// So while they have a lot of arguments, they're not intended
-// for public consumption.
 
 /// A number of bits to be consumed or written, with a known maximum
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
@@ -1207,6 +1279,18 @@ impl<const MAX: u32> BitCount<MAX> {
     pub const fn max(&self) -> u32 {
         Self::MAX
     }
+
+    /// Returns signed count if our bit count is greater than 0
+    #[inline(always)]
+    pub const fn signed_count(&self) -> Option<SignedBitCount<MAX>> {
+        match self.bits.checked_sub(1) {
+            Some(bits) => Some(SignedBitCount {
+                bits: self.bits,
+                unsigned: BitCount { bits },
+            }),
+            None => None,
+        }
+    }
 }
 
 impl<const MAX: u32> core::convert::TryFrom<u32> for BitCount<MAX> {
@@ -1254,6 +1338,15 @@ impl<const MAX: u32> From<BitCount<MAX>> for u32 {
     fn from(BitCount { bits }: BitCount<MAX>) -> u32 {
         bits
     }
+}
+
+/// A number of signed bits to be read or written, with a known maximum
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
+pub struct SignedBitCount<const MAX: u32> {
+    // the whole original bit count
+    bits: u32,
+    // a bit count with one bit removed for the sign
+    unsigned: BitCount<MAX>,
 }
 
 /// Big-endian, or most significant bits first
@@ -1624,97 +1717,41 @@ impl Endianness for BigEndian {
         }
     }
 
-    fn read_signed<const MAX: u32, R, S>(
+    fn read_signed_counted<const MAX: u32, R, S>(
         r: &mut R,
-        count @ BitCount { bits }: BitCount<MAX>,
+        SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
     ) -> io::Result<S>
     where
         R: BitRead,
         S: SignedInteger,
     {
-        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-            let is_negative = r.read_bit()?;
-            let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(
-                count.checked_sub::<MAX>(1).ok_or(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "signed reads need at least 1 bit for sign",
-                ))?,
-            )?;
-            Ok(if is_negative {
-                unsigned.as_negative(bits)
-            } else {
-                unsigned.as_non_negative()
-            })
+        let is_negative = r.read_bit()?;
+        let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(unsigned)?;
+        Ok(if is_negative {
+            unsigned.as_negative(bits)
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
+            unsigned.as_non_negative()
+        })
     }
 
-    fn read_signed_fixed<R, const B: u32, S>(r: &mut R) -> io::Result<S>
-    where
-        R: BitRead,
-        S: SignedInteger,
-    {
-        if B == S::BITS_SIZE {
-            r.read_to()
-        } else {
-            let is_negative = r.read_bit()?;
-            let unsigned = r.read_unsigned_var::<S::Unsigned>(B - 1)?;
-            Ok(if is_negative {
-                unsigned.as_negative_fixed::<B>()
-            } else {
-                unsigned.as_non_negative()
-            })
-        }
-    }
-
-    fn write_signed<const MAX: u32, W, S>(
+    fn write_signed_counted<const MAX: u32, W, S>(
         w: &mut W,
-        count @ BitCount { bits }: BitCount<MAX>,
+        SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where
         W: BitWrite,
         S: SignedInteger,
     {
-        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-            w.write_bit(value.is_negative())?;
-            w.write_unsigned_counted(
-                count.checked_sub::<MAX>(1).ok_or(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "signed writes need at least 1 bit for sign",
-                ))?,
-                if value.is_negative() {
-                    value.as_negative(bits)
-                } else {
-                    value.as_non_negative()
-                },
-            )
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            ))
-        }
-    }
-
-    fn write_signed_fixed<W, const B: u32, S>(w: &mut W, value: S) -> io::Result<()>
-    where
-        W: BitWrite,
-        S: SignedInteger,
-    {
-        if B == S::BITS_SIZE {
-            w.write_bytes(value.to_be_bytes().as_ref())
-        } else if value.is_negative() {
-            w.write_bit(true)
-                .and_then(|()| w.write_unsigned_var(B - 1, value.as_negative_fixed::<B>()))
-        } else {
-            w.write_bit(false)
-                .and_then(|()| w.write_unsigned_var(B - 1, value.as_non_negative()))
-        }
+        w.write_bit(value.is_negative())?;
+        w.write_unsigned_counted(
+            unsigned,
+            if value.is_negative() {
+                value.as_negative(bits)
+            } else {
+                value.as_non_negative()
+            },
+        )
     }
 
     #[inline]
@@ -2112,97 +2149,41 @@ impl Endianness for LittleEndian {
         }
     }
 
-    fn read_signed<const MAX: u32, R, S>(
+    fn read_signed_counted<const MAX: u32, R, S>(
         r: &mut R,
-        count @ BitCount { bits }: BitCount<MAX>,
+        SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
     ) -> io::Result<S>
     where
         R: BitRead,
         S: SignedInteger,
     {
-        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-            let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(
-                count.checked_sub::<MAX>(1).ok_or(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "signed reads need at least 1 bit for sign",
-                ))?,
-            )?;
-            let is_negative = r.read_bit()?;
-            Ok(if is_negative {
-                unsigned.as_negative(bits)
-            } else {
-                unsigned.as_non_negative()
-            })
+        let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(unsigned)?;
+        let is_negative = r.read_bit()?;
+        Ok(if is_negative {
+            unsigned.as_negative(bits)
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
+            unsigned.as_non_negative()
+        })
     }
 
-    fn read_signed_fixed<R, const B: u32, S>(r: &mut R) -> io::Result<S>
-    where
-        R: BitRead,
-        S: SignedInteger,
-    {
-        if B == S::BITS_SIZE {
-            r.read_to()
-        } else {
-            let unsigned = r.read_unsigned_var::<S::Unsigned>(B - 1)?;
-            let is_negative = r.read_bit()?;
-            Ok(if is_negative {
-                unsigned.as_negative_fixed::<B>()
-            } else {
-                unsigned.as_non_negative()
-            })
-        }
-    }
-
-    fn write_signed<const MAX: u32, W, S>(
+    fn write_signed_counted<const MAX: u32, W, S>(
         w: &mut W,
-        count @ BitCount { bits }: BitCount<MAX>,
+        SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where
         W: BitWrite,
         S: SignedInteger,
     {
-        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-            w.write_unsigned_counted(
-                count.checked_sub::<MAX>(1).ok_or(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "signed writes need at least 1 bit for sign",
-                ))?,
-                if value.is_negative() {
-                    value.as_negative(bits)
-                } else {
-                    value.as_non_negative()
-                },
-            )?;
-            w.write_bit(value.is_negative())
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            ))
-        }
-    }
-
-    fn write_signed_fixed<W, const B: u32, S>(w: &mut W, value: S) -> io::Result<()>
-    where
-        W: BitWrite,
-        S: SignedInteger,
-    {
-        if B == S::BITS_SIZE {
-            w.write_bytes(value.to_le_bytes().as_ref())
-        } else if value.is_negative() {
-            w.write_unsigned_var(B - 1, value.as_negative_fixed::<B>())
-                .and_then(|()| w.write_bit(true))
-        } else {
-            w.write_unsigned_var(B - 1, value.as_non_negative())
-                .and_then(|()| w.write_bit(false))
-        }
+        w.write_unsigned_counted(
+            unsigned,
+            if value.is_negative() {
+                value.as_negative(bits)
+            } else {
+                value.as_non_negative()
+            },
+        )?;
+        w.write_bit(value.is_negative())
     }
 
     #[inline]
