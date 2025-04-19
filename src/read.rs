@@ -178,8 +178,11 @@ use alloc::{vec, vec::Vec};
 use std::io;
 
 use super::{
-    BitCount, Endianness, Integer, PhantomData, Primitive, SignedInteger, UnsignedInteger,
+    BitCount, Endianness, Integer, PhantomData, Primitive, SignedBitCount, SignedInteger,
+    UnsignedInteger,
 };
+
+use core::convert::TryInto;
 
 /// A trait for anything that can read a variable number of
 /// potentially un-aligned values from an input stream
@@ -633,7 +636,10 @@ pub trait BitRead {
     /// // so we need to verify this at runtime
     /// assert_eq!(r.read_signed_counted::<64, i8>(BitCount::new::<4>()).unwrap(), -1);
     /// ```
-    fn read_signed_counted<const MAX: u32, S>(&mut self, bits: BitCount<MAX>) -> io::Result<S>
+    fn read_signed_counted<const MAX: u32, S>(
+        &mut self,
+        bits: impl TryInto<SignedBitCount<MAX>>,
+    ) -> io::Result<S>
     where
         S: SignedInteger;
 
@@ -1087,7 +1093,10 @@ impl<R: BitRead + ?Sized> BitRead for &mut R {
     }
 
     #[inline]
-    fn read_signed_counted<const MAX: u32, S>(&mut self, bits: BitCount<MAX>) -> io::Result<S>
+    fn read_signed_counted<const MAX: u32, S>(
+        &mut self,
+        bits: impl TryInto<SignedBitCount<MAX>>,
+    ) -> io::Result<S>
     where
         S: SignedInteger,
     {
@@ -1617,11 +1626,22 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     }
 
     #[inline(always)]
-    fn read_signed_counted<const BITS: u32, S>(&mut self, bits: BitCount<BITS>) -> io::Result<S>
+    fn read_signed_counted<const MAX: u32, S>(
+        &mut self,
+        bits: impl TryInto<SignedBitCount<MAX>>,
+    ) -> io::Result<S>
     where
         S: SignedInteger,
     {
-        E::read_signed(self, bits)
+        E::read_signed_counted(
+            self,
+            bits.try_into().map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "signed reads need at least 1 bit for sign",
+                )
+            })?,
+        )
     }
 
     #[inline]

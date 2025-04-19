@@ -1031,28 +1031,21 @@ pub trait Endianness: Sized {
     /// Writes signed value to writer in this endianness
     fn write_signed<const MAX: u32, W, S>(
         w: &mut W,
-        count @ BitCount { bits }: BitCount<MAX>,
+        count: BitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where
         W: BitWrite,
         S: SignedInteger,
     {
-        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-            Self::write_signed_counted(
-                w,
-                count.signed_count().ok_or(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "signed writes need at least 1 bit for sign",
-                ))?,
-                value,
-            )
-        } else {
-            Err(io::Error::new(
+        Self::write_signed_counted(
+            w,
+            count.signed_count().ok_or(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            ))
-        }
+                "signed writes need at least 1 bit for sign",
+            ))?,
+            value,
+        )
     }
 
     /// Writes signed value to writer in this endianness
@@ -1347,6 +1340,15 @@ pub struct SignedBitCount<const MAX: u32> {
     bits: u32,
     // a bit count with one bit removed for the sign
     unsigned: BitCount<MAX>,
+}
+
+impl<const MAX: u32> core::convert::TryFrom<BitCount<MAX>> for SignedBitCount<MAX> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(count: BitCount<MAX>) -> Result<Self, Self::Error> {
+        count.signed_count().ok_or(())
+    }
 }
 
 /// Big-endian, or most significant bits first
@@ -1717,6 +1719,7 @@ impl Endianness for BigEndian {
         }
     }
 
+    #[inline]
     fn read_signed_counted<const MAX: u32, R, S>(
         r: &mut R,
         SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
@@ -1725,13 +1728,20 @@ impl Endianness for BigEndian {
         R: BitRead,
         S: SignedInteger,
     {
-        let is_negative = r.read_bit()?;
-        let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(unsigned)?;
-        Ok(if is_negative {
-            unsigned.as_negative(bits)
+        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+            let is_negative = r.read_bit()?;
+            let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(unsigned)?;
+            Ok(if is_negative {
+                unsigned.as_negative(bits)
+            } else {
+                unsigned.as_non_negative()
+            })
         } else {
-            unsigned.as_non_negative()
-        })
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
+        }
     }
 
     fn write_signed_counted<const MAX: u32, W, S>(
@@ -1743,15 +1753,22 @@ impl Endianness for BigEndian {
         W: BitWrite,
         S: SignedInteger,
     {
-        w.write_bit(value.is_negative())?;
-        w.write_unsigned_counted(
-            unsigned,
-            if value.is_negative() {
-                value.as_negative(bits)
-            } else {
-                value.as_non_negative()
-            },
-        )
+        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+            w.write_bit(value.is_negative())?;
+            w.write_unsigned_counted(
+                unsigned,
+                if value.is_negative() {
+                    value.as_negative(bits)
+                } else {
+                    value.as_non_negative()
+                },
+            )
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
+        }
     }
 
     #[inline]
@@ -2149,6 +2166,7 @@ impl Endianness for LittleEndian {
         }
     }
 
+    #[inline]
     fn read_signed_counted<const MAX: u32, R, S>(
         r: &mut R,
         SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
@@ -2157,13 +2175,20 @@ impl Endianness for LittleEndian {
         R: BitRead,
         S: SignedInteger,
     {
-        let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(unsigned)?;
-        let is_negative = r.read_bit()?;
-        Ok(if is_negative {
-            unsigned.as_negative(bits)
+        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+            let unsigned = r.read_unsigned_counted::<MAX, S::Unsigned>(unsigned)?;
+            let is_negative = r.read_bit()?;
+            Ok(if is_negative {
+                unsigned.as_negative(bits)
+            } else {
+                unsigned.as_non_negative()
+            })
         } else {
-            unsigned.as_non_negative()
-        })
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
+        }
     }
 
     fn write_signed_counted<const MAX: u32, W, S>(
@@ -2175,15 +2200,22 @@ impl Endianness for LittleEndian {
         W: BitWrite,
         S: SignedInteger,
     {
-        w.write_unsigned_counted(
-            unsigned,
-            if value.is_negative() {
-                value.as_negative(bits)
-            } else {
-                value.as_non_negative()
-            },
-        )?;
-        w.write_bit(value.is_negative())
+        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+            w.write_unsigned_counted(
+                unsigned,
+                if value.is_negative() {
+                    value.as_negative(bits)
+                } else {
+                    value.as_non_negative()
+                },
+            )?;
+            w.write_bit(value.is_negative())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
+        }
     }
 
     #[inline]

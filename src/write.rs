@@ -176,7 +176,8 @@ use core::{
 use std::io;
 
 use super::{
-    BitCount, Endianness, Integer, Numeric, PhantomData, Primitive, SignedInteger, UnsignedInteger,
+    BitCount, Endianness, Integer, Numeric, PhantomData, Primitive, SignedBitCount, SignedInteger,
+    UnsignedInteger,
 };
 
 /// For writing bit values to an underlying stream in a given endianness.
@@ -779,7 +780,7 @@ pub trait BitWrite {
     /// ```
     fn write_signed_counted<const MAX: u32, S>(
         &mut self,
-        bits: BitCount<MAX>,
+        bits: impl TryInto<SignedBitCount<MAX>>,
         value: S,
     ) -> io::Result<()>
     where
@@ -1200,7 +1201,7 @@ impl<W: BitWrite + ?Sized> BitWrite for &mut W {
     #[inline]
     fn write_signed_counted<const MAX: u32, S>(
         &mut self,
-        bits: BitCount<MAX>,
+        bits: impl TryInto<SignedBitCount<MAX>>,
         value: S,
     ) -> io::Result<()>
     where
@@ -1696,13 +1697,22 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     #[inline(always)]
     fn write_signed_counted<const BITS: u32, S>(
         &mut self,
-        bits: BitCount<BITS>,
+        bits: impl TryInto<SignedBitCount<BITS>>,
         value: S,
     ) -> io::Result<()>
     where
         S: SignedInteger,
     {
-        E::write_signed::<BITS, _, _>(self, bits, value)
+        E::write_signed_counted(
+            self,
+            bits.try_into().map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "signed writes need at least 1 bit for sign",
+                )
+            })?,
+            value,
+        )
     }
 
     #[inline]
@@ -1985,13 +1995,22 @@ where
     #[inline(always)]
     fn write_signed_counted<const BITS: u32, S>(
         &mut self,
-        bits: BitCount<BITS>,
+        bits: impl TryInto<SignedBitCount<BITS>>,
         value: S,
     ) -> io::Result<()>
     where
         S: SignedInteger,
     {
-        E::write_signed::<BITS, _, _>(self, bits, value)
+        E::write_signed_counted(
+            self,
+            bits.try_into().map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "signed writes need at least 1 bit for sign",
+                )
+            })?,
+            value,
+        )
     }
 
     #[inline]
@@ -2263,12 +2282,18 @@ where
     #[inline]
     fn write_signed_counted<const BITS: u32, S>(
         &mut self,
-        bits: BitCount<BITS>,
+        bits: impl TryInto<SignedBitCount<BITS>>,
         value: S,
     ) -> io::Result<()>
     where
         S: SignedInteger,
     {
+        let bits = bits.try_into().map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "signed writes need at least 1 bit for sign",
+            )
+        })?;
         self.counter.write_signed_counted(bits, value)?;
         self.records.push(WriteRecord::Signed {
             bits: bits.bits,
