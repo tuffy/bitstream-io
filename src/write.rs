@@ -2296,7 +2296,7 @@ where
         })?;
         self.counter.write_signed_counted(bits, value)?;
         self.records.push(WriteRecord::Signed {
-            bits: bits.bits,
+            bits: bits.bits.into(),
             value: value.into(),
         });
         Ok(())

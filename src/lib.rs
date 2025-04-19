@@ -1130,14 +1130,8 @@ pub struct BitCount<const MAX: u32> {
 }
 
 impl<const MAX: u32> BitCount<MAX> {
-    /// The largest possible BitCount maximum value
-    ///
-    /// This corresponds to `u32::MAX`
-    const MAX: u32 = u32::MAX;
-
     /// Builds a bit count from a constant number
-    /// of bits, which must not be greater than `MAX`
-    /// or greater than the largest supported type.
+    /// of bits, which must not be greater than `MAX`.
     ///
     /// Intended to be used for defining constants.
     ///
@@ -1175,8 +1169,6 @@ impl<const MAX: u32> BitCount<MAX> {
     /// returning a new count with a new maximum.
     ///
     /// Returns `None` if the new count goes above our new maximum.
-    /// A compile-time error occurs if `NEW_MAX` is larger than
-    /// the largest supported type.
     ///
     /// # Examples
     ///
@@ -1202,8 +1194,6 @@ impl<const MAX: u32> BitCount<MAX> {
     ///
     /// Returns `None` if the new count goes below 0
     /// or below our new maximum.
-    /// A compile-time error occurs if `NEW_MAX` is larger
-    /// than the largest supported type.
     ///
     /// # Example
     /// ```
@@ -1218,7 +1208,7 @@ impl<const MAX: u32> BitCount<MAX> {
     /// assert!(count.checked_sub::<3>(1).is_none());
     /// ```
     #[inline]
-    pub const fn checked_sub<const NEW_MAX: u32>(self, bits: u32) -> Option<Self> {
+    pub const fn checked_sub<const NEW_MAX: u32>(self, bits: u32) -> Option<BitCount<NEW_MAX>> {
         match self.bits.checked_sub(bits) {
             Some(bits) if bits <= NEW_MAX => Some(BitCount { bits }),
             _ => None,
@@ -1232,10 +1222,6 @@ impl<const MAX: u32> BitCount<MAX> {
     /// is less than or equal to the new maximum.
     /// Returns `None` if not.
     ///
-    /// A compile-time error occurs if one tries to
-    /// use a maximum bit count larger than the largest
-    /// supported type.
-    ///
     /// # Examples
     /// ```
     /// use bitstream_io::BitCount;
@@ -1246,16 +1232,9 @@ impl<const MAX: u32> BitCount<MAX> {
     ///     count.try_map::<10, _>(|i| i.checked_mul(2)),
     ///     Some(BitCount::<10>::new::<10>()),
     /// );
+    ///
     /// // multiplying 5 bits by 3 with a new max of 10 overflows
     /// assert_eq!(count.try_map::<10, _>(|i| i.checked_mul(3)), None);
-    /// ```
-    ///
-    /// ```rust,compile_fail
-    /// use bitstream_io::BitCount;
-    ///
-    /// // 129 bits is larger than the largest supported type
-    /// let count = BitCount::<5>::new::<5>();
-    /// let new_count = count.try_map::<129, _>(|i| i).unwrap();
     /// ```
     #[inline]
     pub fn try_map<const NEW_MAX: u32, F>(self, f: F) -> Option<BitCount<NEW_MAX>>
@@ -1268,17 +1247,37 @@ impl<const MAX: u32> BitCount<MAX> {
     }
 
     /// Returns our maximum bit count
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::BitCount;
+    ///
+    /// let count = BitCount::<10>::new::<5>();
+    /// assert_eq!(count.max(), 10);
+    /// ```
     #[inline(always)]
     pub const fn max(&self) -> u32 {
-        Self::MAX
+        MAX
     }
 
     /// Returns signed count if our bit count is greater than 0
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::{BitCount, SignedBitCount};
+    ///
+    /// let count = BitCount::<10>::new::<5>();
+    /// assert_eq!(count.signed_count(), Some(SignedBitCount::<10>::new::<5>()));
+    ///
+    /// let count = BitCount::<10>::new::<0>();
+    /// assert_eq!(count.signed_count(), None);
+    /// ```
     #[inline(always)]
     pub const fn signed_count(&self) -> Option<SignedBitCount<MAX>> {
         match self.bits.checked_sub(1) {
             Some(bits) => Some(SignedBitCount {
-                bits: self.bits,
+                bits: *self,
                 unsigned: BitCount { bits },
             }),
             None => None,
@@ -1337,9 +1336,190 @@ impl<const MAX: u32> From<BitCount<MAX>> for u32 {
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct SignedBitCount<const MAX: u32> {
     // the whole original bit count
-    bits: u32,
+    bits: BitCount<MAX>,
     // a bit count with one bit removed for the sign
     unsigned: BitCount<MAX>,
+}
+
+impl<const MAX: u32> SignedBitCount<MAX> {
+    /// Builds a signed bit count from a constant number
+    /// of bits, which must be greater than 0 and
+    /// not be greater than `MAX`.
+    ///
+    /// Intended to be used for defining constants.
+    ///
+    /// Use `TryFrom` to conditionally build
+    /// counts from values at runtime.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bitstream_io::{BitReader, BitRead, BigEndian, SignedBitCount};
+    /// let data: &[u8] = &[0b111_00000];
+    /// let mut r = BitReader::endian(data, BigEndian);
+    /// // reading 3 bits from a stream out of a maximum of 8
+    /// // doesn't require checking that the bit count is larger
+    /// // than a u8 at runtime because specifying the maximum of 8
+    /// // guarantees our bit count will not be larger than 8
+    /// assert_eq!(r.read_signed_counted::<8, i8>(SignedBitCount::new::<3>()).unwrap(), -1);
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::SignedBitCount;
+    /// // trying to build a count of 10 with a maximum of 8
+    /// // fails to compile at all
+    /// let count = SignedBitCount::<8>::new::<10>();
+    /// ```
+    ///
+    /// ```rust,compile_fail
+    /// use bitstream_io::SignedBitCount;
+    /// // trying to build a count of 0 also fails to compile
+    /// let count = SignedBitCount::<8>::new::<0>();
+    /// ```
+    pub const fn new<const BITS: u32>() -> Self {
+        const {
+            assert!(BITS > 0, "BITS must be > 0");
+        }
+
+        Self {
+            bits: BitCount::new::<BITS>(),
+            unsigned: BitCount { bits: BITS - 1 },
+        }
+    }
+
+    /// Add a number of bits to our count,
+    /// returning a new count with a new maximum.
+    ///
+    /// Returns `None` if the new count goes above our new maximum.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bitstream_io::SignedBitCount;
+    ///
+    /// let count = SignedBitCount::<2>::new::<1>();
+    /// // adding 2 to 1 and increasing the max to 3 yields a new count of 3
+    /// assert_eq!(count.checked_add::<3>(2), Some(SignedBitCount::<3>::new::<3>()));
+    /// // adding 2 to 1 without increasing the max yields None
+    /// assert_eq!(count.checked_add::<2>(2), None);
+    /// ```
+    #[inline]
+    pub const fn checked_add<const NEW_MAX: u32>(
+        self,
+        bits: u32,
+    ) -> Option<SignedBitCount<NEW_MAX>> {
+        match self.bits.checked_add(bits) {
+            Some(bits_new) => match self.unsigned.checked_add(bits) {
+                Some(unsigned) => Some(SignedBitCount {
+                    bits: bits_new,
+                    unsigned,
+                }),
+                None => None,
+            },
+            None => None,
+        }
+    }
+
+    /// Subtracts a number of bits from our count,
+    /// returning a new count with a new maximum.
+    ///
+    /// Returns `None` if the new count goes below 1
+    /// or below our new maximum.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::SignedBitCount;
+    /// let count = SignedBitCount::<5>::new::<5>();
+    /// // subtracting 1 from 5 yields a new count of 4
+    /// assert_eq!(count.checked_sub::<5>(1), Some(SignedBitCount::<5>::new::<4>()));
+    /// // subtracting 6 from 5 yields None
+    /// assert!(count.checked_sub::<5>(6).is_none());
+    /// // subtracting 1 with a new maximum of 3 also yields None
+    /// // because 4 is larger than the maximum of 3
+    /// assert!(count.checked_sub::<3>(1).is_none());
+    /// // subtracting 5 from 5 also yields None
+    /// // because SignedBitCount always requires 1 bit for the sign
+    /// assert!(count.checked_sub::<5>(5).is_none());
+    /// ```
+    #[inline]
+    pub const fn checked_sub<const NEW_MAX: u32>(
+        self,
+        bits: u32,
+    ) -> Option<SignedBitCount<NEW_MAX>> {
+        match self.bits.checked_sub(bits) {
+            Some(bits_new) => match self.unsigned.checked_sub(bits) {
+                Some(unsigned) => Some(SignedBitCount {
+                    bits: bits_new,
+                    unsigned,
+                }),
+                None => None,
+            },
+            None => None,
+        }
+    }
+
+    /// Attempt to convert our count to a count with a new
+    /// bit count and new maximum.
+    ///
+    /// Returns `Some(count)` if the updated number of bits
+    /// is less than or equal to the new maximum
+    /// and greater than 0.
+    /// Returns `None` if not.
+    ///
+    /// # Examples
+    /// ```
+    /// use bitstream_io::SignedBitCount;
+    ///
+    /// let count = SignedBitCount::<5>::new::<5>();
+    /// // muliplying 5 bits by 2 with a new max of 10 is ok
+    /// assert_eq!(
+    ///     count.try_map::<10, _>(|i| i.checked_mul(2)),
+    ///     Some(SignedBitCount::<10>::new::<10>()),
+    /// );
+    ///
+    /// // multiplying 5 bits by 3 with a new max of 10 overflows
+    /// assert_eq!(count.try_map::<10, _>(|i| i.checked_mul(3)), None);
+    ///
+    /// // multiplying 5 bits by 0 results in 0 bits,
+    /// // which isn't value for a SignedBitCount
+    /// assert_eq!(count.try_map::<10, _>(|i| Some(i * 0)), None);
+    /// ```
+    #[inline]
+    pub fn try_map<const NEW_MAX: u32, F>(self, f: F) -> Option<SignedBitCount<NEW_MAX>>
+    where
+        F: FnOnce(u32) -> Option<u32>,
+    {
+        self.bits.try_map(f).and_then(|b| b.signed_count())
+    }
+
+    /// Returns our maximum bit count
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::SignedBitCount;
+    ///
+    /// let count = SignedBitCount::<10>::new::<5>();
+    /// assert_eq!(count.max(), 10);
+    /// ```
+    #[inline(always)]
+    pub const fn max(&self) -> u32 {
+        MAX
+    }
+
+    /// Returns regular unsigned bit count
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::{BitCount, SignedBitCount};
+    ///
+    /// let signed_count = SignedBitCount::<10>::new::<5>();
+    /// assert_eq!(signed_count.count(), BitCount::<10>::new::<5>());
+    /// ```
+    #[inline(always)]
+    pub const fn count(&self) -> BitCount<MAX> {
+        self.bits
+    }
 }
 
 impl<const MAX: u32> core::convert::TryFrom<BitCount<MAX>> for SignedBitCount<MAX> {
@@ -1348,6 +1528,15 @@ impl<const MAX: u32> core::convert::TryFrom<BitCount<MAX>> for SignedBitCount<MA
     #[inline]
     fn try_from(count: BitCount<MAX>) -> Result<Self, Self::Error> {
         count.signed_count().ok_or(())
+    }
+}
+
+impl<const MAX: u32> core::convert::TryFrom<u32> for SignedBitCount<MAX> {
+    type Error = u32;
+
+    #[inline]
+    fn try_from(count: u32) -> Result<Self, Self::Error> {
+        BitCount::<MAX>::try_from(count).and_then(|b| b.signed_count().ok_or(count))
     }
 }
 
@@ -1722,7 +1911,10 @@ impl Endianness for BigEndian {
     #[inline]
     fn read_signed_counted<const MAX: u32, R, S>(
         r: &mut R,
-        SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
+        SignedBitCount {
+            bits: BitCount { bits },
+            unsigned,
+        }: SignedBitCount<MAX>,
     ) -> io::Result<S>
     where
         R: BitRead,
@@ -1746,7 +1938,10 @@ impl Endianness for BigEndian {
 
     fn write_signed_counted<const MAX: u32, W, S>(
         w: &mut W,
-        SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
+        SignedBitCount {
+            bits: BitCount { bits },
+            unsigned,
+        }: SignedBitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where
@@ -2169,7 +2364,10 @@ impl Endianness for LittleEndian {
     #[inline]
     fn read_signed_counted<const MAX: u32, R, S>(
         r: &mut R,
-        SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
+        SignedBitCount {
+            bits: BitCount { bits },
+            unsigned,
+        }: SignedBitCount<MAX>,
     ) -> io::Result<S>
     where
         R: BitRead,
@@ -2193,7 +2391,10 @@ impl Endianness for LittleEndian {
 
     fn write_signed_counted<const MAX: u32, W, S>(
         w: &mut W,
-        SignedBitCount { bits, unsigned }: SignedBitCount<MAX>,
+        SignedBitCount {
+            bits: BitCount { bits },
+            unsigned,
+        }: SignedBitCount<MAX>,
         value: S,
     ) -> io::Result<()>
     where
