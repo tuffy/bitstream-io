@@ -1122,6 +1122,68 @@ where
 }
 
 /// A number of bits to be consumed or written, with a known maximum
+///
+/// Although [`BitRead::read`] and [`BitWrite::write`] should be
+/// preferred when the number of bits is fixed and known at compile-time -
+/// because they can validate the bit count is less than or equal
+/// to the type's size in bits at compile-time -
+/// there are many instances where bit count is dynamic and
+/// determined by the file format itself.
+/// But when using [`BitRead::read_var`] or [`BitWrite::write_var`]
+/// we must pessimistically assume any number of bits as an argument
+/// and validate that the number of bits is not larger than the
+/// type being read or written on every call.
+///
+/// ```
+/// use bitstream_io::{BitRead, BitReader, BigEndian};
+///
+/// let data: &[u8] = &[0b100_0001_1, 0b111_0110_0];
+/// let mut r = BitReader::endian(data, BigEndian);
+/// // our bit count is a 3 bit value
+/// let count = r.read::<3, u32>().unwrap();
+/// // that count indicates we need to read 4 bits (0b100)
+/// assert_eq!(count, 4);
+/// // read the first 4-bit value
+/// assert_eq!(r.read_var::<u8>(count).unwrap(), 0b0001);
+/// // read the second 4-bit value
+/// assert_eq!(r.read_var::<u8>(count).unwrap(), 0b1111);
+/// // read the third 4-bit value
+/// assert_eq!(r.read_var::<u8>(count).unwrap(), 0b0110);
+/// ```
+///
+/// In the preceding example, even though we know `count` is a
+/// 3 bit value whose maximum value will never be greater than 7,
+/// the subsequent `read_var` calls have no way to know that.
+/// They must assume `count` could be 9, or `u32::MAX` or any other `u32` value
+/// and validate the count is not larger than the `u8` types we're reading.
+///
+/// But we can convert our example to use the `BitCount` type:
+///
+/// ```
+/// use bitstream_io::{BitRead, BitReader, BigEndian, BitCount};
+///
+/// let data: &[u8] = &[0b100_0001_1, 0b111_0110_0];
+/// let mut r = BitReader::endian(data, BigEndian);
+/// // our bit count is a 3 bit value with a maximum value of 7
+/// let count = r.read_count::<0b111>().unwrap();
+/// // that count indicates we need to read 4 bits (0b100)
+/// assert_eq!(count, BitCount::<7>::new::<4>());
+/// // read the first 4-bit value
+/// assert_eq!(r.read_counted::<7, u8>(count).unwrap(), 0b0001);
+/// // read the second 4-bit value
+/// assert_eq!(r.read_counted::<7, u8>(count).unwrap(), 0b1111);
+/// // read the third 4-bit value
+/// assert_eq!(r.read_counted::<7, u8>(count).unwrap(), 0b0110);
+/// ```
+///
+/// Because the [`BitRead::read_counted`] methods know at compile-time
+/// that the bit count will be larger than 7, that check can be eliminated
+/// simply by taking advantage of information we already know.
+///
+/// Leveraging the `BitCount` type also allows us to reason about
+/// bit counts in a more formal way, and use checked permutation methods
+/// to modify them while ensuring they remain constrained by
+/// the file format's requirements.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct BitCount<const MAX: u32> {
     // The amount of bits may be less than or equal to the maximum,
@@ -1332,7 +1394,67 @@ impl<const MAX: u32> From<BitCount<MAX>> for u32 {
     }
 }
 
-/// A number of signed bits to be read or written, with a known maximum
+/// A number of bits to be read or written for signed integers, with a known maximum
+///
+/// This is closely related to the [`BitCount`] type, but further constrained
+/// to have a minimum value of 1 - because signed values require at least
+/// 1 bit for the sign.
+///
+/// Let's start with a basic example:
+///
+/// ```
+/// use bitstream_io::{BitRead, BitReader, BigEndian};
+///
+/// let data: &[u8] = &[0b100_0001_1, 0b111_0110_0];
+/// let mut r = BitReader::endian(data, BigEndian);
+/// // our bit count is a 3 bit value
+/// let count = r.read::<3, u32>().unwrap();
+/// // that count indicates we need to read 4 bits (0b100)
+/// assert_eq!(count, 4);
+/// // read the first 4-bit signed value
+/// assert_eq!(r.read_var::<i8>(count).unwrap(), 1);
+/// // read the second 4-bit signed value
+/// assert_eq!(r.read_var::<i8>(count).unwrap(), -1);
+/// // read the third 4-bit signed value
+/// assert_eq!(r.read_var::<i8>(count).unwrap(), 6);
+/// ```
+///
+/// In the preceding example, even though we know `count` is a
+/// 3 bit value whose maximum value will never be greater than 7,
+/// the subsequent `read_var` calls have no way to know that.
+/// They must assume `count` could be 9, or `u32::MAX` or any other `u32` value
+/// and validate the count is not larger than the `i8` types we're reading
+/// while also greater than 0 because `i8` requires a sign bit.
+///
+/// But we can convert our example to use the `SignedBitCount` type:
+/// ```
+/// use bitstream_io::{BitRead, BitReader, BigEndian, SignedBitCount};
+///
+/// let data: &[u8] = &[0b100_0001_1, 0b111_0110_0];
+/// let mut r = BitReader::endian(data, BigEndian);
+/// // our bit count is a 3 bit value with a maximum value of 7
+/// let count = r.read_count::<0b111>().unwrap();
+/// // convert that count to a signed bit count,
+/// // which guarantees its value is greater than 0
+/// let count = count.signed_count().unwrap();
+/// // that count indicates we need to read 4 bits (0b100)
+/// assert_eq!(count, SignedBitCount::<7>::new::<4>());
+/// // read the first 4-bit value
+/// assert_eq!(r.read_signed_counted::<7, i8>(count).unwrap(), 1);
+/// // read the second 4-bit value
+/// assert_eq!(r.read_signed_counted::<7, i8>(count).unwrap(), -1);
+/// // read the third 4-bit value
+/// assert_eq!(r.read_signed_counted::<7, i8>(count).unwrap(), 6);
+/// ```
+///
+/// Because the [`BitRead::read_signed_counted`] methods know at compile-time
+/// that the bit count will be larger than 7, that check can be eliminated
+/// simply by taking advantage of information we already know.
+///
+/// Leveraging the `SignedBitCount` type also allows us to reason about
+/// bit counts in a more formal way, and use checked permutation methods
+/// to modify them while ensuring they remain constrained by
+/// the file format's requirements.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct SignedBitCount<const MAX: u32> {
     // the whole original bit count
@@ -1542,7 +1664,12 @@ impl<const MAX: u32> core::convert::TryFrom<u32> for SignedBitCount<MAX> {
 
 impl<const MAX: u32> From<SignedBitCount<MAX>> for u32 {
     #[inline(always)]
-    fn from(SignedBitCount { bits: BitCount { bits }, ..}: SignedBitCount<MAX>) -> u32 {
+    fn from(
+        SignedBitCount {
+            bits: BitCount { bits },
+            ..
+        }: SignedBitCount<MAX>,
+    ) -> u32 {
         bits
     }
 }
