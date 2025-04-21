@@ -1540,6 +1540,13 @@ impl<const MAX: u32> core::convert::TryFrom<u32> for SignedBitCount<MAX> {
     }
 }
 
+impl<const MAX: u32> From<SignedBitCount<MAX>> for u32 {
+    #[inline(always)]
+    fn from(SignedBitCount { bits: BitCount { bits }, ..}: SignedBitCount<MAX>) -> u32 {
+        bits
+    }
+}
+
 /// Big-endian, or most significant bits first
 #[derive(Copy, Clone, Debug)]
 pub struct BigEndian;
