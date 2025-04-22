@@ -1861,31 +1861,27 @@ define_counter!(u128);
 ///
 /// # Example
 /// ```
-/// use bitstream_io::{BigEndian, BitWrite, BitCounter};
-/// let mut writer: BitCounter<u32, BigEndian> = BitCounter::new();
+/// use bitstream_io::{BitWrite, BitCounter};
+/// let mut writer: BitCounter<u32> = BitCounter::new();
 /// writer.write_var(1, 0b1u8).unwrap();
 /// writer.write_var(2, 0b01u8).unwrap();
 /// writer.write_var(5, 0b10111u8).unwrap();
 /// assert_eq!(writer.written(), 8);
 /// ```
 #[derive(Default)]
-pub struct BitCounter<N, E: Endianness> {
+pub struct BitCounter<N> {
     bits: N,
-    phantom: PhantomData<E>,
 }
 
-impl<N: Default, E: Endianness> BitCounter<N, E> {
+impl<N: Default> BitCounter<N> {
     /// Creates new counter
     #[inline]
     pub fn new() -> Self {
-        BitCounter {
-            bits: N::default(),
-            phantom: PhantomData,
-        }
+        BitCounter { bits: N::default() }
     }
 }
 
-impl<N: Copy, E: Endianness> BitCounter<N, E> {
+impl<N: Copy> BitCounter<N> {
     /// Returns number of bits written
     #[inline]
     pub fn written(&self) -> N {
@@ -1893,7 +1889,7 @@ impl<N: Copy, E: Endianness> BitCounter<N, E> {
     }
 }
 
-impl<N, E: Endianness> BitCounter<N, E> {
+impl<N> BitCounter<N> {
     /// Returns number of bits written
     #[inline]
     pub fn into_written(self) -> N {
@@ -1901,139 +1897,122 @@ impl<N, E: Endianness> BitCounter<N, E> {
     }
 }
 
-impl<N, E> BitWrite for BitCounter<N, E>
-where
-    E: Endianness,
-    N: Counter,
-{
+impl<N: Counter> BitWrite for BitCounter<N> {
     #[inline]
     fn write_bit(&mut self, _bit: bool) -> io::Result<()> {
         self.bits.checked_add_assign(1u8.into())?;
         Ok(())
     }
 
-    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
-        const {
-            assert!(BITS <= u32::BITS_SIZE, "excessive bits for type written");
-            assert!(
-                VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
-                "excessive value for bits written"
-            );
-        }
-
-        self.bits
-            .checked_add_assign(BITS.try_into().map_err(|_| Overflowed)?)?;
-        Ok(())
-    }
-
-    fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
-    where
-        U: Numeric,
-    {
-        const {
-            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
-        }
-
-        if (BITS < U::BITS_SIZE) && (value >= (U::ONE << BITS)) {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive value for bits written",
-            ))
-        } else {
-            self.bits
-                .checked_add_assign(BITS.try_into().map_err(|_| Overflowed)?)?;
-            Ok(())
-        }
-    }
-
-    #[inline]
-    fn write_signed_var<S>(&mut self, bits: u32, value: S) -> io::Result<()>
-    where
-        S: SignedInteger,
-    {
-        self.write_signed_counted(BitCount::unknown(bits), value)
-    }
-
-    #[inline]
-    fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
-    where
-        S: SignedInteger,
-    {
-        const {
-            assert!(BITS > 0, "signed writes need at least 1 bit for sign");
-            assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
-        }
-        E::write_signed_fixed::<_, BITS, S>(self, value)
-    }
-
-    #[inline]
-    fn write_unsigned_counted<const BITS: u32, U>(
+    fn write_unsigned_counted<const MAX: u32, U>(
         &mut self,
-        BitCount { bits }: BitCount<BITS>,
+        BitCount { bits }: BitCount<MAX>,
         value: U,
     ) -> io::Result<()>
     where
-        U: Numeric,
+        U: UnsignedInteger,
     {
-        if bits > U::BITS_SIZE {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            if bits == 0 {
+                Ok(())
+            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
+                self.bits
+                    .checked_add_assign(bits.try_into().map_err(|_| Overflowed)?)?;
+                Ok(())
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "excessive value for bits written",
+                ))
+            }
+        } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type written",
             ))
-        } else if (bits < U::BITS_SIZE) && (value >= (U::ONE << bits)) {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive value for bits written",
-            ))
-        } else {
-            self.bits
-                .checked_add_assign(bits.try_into().map_err(|_| Overflowed)?)?;
-            Ok(())
         }
     }
 
-    #[inline(always)]
-    fn write_signed_counted<const BITS: u32, S>(
+    fn write_signed_counted<const MAX: u32, S>(
         &mut self,
-        bits: impl TryInto<SignedBitCount<BITS>>,
+        bits: impl TryInto<SignedBitCount<MAX>>,
         value: S,
     ) -> io::Result<()>
     where
         S: SignedInteger,
     {
-        E::write_signed_counted(
-            self,
-            bits.try_into().map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "signed writes need at least 1 bit for sign",
-                )
-            })?,
-            value,
-        )
+        let SignedBitCount {
+            bits: BitCount { bits },
+            unsigned,
+        } = bits.try_into().map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "signed writes need at least 1 bit for sign",
+            )
+        })?;
+
+        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+            // doesn't matter which side the sign is on
+            // so long as it's added to the bit count
+            self.bits.checked_add_assign(1u8.into())?;
+
+            self.write_unsigned_counted(
+                unsigned,
+                if value.is_negative() {
+                    value.as_negative(bits)
+                } else {
+                    value.as_non_negative()
+                },
+            )
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ))
+        }
     }
 
     #[inline]
-    fn write_from<V>(&mut self, value: V) -> io::Result<()>
+    fn write_from<V>(&mut self, _: V) -> io::Result<()>
     where
         V: Primitive,
     {
-        E::write_primitive(self, value)
+        self.bits.checked_add_assign(
+            N::try_from(core::mem::size_of::<V>())
+                .map_err(|_| Overflowed)?
+                .checked_mul(8u8.into())?,
+        )?;
+        Ok(())
     }
 
     #[inline]
-    fn write_as_from<F, V>(&mut self, value: V) -> io::Result<()>
+    fn write_as_from<F, V>(&mut self, _: V) -> io::Result<()>
     where
         F: Endianness,
         V: Primitive,
     {
-        F::write_primitive(self, value)
+        self.bits.checked_add_assign(
+            N::try_from(core::mem::size_of::<V>())
+                .map_err(|_| Overflowed)?
+                .checked_mul(8u8.into())?,
+        )?;
+        Ok(())
     }
 
     #[inline]
     fn pad(&mut self, bits: u32) -> io::Result<()> {
         self.bits
             .checked_add_assign(bits.try_into().map_err(|_| Overflowed)?)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.bits.checked_add_assign(
+            N::try_from(buf.len())
+                .map_err(|_| Overflowed)?
+                .checked_mul(8u8.into())?,
+        )?;
         Ok(())
     }
 
@@ -2045,16 +2024,6 @@ where
         self.bits
             .checked_add_assign(value.try_into().map_err(|_| Overflowed)?)?;
         self.bits.checked_add_assign(1u8.into())?;
-        Ok(())
-    }
-
-    #[inline]
-    fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.bits.checked_add_assign(
-            N::try_from(buf.len())
-                .map_err(|_| Overflowed)?
-                .checked_mul(8u8.into())?,
-        )?;
         Ok(())
     }
 
@@ -2176,8 +2145,9 @@ impl WriteRecord {
 /// ```
 #[derive(Default)]
 pub struct BitRecorder<N, E: Endianness> {
-    counter: BitCounter<N, E>,
+    counter: BitCounter<N>,
     records: Vec<WriteRecord>,
+    phantom: PhantomData<E>,
 }
 
 impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
@@ -2187,6 +2157,7 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
         BitRecorder {
             counter: BitCounter::new(),
             records: Vec::new(),
+            phantom: PhantomData,
         }
     }
 
@@ -2196,6 +2167,7 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
         BitRecorder {
             counter: BitCounter::new(),
             records: Vec::with_capacity(writes),
+            phantom: PhantomData,
         }
     }
 
@@ -2205,6 +2177,7 @@ impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
         BitRecorder {
             counter: BitCounter::new(),
             records: Vec::new(),
+            phantom: PhantomData,
         }
     }
 
@@ -2651,11 +2624,11 @@ pub trait ToBitStream {
         Self: Sized;
 
     /// Returns total length of self, if possible
-    fn bits_len<C: Counter, E: Endianness>(&self) -> Result<C, Self::Error>
+    fn bits_len<C: Counter>(&self) -> Result<C, Self::Error>
     where
         Self: Sized,
     {
-        let mut c: BitCounter<C, E> = BitCounter::new();
+        let mut c: BitCounter<C> = BitCounter::new();
         self.to_writer(&mut c)?;
         Ok(c.into_written())
     }
@@ -2680,11 +2653,11 @@ pub trait ToBitStreamWith<'a> {
         Self: Sized;
 
     /// Returns total length of self, if possible
-    fn bits_len<C: Counter, E: Endianness>(&self, context: &Self::Context) -> Result<C, Self::Error>
+    fn bits_len<C: Counter>(&self, context: &Self::Context) -> Result<C, Self::Error>
     where
         Self: Sized,
     {
-        let mut c: BitCounter<C, E> = BitCounter::new();
+        let mut c: BitCounter<C> = BitCounter::new();
         self.to_writer(&mut c, context)?;
         Ok(c.into_written())
     }
