@@ -2192,7 +2192,11 @@ impl<N: Counter, E: Endianness> BitRecorder<N, E> {
     /// Clears recorder, removing all values
     #[inline]
     pub fn clear(&mut self) {
-        self.writer = BitWriter::new(Vec::new());
+        self.writer = BitWriter::new({
+            let mut v = core::mem::take(&mut self.writer.writer);
+            v.clear();
+            v
+        });
     }
 }
 
