@@ -487,7 +487,7 @@ macro_rules! define_numeric {
 
 /// This trait extends many common unsigned integer types
 /// so that they can be used with the bitstream handling traits.
-pub trait UnsignedInteger: Numeric + Into<crate::write::UnsignedValue> {
+pub trait UnsignedInteger: Numeric {
     /// This type's most-significant bit
     const MSB_BIT: Self;
 
@@ -774,7 +774,7 @@ macro_rules! define_unsigned_integer {
 /// This trait was formerly named `SignedNumeric` in 2.X.X code.
 /// If backwards-compatibility is needed one can
 /// import `SignedInteger` as `SignedNumeric`.
-pub trait SignedInteger: Numeric + Into<crate::write::SignedValue> {
+pub trait SignedInteger: Numeric {
     /// The unsigned variant of ourself
     type Unsigned: UnsignedInteger<Signed = Self>;
 

@@ -167,7 +167,7 @@
 #[cfg(not(feature = "std"))]
 use core2::io;
 
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 use core::{
     convert::{From, TryFrom, TryInto},
     fmt,
@@ -1913,7 +1913,8 @@ impl<N: Counter> BitWrite for BitCounter<N> {
             );
         }
 
-        self.bits.checked_add_assign(BITS.try_into().map_err(|_| Overflowed)?)?;
+        self.bits
+            .checked_add_assign(BITS.try_into().map_err(|_| Overflowed)?)?;
         Ok(())
     }
 
@@ -2103,102 +2104,6 @@ impl<N: Counter> BitWrite for BitCounter<N> {
     }
 }
 
-/// A generic unsigned value for stream recording purposes
-pub struct UnsignedValue(InnerUnsignedValue);
-
-enum InnerUnsignedValue {
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64),
-    U128(u128),
-}
-
-macro_rules! define_unsigned_value {
-    ($t:ty, $n:ident) => {
-        impl From<$t> for UnsignedValue {
-            #[inline]
-            fn from(v: $t) -> Self {
-                UnsignedValue(InnerUnsignedValue::$n(v))
-            }
-        }
-    };
-}
-define_unsigned_value!(u8, U8);
-define_unsigned_value!(u16, U16);
-define_unsigned_value!(u32, U32);
-define_unsigned_value!(u64, U64);
-define_unsigned_value!(u128, U128);
-
-/// A generic signed value for stream recording purposes
-pub struct SignedValue(InnerSignedValue);
-
-enum InnerSignedValue {
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
-    I128(i128),
-}
-
-macro_rules! define_signed_value {
-    ($t:ty, $n:ident) => {
-        impl From<$t> for SignedValue {
-            #[inline]
-            fn from(v: $t) -> Self {
-                SignedValue(InnerSignedValue::$n(v))
-            }
-        }
-    };
-}
-define_signed_value!(i8, I8);
-define_signed_value!(i16, I16);
-define_signed_value!(i32, I32);
-define_signed_value!(i64, I64);
-define_signed_value!(i128, I128);
-
-enum WriteRecord {
-    Bit(bool),
-    Unsigned { bits: u32, value: UnsignedValue },
-    Signed { bits: u32, value: SignedValue },
-    Pad { bits: u32 },
-    Unary0(u32),
-    Unary1(u32),
-    Bytes(Box<[u8]>),
-}
-
-impl WriteRecord {
-    fn playback<W: BitWrite>(&self, writer: &mut W) -> io::Result<()> {
-        match self {
-            WriteRecord::Bit(v) => writer.write_bit(*v),
-            WriteRecord::Unsigned {
-                bits,
-                value: UnsignedValue(value),
-            } => match value {
-                InnerUnsignedValue::U8(v) => writer.write_unsigned_var(*bits, *v),
-                InnerUnsignedValue::U16(v) => writer.write_unsigned_var(*bits, *v),
-                InnerUnsignedValue::U32(v) => writer.write_unsigned_var(*bits, *v),
-                InnerUnsignedValue::U64(v) => writer.write_unsigned_var(*bits, *v),
-                InnerUnsignedValue::U128(v) => writer.write_unsigned_var(*bits, *v),
-            },
-            WriteRecord::Signed {
-                bits,
-                value: SignedValue(value),
-            } => match value {
-                InnerSignedValue::I8(v) => writer.write_signed_var(*bits, *v),
-                InnerSignedValue::I16(v) => writer.write_signed_var(*bits, *v),
-                InnerSignedValue::I32(v) => writer.write_signed_var(*bits, *v),
-                InnerSignedValue::I64(v) => writer.write_signed_var(*bits, *v),
-                InnerSignedValue::I128(v) => writer.write_signed_var(*bits, *v),
-            },
-            WriteRecord::Pad { bits } => writer.pad(*bits),
-            WriteRecord::Unary0(v) => writer.write_unary::<0>(*v),
-            WriteRecord::Unary1(v) => writer.write_unary::<1>(*v),
-            WriteRecord::Bytes(bytes) => writer.write_bytes(bytes),
-        }
-    }
-}
-
 /// For recording writes in order to play them back on another writer
 /// # Example
 /// ```
@@ -2213,63 +2118,88 @@ impl WriteRecord {
 /// recorder.playback(&mut writer);
 /// assert_eq!(writer.into_writer(), [0b10110111]);
 /// ```
-#[derive(Default)]
 pub struct BitRecorder<N, E: Endianness> {
-    counter: BitCounter<N>,
-    records: Vec<WriteRecord>,
-    phantom: PhantomData<E>,
+    writer: BitWriter<Vec<u8>, E>,
+    phantom: PhantomData<N>,
 }
 
-impl<N: Default + Copy, E: Endianness> BitRecorder<N, E> {
+impl<N: Counter, E: Endianness> BitRecorder<N, E> {
     /// Creates new recorder
     #[inline]
     pub fn new() -> Self {
         BitRecorder {
-            counter: BitCounter::new(),
-            records: Vec::new(),
+            writer: BitWriter::new(Vec::new()),
             phantom: PhantomData,
         }
     }
 
-    /// Creates new recorder sized for the given number of writes
+    /// Creates new recorder sized for the given number of bytes
     #[inline]
-    pub fn with_capacity(writes: usize) -> Self {
+    pub fn with_capacity(bytes: usize) -> Self {
         BitRecorder {
-            counter: BitCounter::new(),
-            records: Vec::with_capacity(writes),
+            writer: BitWriter::new(Vec::with_capacity(bytes)),
             phantom: PhantomData,
         }
     }
 
     /// Creates new recorder with the given endianness
     #[inline]
-    pub fn endian(_endian: E) -> Self {
+    pub fn endian(endian: E) -> Self {
         BitRecorder {
-            counter: BitCounter::new(),
-            records: Vec::new(),
+            writer: BitWriter::endian(Vec::new(), endian),
             phantom: PhantomData,
         }
     }
 
     /// Returns number of bits written
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of bits written is
+    /// larger than the maximum supported by the counter type.
+    /// Use [`BitRecorder::written_checked`] for a non-panicking
+    /// alternative.
     #[inline]
     pub fn written(&self) -> N {
-        self.counter.written()
+        self.written_checked().unwrap()
+    }
+
+    /// Returns number of bits written
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the number of bits written overflows
+    /// our counter type.
+    #[inline]
+    pub fn written_checked(&self) -> Result<N, Overflowed> {
+        let mut written = N::try_from(self.writer.writer.len())
+            .map_err(|_| Overflowed)?
+            .checked_mul(8u8.into())?;
+
+        written.checked_add_assign(N::try_from(self.writer.bits).map_err(|_| Overflowed)?)?;
+
+        Ok(written)
     }
 
     /// Plays recorded writes to the given writer
     #[inline]
     pub fn playback<W: BitWrite>(&self, writer: &mut W) -> io::Result<()> {
-        self.records
-            .iter()
-            .try_for_each(|record| record.playback(writer))
+        writer.write_bytes(self.writer.writer.as_slice())?;
+        writer.write_var(self.writer.bits, self.writer.value)?;
+        Ok(())
     }
 
     /// Clears recorder, removing all values
     #[inline]
     pub fn clear(&mut self) {
-        self.counter = BitCounter::new();
-        self.records.clear()
+        self.writer = BitWriter::new(Vec::new());
+    }
+}
+
+impl<N: Counter, E: Endianness> Default for BitRecorder<N, E> {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -2280,16 +2210,28 @@ where
 {
     #[inline]
     fn write_bit(&mut self, bit: bool) -> io::Result<()> {
-        self.records.push(WriteRecord::Bit(bit));
-        BitWrite::write_bit(&mut self.counter, bit)
+        BitWrite::write_bit(&mut self.writer, bit)
     }
 
+    #[inline]
+    fn write<const BITS: u32, I>(&mut self, value: I) -> io::Result<()>
+    where
+        I: Integer,
+    {
+        BitWrite::write::<BITS, I>(&mut self.writer, value)
+    }
+
+    #[inline]
     fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
-        self.records.push(WriteRecord::Unsigned {
-            bits: BITS,
-            value: VALUE.into(),
-        });
-        BitWrite::write_const::<BITS, VALUE>(&mut self.counter)
+        self.writer.write_const::<BITS, VALUE>()
+    }
+
+    #[inline]
+    fn write_var<I>(&mut self, bits: u32, value: I) -> io::Result<()>
+    where
+        I: Integer,
+    {
+        self.writer.write_var(bits, value)
     }
 
     #[inline]
@@ -2297,12 +2239,44 @@ where
     where
         U: UnsignedInteger,
     {
-        BitWrite::write_unsigned::<BITS, U>(&mut self.counter, value)?;
-        self.records.push(WriteRecord::Unsigned {
-            bits: BITS,
-            value: value.into(),
-        });
-        Ok(())
+        BitWrite::write_unsigned::<BITS, U>(&mut self.writer, value)
+    }
+
+    #[inline]
+    fn write_unsigned_var<U>(&mut self, bits: u32, value: U) -> io::Result<()>
+    where
+        U: UnsignedInteger,
+    {
+        self.writer.write_unsigned_var(bits, value)
+    }
+
+    #[inline]
+    fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
+    where
+        S: SignedInteger,
+    {
+        BitWrite::write_signed::<BITS, S>(&mut self.writer, value)
+    }
+
+    #[inline(always)]
+    fn write_signed_var<S>(&mut self, bits: u32, value: S) -> io::Result<()>
+    where
+        S: SignedInteger,
+    {
+        self.writer.write_signed_var(bits, value)
+    }
+
+    #[inline]
+    fn write_count<const MAX: u32>(&mut self, count: BitCount<MAX>) -> io::Result<()> {
+        self.writer.write_count::<MAX>(count)
+    }
+
+    #[inline]
+    fn write_counted<const MAX: u32, I>(&mut self, bits: BitCount<MAX>, value: I) -> io::Result<()>
+    where
+        I: Integer + Sized,
+    {
+        self.writer.write_counted::<MAX, I>(bits, value)
     }
 
     #[inline]
@@ -2314,48 +2288,19 @@ where
     where
         U: UnsignedInteger,
     {
-        self.counter.write_unsigned_counted(bits, value)?;
-        self.records.push(WriteRecord::Unsigned {
-            bits: bits.bits,
-            value: value.into(),
-        });
-        Ok(())
+        self.writer.write_unsigned_counted::<BITS, U>(bits, value)
     }
 
     #[inline]
-    fn write_signed_counted<const BITS: u32, S>(
+    fn write_signed_counted<const MAX: u32, S>(
         &mut self,
-        bits: impl TryInto<SignedBitCount<BITS>>,
+        bits: impl TryInto<SignedBitCount<MAX>>,
         value: S,
     ) -> io::Result<()>
     where
         S: SignedInteger,
     {
-        let bits = bits.try_into().map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "signed writes need at least 1 bit for sign",
-            )
-        })?;
-        self.counter.write_signed_counted(bits, value)?;
-        self.records.push(WriteRecord::Signed {
-            bits: bits.bits.into(),
-            value: value.into(),
-        });
-        Ok(())
-    }
-
-    #[inline]
-    fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
-    where
-        S: SignedInteger,
-    {
-        BitWrite::write_signed::<BITS, S>(&mut self.counter, value)?;
-        self.records.push(WriteRecord::Signed {
-            bits: BITS,
-            value: value.into(),
-        });
-        Ok(())
+        self.writer.write_signed_counted::<MAX, S>(bits, value)
     }
 
     #[inline]
@@ -2363,7 +2308,7 @@ where
     where
         V: Primitive,
     {
-        E::write_primitive(self, value)
+        BitWrite::write_from::<V>(&mut self.writer, value)
     }
 
     #[inline]
@@ -2372,42 +2317,58 @@ where
         F: Endianness,
         V: Primitive,
     {
-        F::write_primitive(self, value)
+        BitWrite::write_as_from::<F, V>(&mut self.writer, value)
     }
 
     #[inline]
     fn pad(&mut self, bits: u32) -> io::Result<()> {
-        BitWrite::pad(&mut self.counter, bits)?;
-        self.records.push(WriteRecord::Pad { bits });
-        Ok(())
-    }
-
-    fn write_unary<const STOP_BIT: u8>(&mut self, value: u32) -> io::Result<()> {
-        const {
-            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
-        }
-
-        match STOP_BIT {
-            0 => self.records.push(WriteRecord::Unary0(value)),
-            1 => self.records.push(WriteRecord::Unary1(value)),
-            _ => unreachable!(),
-        }
-        self.counter.write_unary::<STOP_BIT>(value)
+        BitWrite::pad(&mut self.writer, bits)
     }
 
     #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.records.push(WriteRecord::Bytes(buf.into()));
-        BitWrite::write_bytes(&mut self.counter, buf)
+        BitWrite::write_bytes(&mut self.writer, buf)
+    }
+
+    #[inline]
+    fn write_unary<const STOP_BIT: u8>(&mut self, value: u32) -> io::Result<()> {
+        self.writer.write_unary::<STOP_BIT>(value)
+    }
+
+    #[inline]
+    fn build<T: ToBitStream>(&mut self, build: &T) -> Result<(), T::Error> {
+        BitWrite::build(&mut self.writer, build)
+    }
+
+    #[inline]
+    fn build_with<'a, T: ToBitStreamWith<'a>>(
+        &mut self,
+        build: &T,
+        context: &T::Context,
+    ) -> Result<(), T::Error> {
+        BitWrite::build_with(&mut self.writer, build, context)
     }
 
     #[inline]
     fn byte_aligned(&self) -> bool {
-        BitWrite::byte_aligned(&self.counter)
+        BitWrite::byte_aligned(&self.writer)
+    }
+
+    #[inline]
+    fn byte_align(&mut self) -> io::Result<()> {
+        BitWrite::byte_align(&mut self.writer)
+    }
+
+    #[inline]
+    fn write_huffman<T>(&mut self, value: T::Symbol) -> io::Result<()>
+    where
+        T: crate::huffman::ToBits,
+    {
+        BitWrite::write_huffman::<T>(&mut self.writer, value)
     }
 }
 
-impl<N: PartialOrd + Default + Copy, E: Endianness> BitRecorder<N, E> {
+impl<N: PartialOrd + Counter + Copy, E: Endianness> BitRecorder<N, E> {
     /// Returns shortest option between ourself and candidate
     ///
     /// Executes fallible closure on emptied candidate recorder,

@@ -1345,6 +1345,20 @@ fn test_counter_huffman_le() {
 fn test_recorder_be() {
     use bitstream_io::{BigEndian, BitRecorder, BitWrite, BitWriter};
 
+    // partial writes
+    let mut w: BitRecorder<u32, BigEndian> = BitRecorder::new();
+    w.write_bit(true).unwrap();
+
+    let mut w2 = BitWriter::endian(vec![], BigEndian);
+    w.playback(&mut w2).unwrap();
+    w2.byte_align().unwrap();
+
+    let mut w3 = BitWriter::endian(vec![], BigEndian);
+    w3.write_bit(true).unwrap();
+    w3.byte_align().unwrap();
+
+    assert_eq!(w2.into_writer(), w3.into_writer());
+
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
     // writing individual bits
@@ -1517,6 +1531,20 @@ fn test_recorder_huffman_be() {
 #[test]
 fn test_recorder_le() {
     use bitstream_io::{BitRecorder, BitWrite, BitWriter, LittleEndian};
+
+    // partial writes
+    let mut w: BitRecorder<u32, LittleEndian> = BitRecorder::new();
+    w.write_bit(true).unwrap();
+
+    let mut w2 = BitWriter::endian(vec![], LittleEndian);
+    w.playback(&mut w2).unwrap();
+    w2.byte_align().unwrap();
+
+    let mut w3 = BitWriter::endian(vec![], LittleEndian);
+    w3.write_bit(true).unwrap();
+    w3.byte_align().unwrap();
+
+    assert_eq!(w2.into_writer(), w3.into_writer());
 
     let final_data: [u8; 4] = [0xB1, 0xED, 0x3B, 0xC1];
 
