@@ -1904,6 +1904,62 @@ impl<N: Counter> BitWrite for BitCounter<N> {
         Ok(())
     }
 
+    #[inline]
+    fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
+    where
+        U: UnsignedInteger,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
+        }
+
+        if BITS == 0 {
+            Ok(())
+        } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+            self.bits
+                .checked_add_assign(BITS.try_into().map_err(|_| Overflowed)?)?;
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            ))
+        }
+    }
+
+    #[inline]
+    fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
+    where
+        S: SignedInteger,
+    {
+        let SignedBitCount {
+            bits: BitCount { bits },
+            unsigned,
+        } = const {
+            assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
+            let count = BitCount::<BITS>::new::<BITS>().signed_count();
+            assert!(
+                count.is_some(),
+                "signed writes need at least 1 bit for sign"
+            );
+            count.unwrap()
+        };
+
+        // doesn't matter which side the sign is on
+        // so long as it's added to the bit count
+        self.bits.checked_add_assign(1u8.into())?;
+
+        self.write_unsigned_counted(
+            unsigned,
+            if value.is_negative() {
+                value.as_negative(bits)
+            } else {
+                value.as_non_negative()
+            },
+        )
+    }
+
+    #[inline]
     fn write_unsigned_counted<const MAX: u32, U>(
         &mut self,
         BitCount { bits }: BitCount<MAX>,
@@ -1933,6 +1989,7 @@ impl<N: Counter> BitWrite for BitCounter<N> {
         }
     }
 
+    #[inline]
     fn write_signed_counted<const MAX: u32, S>(
         &mut self,
         bits: impl TryInto<SignedBitCount<MAX>>,
