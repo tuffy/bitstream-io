@@ -1905,6 +1905,19 @@ impl<N: Counter> BitWrite for BitCounter<N> {
     }
 
     #[inline]
+    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
+        const {
+            assert!(
+                BITS == 0 || VALUE <= (u32::ALL >> (u32::BITS_SIZE - BITS)),
+                "excessive value for bits written"
+            );
+        }
+
+        self.bits.checked_add_assign(BITS.try_into().map_err(|_| Overflowed)?)?;
+        Ok(())
+    }
+
+    #[inline]
     fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
     where
         U: UnsignedInteger,
