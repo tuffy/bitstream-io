@@ -350,6 +350,39 @@ fn test_writer_huffman_be() {
 }
 
 #[test]
+fn test_write_chunks_be() {
+    use bitstream_io::{BigEndian, BitWrite, BitWriter};
+
+    let data: &[u8] = &[0b1011_0001, 0b1110_1101, 0b0011_1011, 0b1100_0001];
+
+    // test non-aligned chunk writing
+    let mut w = BitWriter::endian(vec![], BigEndian);
+    w.write::<2, u8>(0b10).unwrap();
+    w.write_bytes(&[0b11_0001_11, 0b10_1101_00]).unwrap();
+    w.write::<14, u16>(0b11_1011_1100_0001).unwrap();
+    assert_eq!(w.into_writer().as_slice(), data);
+
+    // test the smallest chunk
+    let mut w = BitWriter::endian(vec![], BigEndian);
+    w.write::<2, u8>(0b10).unwrap();
+    w.write_bytes(core::slice::from_ref(&0b11_0001_11)).unwrap();
+    w.write_bytes(core::slice::from_ref(&0b10_1101_00)).unwrap();
+    w.write::<14, u16>(0b11_1011_1100_0001).unwrap();
+    assert_eq!(w.into_writer().as_slice(), data);
+
+    // test a larger chunk
+    let mut w = BitWriter::endian(vec![], BigEndian);
+    w.write::<3, u8>(0b000).unwrap();
+    w.write_bytes(include_bytes!("random-3be.bin").as_slice())
+        .unwrap();
+    w.write::<5, u8>(0b10110).unwrap();
+    assert_eq!(
+        w.into_writer().as_slice(),
+        include_bytes!("random.bin").as_slice()
+    );
+}
+
+#[test]
 fn test_writer_le() {
     use bitstream_io::{BitWrite, BitWriter, LittleEndian};
 
@@ -680,6 +713,39 @@ fn test_writer_huffman_le() {
     w.write_huffman::<TreeName>(3).unwrap();
     w.write_var(1, 1u8).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
+}
+
+#[test]
+fn test_write_chunks_le() {
+    use bitstream_io::{BitWrite, BitWriter, LittleEndian};
+
+    let data: &[u8] = &[0b1011_0001, 0b1110_1101, 0b0011_1011, 0b1100_0001];
+
+    // test non-aligned chunk writing
+    let mut w = BitWriter::endian(vec![], LittleEndian);
+    w.write::<2, u8>(0b01).unwrap();
+    w.write_bytes(&[0b01_1011_00, 0b11_1110_11]).unwrap();
+    w.write::<14, u16>(0b1100_0001_0011_10).unwrap();
+    assert_eq!(w.into_writer().as_slice(), data);
+
+    // test the smallest chunk
+    let mut w = BitWriter::endian(vec![], LittleEndian);
+    w.write::<2, u8>(0b01).unwrap();
+    w.write_bytes(core::slice::from_ref(&0b01_1011_00)).unwrap();
+    w.write_bytes(core::slice::from_ref(&0b11_1110_11)).unwrap();
+    w.write::<14, u16>(0b1100_0001_0011_10).unwrap();
+    assert_eq!(w.into_writer().as_slice(), data);
+
+    // test a larger chunk
+    let mut w = BitWriter::endian(vec![], LittleEndian);
+    w.write::<3, u8>(0b010).unwrap();
+    w.write_bytes(include_bytes!("random-3le.bin").as_slice())
+        .unwrap();
+    w.write::<5, u8>(0b00110).unwrap();
+    assert_eq!(
+        w.into_writer().as_slice(),
+        include_bytes!("random.bin").as_slice()
+    );
 }
 
 struct LimitedWriter {

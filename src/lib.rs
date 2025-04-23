@@ -1095,6 +1095,23 @@ pub trait Endianness: Sized {
         })
     }
 
+    /// Writes whole set of bytes to output buffer
+    #[inline]
+    fn write_bytes<W>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        buf: &[u8],
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        // a naive implementation that works anywhere
+        buf.iter().try_for_each(|b| {
+            Self::write_bits_fixed::<8, _, _>(writer, queue_value, queue_bits, *b)
+        })
+    }
+
     /// Reads convertable numeric value from reader in this endianness
     fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
     where
@@ -2171,6 +2188,51 @@ impl Endianness for BigEndian {
         Ok(())
     }
 
+    fn write_bytes<W>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        buf: &[u8],
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        const CHUNK_SIZE: usize = 1024;
+
+        // we don't modify the final queue_bits count
+        // but the naive implementation might
+        let queue_bits = *queue_bits;
+
+        let mut output_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
+
+        for input_chunk in buf.chunks(CHUNK_SIZE) {
+            let output_chunk = &mut output_chunk[0..input_chunk.len()];
+
+            output_chunk
+                .iter_mut()
+                .zip(input_chunk.iter())
+                .for_each(|(o, i)| {
+                    *o = i >> queue_bits;
+                });
+
+            output_chunk[1..]
+                .iter_mut()
+                .zip(input_chunk.iter())
+                .for_each(|(o, i)| {
+                    *o |= *i << (u8::BITS_SIZE - queue_bits);
+                });
+
+            output_chunk[0] |= core::mem::replace(
+                queue_value,
+                input_chunk.last().unwrap() & (u8::ALL >> (u8::BITS_SIZE - queue_bits)),
+            ) << (u8::BITS_SIZE - queue_bits);
+
+            writer.write_all(output_chunk)?;
+        }
+
+        Ok(())
+    }
+
     #[inline]
     fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
     where
@@ -2663,6 +2725,51 @@ impl Endianness for LittleEndian {
                 queue_value,
                 input_chunk.last().unwrap() >> (u8::BITS_SIZE - queue_bits),
             );
+        }
+
+        Ok(())
+    }
+
+    fn write_bytes<W>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        buf: &[u8],
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        const CHUNK_SIZE: usize = 1024;
+
+        // we don't modify the final queue_bits count
+        // but the naive implementation might
+        let queue_bits = *queue_bits;
+
+        let mut output_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
+
+        for input_chunk in buf.chunks(CHUNK_SIZE) {
+            let output_chunk = &mut output_chunk[0..input_chunk.len()];
+
+            output_chunk
+                .iter_mut()
+                .zip(input_chunk.iter())
+                .for_each(|(o, i)| {
+                    *o = i << queue_bits;
+                });
+
+            output_chunk[1..]
+                .iter_mut()
+                .zip(input_chunk.iter())
+                .for_each(|(o, i)| {
+                    *o |= i >> (u8::BITS_SIZE - queue_bits);
+                });
+
+            output_chunk[0] |= core::mem::replace(
+                queue_value,
+                input_chunk.last().unwrap() >> (u8::BITS_SIZE - queue_bits),
+            );
+
+            writer.write_all(output_chunk)?;
         }
 
         Ok(())

@@ -1780,8 +1780,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         if BitWrite::byte_aligned(self) {
             self.writer.write_all(buf)
         } else {
-            buf.iter()
-                .try_for_each(|b| BitWrite::write_unsigned::<8, _>(self, *b))
+            E::write_bytes(&mut self.writer, &mut self.value, &mut self.bits, buf)
         }
     }
 
