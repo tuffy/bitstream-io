@@ -1969,7 +1969,7 @@ impl Endianness for BigEndian {
 
         if BITS == 0 {
             Ok(())
-        } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+        } else if BITS == U::BITS_SIZE || value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
             Self::write_bits_checked::<BITS, W, U>(
                 writer,
                 queue_value,
@@ -2422,7 +2422,7 @@ impl Endianness for LittleEndian {
 
         if BITS == 0 {
             Ok(())
-        } else if value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+        } else if BITS == U::BITS_SIZE || value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
             Self::write_bits_checked::<BITS, W, U>(
                 writer,
                 queue_value,
