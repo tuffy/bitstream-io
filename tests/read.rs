@@ -243,6 +243,44 @@ fn test_reader_huffman_be() {
 }
 
 #[test]
+fn test_read_chunks_be() {
+    use bitstream_io::{BigEndian, BitRead, BitReader};
+
+    let data: &[u8] = &[0b1011_0001, 0b1110_1101, 0b0011_1011, 0b1100_0001];
+    let mut chunk: [u8; 2] = [0; 2];
+
+    // test non-aligned chunk reading
+    let mut r = BitReader::endian(data, BigEndian);
+    assert_eq!(r.read::<2, u8>().unwrap(), 0b10);
+    r.read_bytes(&mut chunk).unwrap();
+    assert_eq!(&chunk, &[0b11_0001_11, 0b10_1101_00]);
+    assert_eq!(r.read::<14, u16>().unwrap(), 0b11_1011_1100_0001);
+
+    // test the smallest chunk
+    let mut chunk = 0;
+    let mut r = BitReader::endian(data, BigEndian);
+    assert_eq!(r.read::<2, u8>().unwrap(), 0b10);
+    r.read_bytes(core::slice::from_mut(&mut chunk)).unwrap();
+    assert_eq!(chunk, 0b11_0001_11);
+    r.read_bytes(core::slice::from_mut(&mut chunk)).unwrap();
+    assert_eq!(chunk, 0b10_1101_00);
+    assert_eq!(r.read::<14, u16>().unwrap(), 0b11_1011_1100_0001);
+
+    // test a larger chunk
+    let data = include_bytes!("random.bin");
+    let mut chunk: [u8; 127] = [0; 127];
+
+    let mut r = BitReader::endian(data.as_slice(), BigEndian);
+    assert_eq!(r.read::<3, u8>().unwrap(), 0b000);
+    r.read_bytes(&mut chunk).unwrap();
+    assert_eq!(
+        chunk.as_slice(),
+        include_bytes!("random-3be.bin").as_slice()
+    );
+    assert_eq!(r.read::<5, u8>().unwrap(), 0b10110);
+}
+
+#[test]
 fn test_reader_le() {
     use bitstream_io::{BitRead, BitReader, LittleEndian};
 
@@ -466,6 +504,44 @@ fn test_reader_huffman_le() {
     assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 2);
     assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 4);
     assert_eq!(r.read_huffman::<SomeTree>().unwrap(), 3);
+}
+
+#[test]
+fn test_read_chunks_le() {
+    use bitstream_io::{BitRead, BitReader, LittleEndian};
+
+    let data: &[u8] = &[0b1011_0001, 0b1110_1101, 0b0011_1011, 0b1100_0001];
+    let mut chunk: [u8; 2] = [0; 2];
+
+    // test non-aligned chunk reading
+    let mut r = BitReader::endian(data, LittleEndian);
+    assert_eq!(r.read::<2, u8>().unwrap(), 0b01);
+    r.read_bytes(&mut chunk).unwrap();
+    assert_eq!(&chunk, &[0b01_1011_00, 0b11_1110_11]);
+    assert_eq!(r.read::<14, u16>().unwrap(), 0b1100_0001_0011_10);
+
+    // test the smallest chunk
+    let mut chunk = 0;
+    let mut r = BitReader::endian(data, LittleEndian);
+    assert_eq!(r.read::<2, u8>().unwrap(), 0b01);
+    r.read_bytes(core::slice::from_mut(&mut chunk)).unwrap();
+    assert_eq!(chunk, 0b01_1011_00);
+    r.read_bytes(core::slice::from_mut(&mut chunk)).unwrap();
+    assert_eq!(chunk, 0b11_1110_11);
+    assert_eq!(r.read::<14, u16>().unwrap(), 0b1100_0001_0011_10);
+
+    // test a larger chunk
+    let data = include_bytes!("random.bin");
+    let mut chunk: [u8; 127] = [0; 127];
+
+    let mut r = BitReader::endian(data.as_slice(), LittleEndian);
+    assert_eq!(r.read::<3, u8>().unwrap(), 0b010);
+    r.read_bytes(&mut chunk).unwrap();
+    assert_eq!(
+        chunk.as_slice(),
+        include_bytes!("random-3le.bin").as_slice()
+    );
+    assert_eq!(r.read::<5, u8>().unwrap(), 0b00110);
 }
 
 #[test]

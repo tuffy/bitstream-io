@@ -1715,14 +1715,12 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// assert!(reader.read_bytes(&mut buf).is_ok());
     /// assert_eq!(&buf, b"bar");
     /// ```
+    #[inline]
     fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()> {
         if BitRead::byte_aligned(self) {
             self.reader.read_exact(buf)
         } else {
-            for b in buf.iter_mut() {
-                *b = self.read_unsigned::<8, _>()?;
-            }
-            Ok(())
+            E::read_bytes(&mut self.reader, &mut self.value, &mut self.bits, buf)
         }
     }
 

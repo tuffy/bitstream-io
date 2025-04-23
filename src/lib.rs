@@ -1077,6 +1077,24 @@ pub trait Endianness: Sized {
         W: BitWrite,
         S: SignedInteger;
 
+    /// Reads whole set of bytes to output buffer
+    #[inline]
+    fn read_bytes<R>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        buf: &mut [u8],
+    ) -> io::Result<()>
+    where
+        R: io::Read,
+    {
+        // a naive implementation which works anywhere
+        buf.iter_mut().try_for_each(|b| {
+            *b = Self::read_bits_fixed::<8, _, _>(reader.by_ref(), queue_value, queue_bits)?;
+            Ok(())
+        })
+    }
+
     /// Reads convertable numeric value from reader in this endianness
     fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
     where
@@ -2100,6 +2118,59 @@ impl Endianness for BigEndian {
         }
     }
 
+    fn read_bytes<R>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        buf: &mut [u8],
+    ) -> io::Result<()>
+    where
+        R: io::Read,
+    {
+        const CHUNK_SIZE: usize = 1024;
+
+        // we don't modify the final queue_bits count
+        // but the naive implementation might
+        let queue_bits = *queue_bits;
+
+        let mut input_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
+
+        for output_chunk in buf.chunks_mut(CHUNK_SIZE) {
+            let input_chunk = &mut input_chunk[0..output_chunk.len()];
+            reader.read_exact(input_chunk)?;
+
+            // shift down each byte in our input to eventually
+            // accomodate the contents of the bit queue
+            // and make that our output
+            output_chunk
+                .iter_mut()
+                .zip(input_chunk.iter())
+                .for_each(|(o, i)| {
+                    *o = i >> queue_bits;
+                });
+
+            // include leftover bits from the next byte
+            // shifted to the top
+            output_chunk[1..]
+                .iter_mut()
+                .zip(input_chunk.iter())
+                .for_each(|(o, i)| {
+                    *o |= *i << (u8::BITS_SIZE - queue_bits);
+                });
+
+            // finally, prepend the queue's contents
+            // to the first byte in the chunk
+            // while replacing those contents
+            // with the final byte of the input
+            output_chunk[0] |= core::mem::replace(
+                queue_value,
+                input_chunk.last().unwrap() << (u8::BITS_SIZE - queue_bits),
+            );
+        }
+
+        Ok(())
+    }
+
     #[inline]
     fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
     where
@@ -2551,6 +2622,50 @@ impl Endianness for LittleEndian {
                 "excessive bits for type written",
             ))
         }
+    }
+
+    fn read_bytes<R>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        buf: &mut [u8],
+    ) -> io::Result<()>
+    where
+        R: io::Read,
+    {
+        const CHUNK_SIZE: usize = 1024;
+
+        // we don't modify the final queue_bits count
+        // but the naive implementation might
+        let queue_bits = *queue_bits;
+
+        let mut input_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
+
+        for output_chunk in buf.chunks_mut(CHUNK_SIZE) {
+            let input_chunk = &mut input_chunk[0..output_chunk.len()];
+            reader.read_exact(input_chunk)?;
+
+            output_chunk
+                .iter_mut()
+                .zip(input_chunk.iter())
+                .for_each(|(o, i)| {
+                    *o = i << queue_bits;
+                });
+
+            output_chunk[1..]
+                .iter_mut()
+                .zip(input_chunk.iter())
+                .for_each(|(o, i)| {
+                    *o |= i >> (u8::BITS_SIZE - queue_bits);
+                });
+
+            output_chunk[0] |= core::mem::replace(
+                queue_value,
+                input_chunk.last().unwrap() >> (u8::BITS_SIZE - queue_bits),
+            );
+        }
+
+        Ok(())
     }
 
     #[inline]
