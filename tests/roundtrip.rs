@@ -435,3 +435,52 @@ fn test_bit_count() {
     w.byte_align().unwrap();
     assert_eq!(w.into_writer(), data);
 }
+
+fn test_primitives<E: Endianness>() {
+    use bitstream_io::{BitRead, BitReader, BitWrite, BitWriter};
+
+    // try a lot of primitive values, shifted by 1 bit
+    let mut w = BitWriter::<Vec<u8>, E>::new(vec![]);
+    w.write_bit(true).unwrap();
+    w.write_from::<u8>(u8::MAX - 10).unwrap();
+    w.write_from::<u16>(u16::MAX - 10).unwrap();
+    w.write_from::<u32>(u32::MAX - 10).unwrap();
+    w.write_from::<u64>(u64::MAX - 10).unwrap();
+    w.write_from::<u128>(u128::MAX - 10).unwrap();
+    w.write_from::<i8>(i8::MAX - 10).unwrap();
+    w.write_from::<i16>(i16::MAX - 10).unwrap();
+    w.write_from::<i32>(i32::MAX - 10).unwrap();
+    w.write_from::<i64>(i64::MAX - 10).unwrap();
+    w.write_from::<i128>(i128::MAX - 10).unwrap();
+    w.write_from::<f32>(1.0).unwrap();
+    w.write_from::<f64>(2.0).unwrap();
+    w.write_from::<[u8; 3]>([9, 8, 7]).unwrap();
+    w.byte_align().unwrap();
+
+    let v = w.into_writer();
+    let mut r = BitReader::<&[u8], E>::new(v.as_slice());
+    assert_eq!(r.read_bit().unwrap(), true);
+    assert_eq!(r.read_to::<u8>().unwrap(), u8::MAX - 10);
+    assert_eq!(r.read_to::<u16>().unwrap(), u16::MAX - 10);
+    assert_eq!(r.read_to::<u32>().unwrap(), u32::MAX - 10);
+    assert_eq!(r.read_to::<u64>().unwrap(), u64::MAX - 10);
+    assert_eq!(r.read_to::<u128>().unwrap(), u128::MAX - 10);
+    assert_eq!(r.read_to::<i8>().unwrap(), i8::MAX - 10);
+    assert_eq!(r.read_to::<i16>().unwrap(), i16::MAX - 10);
+    assert_eq!(r.read_to::<i32>().unwrap(), i32::MAX - 10);
+    assert_eq!(r.read_to::<i64>().unwrap(), i64::MAX - 10);
+    assert_eq!(r.read_to::<i128>().unwrap(), i128::MAX - 10);
+    assert_eq!(r.read_to::<f32>().unwrap(), 1.0);
+    assert_eq!(r.read_to::<f64>().unwrap(), 2.0);
+    assert_eq!(r.read_to::<[u8; 3]>().unwrap(), [9, 8, 7]);
+}
+
+#[test]
+fn test_primitives_be() {
+    test_primitives::<BigEndian>()
+}
+
+#[test]
+fn test_primitives_le() {
+    test_primitives::<LittleEndian>()
+}

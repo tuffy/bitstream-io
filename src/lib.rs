@@ -1078,63 +1078,30 @@ pub trait Endianness: Sized {
         S: SignedInteger;
 
     /// Reads whole set of bytes to output buffer
-    #[inline]
-    fn read_bytes<R>(
+    fn read_bytes<const CHUNK_SIZE: usize, R>(
         reader: &mut R,
         queue_value: &mut u8,
-        queue_bits: &mut u32,
+        queue_bits: u32,
         buf: &mut [u8],
     ) -> io::Result<()>
     where
-        R: io::Read,
-    {
-        // a naive implementation which works anywhere
-        buf.iter_mut().try_for_each(|b| {
-            *b = Self::read_bits_fixed::<8, _, _>(reader.by_ref(), queue_value, queue_bits)?;
-            Ok(())
-        })
-    }
+        R: io::Read;
 
     /// Writes whole set of bytes to output buffer
-    #[inline]
-    fn write_bytes<W>(
+    fn write_bytes<const CHUNK_SIZE: usize, W>(
         writer: &mut W,
         queue_value: &mut u8,
-        queue_bits: &mut u32,
+        queue_bits: u32,
         buf: &[u8],
     ) -> io::Result<()>
     where
-        W: io::Write,
-    {
-        // a naive implementation that works anywhere
-        buf.iter().try_for_each(|b| {
-            Self::write_bits_fixed::<8, _, _>(writer, queue_value, queue_bits, *b)
-        })
-    }
+        W: io::Write;
 
-    /// Reads convertable numeric value from reader in this endianness
-    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
-    where
-        R: BitRead,
-        V: Primitive;
+    /// Converts a primitive's byte buffer to a primitive
+    fn bytes_to_primitive<P: Primitive>(buf: P::Bytes) -> P;
 
-    /// Writes convertable numeric value to writer in this endianness
-    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
-    where
-        W: BitWrite,
-        V: Primitive;
-
-    /// Reads entire numeric value from reader in this endianness
-    fn read_numeric<R, V>(r: R) -> io::Result<V>
-    where
-        R: io::Read,
-        V: Primitive;
-
-    /// Writes entire numeric value to writer in this endianness
-    fn write_numeric<W, V>(w: W, value: V) -> io::Result<()>
-    where
-        W: io::Write,
-        V: Primitive;
+    /// Converts a primitive to a primitive's byte buffer
+    fn primitive_to_bytes<P: Primitive>(p: P) -> P::Bytes;
 }
 
 #[inline(always)]
@@ -2135,142 +2102,108 @@ impl Endianness for BigEndian {
         }
     }
 
-    fn read_bytes<R>(
+    fn read_bytes<const CHUNK_SIZE: usize, R>(
         reader: &mut R,
         queue_value: &mut u8,
-        queue_bits: &mut u32,
+        queue_bits: u32,
         buf: &mut [u8],
     ) -> io::Result<()>
     where
         R: io::Read,
     {
-        const CHUNK_SIZE: usize = 1024;
+        if queue_bits == 0 {
+            reader.read_exact(buf)
+        } else {
+            let mut input_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
 
-        // we don't modify the final queue_bits count
-        // but the naive implementation might
-        let queue_bits = *queue_bits;
+            for output_chunk in buf.chunks_mut(CHUNK_SIZE) {
+                let input_chunk = &mut input_chunk[0..output_chunk.len()];
+                reader.read_exact(input_chunk)?;
 
-        let mut input_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
+                // shift down each byte in our input to eventually
+                // accomodate the contents of the bit queue
+                // and make that our output
+                output_chunk
+                    .iter_mut()
+                    .zip(input_chunk.iter())
+                    .for_each(|(o, i)| {
+                        *o = i >> queue_bits;
+                    });
 
-        for output_chunk in buf.chunks_mut(CHUNK_SIZE) {
-            let input_chunk = &mut input_chunk[0..output_chunk.len()];
-            reader.read_exact(input_chunk)?;
+                // include leftover bits from the next byte
+                // shifted to the top
+                output_chunk[1..]
+                    .iter_mut()
+                    .zip(input_chunk.iter())
+                    .for_each(|(o, i)| {
+                        *o |= *i << (u8::BITS_SIZE - queue_bits);
+                    });
 
-            // shift down each byte in our input to eventually
-            // accomodate the contents of the bit queue
-            // and make that our output
-            output_chunk
-                .iter_mut()
-                .zip(input_chunk.iter())
-                .for_each(|(o, i)| {
-                    *o = i >> queue_bits;
-                });
+                // finally, prepend the queue's contents
+                // to the first byte in the chunk
+                // while replacing those contents
+                // with the final byte of the input
+                output_chunk[0] |= core::mem::replace(
+                    queue_value,
+                    input_chunk.last().unwrap() << (u8::BITS_SIZE - queue_bits),
+                );
+            }
 
-            // include leftover bits from the next byte
-            // shifted to the top
-            output_chunk[1..]
-                .iter_mut()
-                .zip(input_chunk.iter())
-                .for_each(|(o, i)| {
-                    *o |= *i << (u8::BITS_SIZE - queue_bits);
-                });
-
-            // finally, prepend the queue's contents
-            // to the first byte in the chunk
-            // while replacing those contents
-            // with the final byte of the input
-            output_chunk[0] |= core::mem::replace(
-                queue_value,
-                input_chunk.last().unwrap() << (u8::BITS_SIZE - queue_bits),
-            );
+            Ok(())
         }
-
-        Ok(())
     }
 
-    fn write_bytes<W>(
+    fn write_bytes<const CHUNK_SIZE: usize, W>(
         writer: &mut W,
         queue_value: &mut u8,
-        queue_bits: &mut u32,
+        queue_bits: u32,
         buf: &[u8],
     ) -> io::Result<()>
     where
         W: io::Write,
     {
-        const CHUNK_SIZE: usize = 1024;
+        if queue_bits == 0 {
+            writer.write_all(buf)
+        } else {
+            let mut output_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
 
-        // we don't modify the final queue_bits count
-        // but the naive implementation might
-        let queue_bits = *queue_bits;
+            for input_chunk in buf.chunks(CHUNK_SIZE) {
+                let output_chunk = &mut output_chunk[0..input_chunk.len()];
 
-        let mut output_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
+                output_chunk
+                    .iter_mut()
+                    .zip(input_chunk.iter())
+                    .for_each(|(o, i)| {
+                        *o = i >> queue_bits;
+                    });
 
-        for input_chunk in buf.chunks(CHUNK_SIZE) {
-            let output_chunk = &mut output_chunk[0..input_chunk.len()];
+                output_chunk[1..]
+                    .iter_mut()
+                    .zip(input_chunk.iter())
+                    .for_each(|(o, i)| {
+                        *o |= *i << (u8::BITS_SIZE - queue_bits);
+                    });
 
-            output_chunk
-                .iter_mut()
-                .zip(input_chunk.iter())
-                .for_each(|(o, i)| {
-                    *o = i >> queue_bits;
-                });
+                output_chunk[0] |= core::mem::replace(
+                    queue_value,
+                    input_chunk.last().unwrap() & (u8::ALL >> (u8::BITS_SIZE - queue_bits)),
+                ) << (u8::BITS_SIZE - queue_bits);
 
-            output_chunk[1..]
-                .iter_mut()
-                .zip(input_chunk.iter())
-                .for_each(|(o, i)| {
-                    *o |= *i << (u8::BITS_SIZE - queue_bits);
-                });
+                writer.write_all(output_chunk)?;
+            }
 
-            output_chunk[0] |= core::mem::replace(
-                queue_value,
-                input_chunk.last().unwrap() & (u8::ALL >> (u8::BITS_SIZE - queue_bits)),
-            ) << (u8::BITS_SIZE - queue_bits);
-
-            writer.write_all(output_chunk)?;
+            Ok(())
         }
-
-        Ok(())
     }
 
-    #[inline]
-    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
-    where
-        R: BitRead,
-        V: Primitive,
-    {
-        let mut buffer = V::buffer();
-        r.read_bytes(buffer.as_mut())?;
-        Ok(V::from_be_bytes(buffer))
+    #[inline(always)]
+    fn bytes_to_primitive<P: Primitive>(buf: P::Bytes) -> P {
+        P::from_be_bytes(buf)
     }
 
-    #[inline]
-    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
-    where
-        W: BitWrite,
-        V: Primitive,
-    {
-        w.write_bytes(value.to_be_bytes().as_ref())
-    }
-
-    #[inline]
-    fn read_numeric<R, V>(mut r: R) -> io::Result<V>
-    where
-        R: io::Read,
-        V: Primitive,
-    {
-        let mut buffer = V::buffer();
-        r.read_exact(buffer.as_mut())?;
-        Ok(V::from_be_bytes(buffer))
-    }
-
-    #[inline]
-    fn write_numeric<W, V>(mut w: W, value: V) -> io::Result<()>
-    where
-        W: io::Write,
-        V: Primitive,
-    {
-        w.write_all(value.to_be_bytes().as_ref())
+    #[inline(always)]
+    fn primitive_to_bytes<P: Primitive>(p: P) -> P::Bytes {
+        p.to_be_bytes()
     }
 }
 
@@ -2686,132 +2619,99 @@ impl Endianness for LittleEndian {
         }
     }
 
-    fn read_bytes<R>(
+    fn read_bytes<const CHUNK_SIZE: usize, R>(
         reader: &mut R,
         queue_value: &mut u8,
-        queue_bits: &mut u32,
+        queue_bits: u32,
         buf: &mut [u8],
     ) -> io::Result<()>
     where
         R: io::Read,
     {
-        const CHUNK_SIZE: usize = 1024;
+        if queue_bits == 0 {
+            reader.read_exact(buf)
+        } else {
+            let mut input_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
 
-        // we don't modify the final queue_bits count
-        // but the naive implementation might
-        let queue_bits = *queue_bits;
+            for output_chunk in buf.chunks_mut(CHUNK_SIZE) {
+                let input_chunk = &mut input_chunk[0..output_chunk.len()];
+                reader.read_exact(input_chunk)?;
 
-        let mut input_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
+                output_chunk
+                    .iter_mut()
+                    .zip(input_chunk.iter())
+                    .for_each(|(o, i)| {
+                        *o = i << queue_bits;
+                    });
 
-        for output_chunk in buf.chunks_mut(CHUNK_SIZE) {
-            let input_chunk = &mut input_chunk[0..output_chunk.len()];
-            reader.read_exact(input_chunk)?;
+                output_chunk[1..]
+                    .iter_mut()
+                    .zip(input_chunk.iter())
+                    .for_each(|(o, i)| {
+                        *o |= i >> (u8::BITS_SIZE - queue_bits);
+                    });
 
-            output_chunk
-                .iter_mut()
-                .zip(input_chunk.iter())
-                .for_each(|(o, i)| {
-                    *o = i << queue_bits;
-                });
+                output_chunk[0] |= core::mem::replace(
+                    queue_value,
+                    input_chunk.last().unwrap() >> (u8::BITS_SIZE - queue_bits),
+                );
+            }
 
-            output_chunk[1..]
-                .iter_mut()
-                .zip(input_chunk.iter())
-                .for_each(|(o, i)| {
-                    *o |= i >> (u8::BITS_SIZE - queue_bits);
-                });
-
-            output_chunk[0] |= core::mem::replace(
-                queue_value,
-                input_chunk.last().unwrap() >> (u8::BITS_SIZE - queue_bits),
-            );
+            Ok(())
         }
-
-        Ok(())
     }
 
-    fn write_bytes<W>(
+    fn write_bytes<const CHUNK_SIZE: usize, W>(
         writer: &mut W,
         queue_value: &mut u8,
-        queue_bits: &mut u32,
+        queue_bits: u32,
         buf: &[u8],
     ) -> io::Result<()>
     where
         W: io::Write,
     {
-        const CHUNK_SIZE: usize = 1024;
+        if queue_bits == 0 {
+            writer.write_all(buf)
+        } else {
+            let mut output_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
 
-        // we don't modify the final queue_bits count
-        // but the naive implementation might
-        let queue_bits = *queue_bits;
+            for input_chunk in buf.chunks(CHUNK_SIZE) {
+                let output_chunk = &mut output_chunk[0..input_chunk.len()];
 
-        let mut output_chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
+                output_chunk
+                    .iter_mut()
+                    .zip(input_chunk.iter())
+                    .for_each(|(o, i)| {
+                        *o = i << queue_bits;
+                    });
 
-        for input_chunk in buf.chunks(CHUNK_SIZE) {
-            let output_chunk = &mut output_chunk[0..input_chunk.len()];
+                output_chunk[1..]
+                    .iter_mut()
+                    .zip(input_chunk.iter())
+                    .for_each(|(o, i)| {
+                        *o |= i >> (u8::BITS_SIZE - queue_bits);
+                    });
 
-            output_chunk
-                .iter_mut()
-                .zip(input_chunk.iter())
-                .for_each(|(o, i)| {
-                    *o = i << queue_bits;
-                });
+                output_chunk[0] |= core::mem::replace(
+                    queue_value,
+                    input_chunk.last().unwrap() >> (u8::BITS_SIZE - queue_bits),
+                );
 
-            output_chunk[1..]
-                .iter_mut()
-                .zip(input_chunk.iter())
-                .for_each(|(o, i)| {
-                    *o |= i >> (u8::BITS_SIZE - queue_bits);
-                });
+                writer.write_all(output_chunk)?;
+            }
 
-            output_chunk[0] |= core::mem::replace(
-                queue_value,
-                input_chunk.last().unwrap() >> (u8::BITS_SIZE - queue_bits),
-            );
-
-            writer.write_all(output_chunk)?;
+            Ok(())
         }
-
-        Ok(())
     }
 
-    #[inline]
-    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
-    where
-        R: BitRead,
-        V: Primitive,
-    {
-        let mut buffer = V::buffer();
-        r.read_bytes(buffer.as_mut())?;
-        Ok(V::from_le_bytes(buffer))
+    #[inline(always)]
+    fn bytes_to_primitive<P: Primitive>(buf: P::Bytes) -> P {
+        P::from_le_bytes(buf)
     }
 
-    #[inline]
-    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
-    where
-        W: BitWrite,
-        V: Primitive,
-    {
-        w.write_bytes(value.to_le_bytes().as_ref())
-    }
-
-    fn read_numeric<R, V>(mut r: R) -> io::Result<V>
-    where
-        R: io::Read,
-        V: Primitive,
-    {
-        let mut buffer = V::buffer();
-        r.read_exact(buffer.as_mut())?;
-        Ok(V::from_le_bytes(buffer))
-    }
-
-    #[inline]
-    fn write_numeric<W, V>(mut w: W, value: V) -> io::Result<()>
-    where
-        W: io::Write,
-        V: Primitive,
-    {
-        w.write_all(value.to_le_bytes().as_ref())
+    #[inline(always)]
+    fn primitive_to_bytes<P: Primitive>(p: P) -> P::Bytes {
+        p.to_le_bytes()
     }
 }
 

@@ -1728,7 +1728,12 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     where
         V: Primitive,
     {
-        E::write_primitive(self, value)
+        E::write_bytes::<8, _>(
+            &mut self.writer,
+            &mut self.value,
+            self.bits,
+            E::primitive_to_bytes(value).as_ref(),
+        )
     }
 
     #[inline]
@@ -1737,7 +1742,12 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         F: Endianness,
         V: Primitive,
     {
-        F::write_primitive(self, value)
+        F::write_bytes::<8, _>(
+            &mut self.writer,
+            &mut self.value,
+            self.bits,
+            F::primitive_to_bytes(value).as_ref(),
+        )
     }
 
     fn write_unary<const STOP_BIT: u8>(&mut self, mut value: u32) -> io::Result<()> {
@@ -1777,11 +1787,7 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
 
     #[inline]
     fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
-        if BitWrite::byte_aligned(self) {
-            self.writer.write_all(buf)
-        } else {
-            E::write_bytes(&mut self.writer, &mut self.value, &mut self.bits, buf)
-        }
+        E::write_bytes::<1024, _>(&mut self.writer, &mut self.value, self.bits, buf)
     }
 
     #[inline(always)]
@@ -2583,7 +2589,7 @@ impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
     where
         V: Primitive,
     {
-        E::write_numeric(&mut self.writer, value)
+        self.writer.write_all(E::primitive_to_bytes(value).as_ref())
     }
 
     #[inline]
@@ -2592,7 +2598,7 @@ impl<W: io::Write, E: Endianness> ByteWrite for ByteWriter<W, E> {
         F: Endianness,
         V: Primitive,
     {
-        F::write_numeric(&mut self.writer, value)
+        self.writer.write_all(F::primitive_to_bytes(value).as_ref())
     }
 
     #[inline]

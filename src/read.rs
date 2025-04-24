@@ -1657,7 +1657,14 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     where
         V: Primitive,
     {
-        E::read_primitive(self)
+        let mut buffer = V::buffer();
+        E::read_bytes::<8, _>(
+            &mut self.reader,
+            &mut self.value,
+            self.bits,
+            buffer.as_mut(),
+        )?;
+        Ok(E::bytes_to_primitive(buffer))
     }
 
     #[inline]
@@ -1666,7 +1673,14 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
         F: Endianness,
         V: Primitive,
     {
-        F::read_primitive(self)
+        let mut buffer = V::buffer();
+        F::read_bytes::<8, _>(
+            &mut self.reader,
+            &mut self.value,
+            self.bits,
+            buffer.as_mut(),
+        )?;
+        Ok(F::bytes_to_primitive(buffer))
     }
 
     /// # Examples
@@ -1717,11 +1731,7 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     /// ```
     #[inline]
     fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<()> {
-        if BitRead::byte_aligned(self) {
-            self.reader.read_exact(buf)
-        } else {
-            E::read_bytes(&mut self.reader, &mut self.value, &mut self.bits, buf)
-        }
+        E::read_bytes::<1024, _>(&mut self.reader, &mut self.value, self.bits, buf)
     }
 
     fn read_unary<const STOP_BIT: u8>(&mut self) -> io::Result<u32> {
@@ -2011,7 +2021,9 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     where
         V: Primitive,
     {
-        E::read_numeric(&mut self.reader)
+        let mut buf = V::buffer();
+        self.read_bytes(buf.as_mut())?;
+        Ok(E::bytes_to_primitive(buf))
     }
 
     #[inline]
@@ -2020,7 +2032,9 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
         F: Endianness,
         V: Primitive,
     {
-        F::read_numeric(&mut self.reader)
+        let mut buf = V::buffer();
+        self.read_bytes(buf.as_mut())?;
+        Ok(F::bytes_to_primitive(buf))
     }
 
     #[inline]
