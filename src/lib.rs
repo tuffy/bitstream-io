@@ -2143,7 +2143,7 @@ impl Endianness for BigEndian {
                 // to the first byte in the chunk
                 // while replacing those contents
                 // with the final byte of the input
-                output_chunk[0] |= core::mem::replace(
+                output_chunk[0] |= mem::replace(
                     queue_value,
                     input_chunk.last().unwrap() << (u8::BITS_SIZE - queue_bits),
                 );
@@ -2184,7 +2184,7 @@ impl Endianness for BigEndian {
                         *o |= *i << (u8::BITS_SIZE - queue_bits);
                     });
 
-                output_chunk[0] |= core::mem::replace(
+                output_chunk[0] |= mem::replace(
                     queue_value,
                     input_chunk.last().unwrap() & (u8::ALL >> (u8::BITS_SIZE - queue_bits)),
                 ) << (u8::BITS_SIZE - queue_bits);
@@ -2651,7 +2651,7 @@ impl Endianness for LittleEndian {
                         *o |= i >> (u8::BITS_SIZE - queue_bits);
                     });
 
-                output_chunk[0] |= core::mem::replace(
+                output_chunk[0] |= mem::replace(
                     queue_value,
                     input_chunk.last().unwrap() >> (u8::BITS_SIZE - queue_bits),
                 );
@@ -2692,7 +2692,7 @@ impl Endianness for LittleEndian {
                         *o |= i >> (u8::BITS_SIZE - queue_bits);
                     });
 
-                output_chunk[0] |= core::mem::replace(
+                output_chunk[0] |= mem::replace(
                     queue_value,
                     input_chunk.last().unwrap() >> (u8::BITS_SIZE - queue_bits),
                 );
