@@ -152,9 +152,12 @@ pub use read::{
     FromByteStream, FromByteStreamWith,
 };
 pub use write::{
-    BitCounter, BitRecorder, BitWrite, BitWrite2, BitWriter, ByteWrite, ByteWriter, ToBitStream,
+    BitRecorder, BitWrite, BitWrite2, BitWriter, BitsWritten, ByteWrite, ByteWriter, ToBitStream,
     ToBitStreamWith, ToByteStream, ToByteStreamWith,
 };
+
+#[allow(deprecated)]
+pub use write::BitCounter;
 
 /// A trait intended for simple fixed-length primitives (such as ints and floats)
 /// which allows them to be read and written to streams of
@@ -1102,6 +1105,20 @@ pub trait Endianness: Sized {
 
     /// Converts a primitive to a primitive's byte buffer
     fn primitive_to_bytes<P: Primitive>(p: P) -> P::Bytes;
+
+    /// Reads convertable numeric value from reader in this endianness
+    #[deprecated(since = "3.4.0")]
+    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
+    where
+        R: BitRead,
+        V: Primitive;
+
+    /// Writes convertable numeric value to writer in this endianness
+    #[deprecated(since = "3.4.0")]
+    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
+    where
+        W: BitWrite,
+        V: Primitive;
 }
 
 #[inline(always)]
@@ -2205,6 +2222,26 @@ impl Endianness for BigEndian {
     fn primitive_to_bytes<P: Primitive>(p: P) -> P::Bytes {
         p.to_be_bytes()
     }
+
+    #[inline]
+    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
+    where
+        R: BitRead,
+        V: Primitive,
+    {
+        let mut buffer = V::buffer();
+        r.read_bytes(buffer.as_mut())?;
+        Ok(V::from_be_bytes(buffer))
+    }
+
+    #[inline]
+    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
+    where
+        W: BitWrite,
+        V: Primitive,
+    {
+        w.write_bytes(value.to_be_bytes().as_ref())
+    }
 }
 
 /// Little-endian, or least significant bits first
@@ -2712,6 +2749,26 @@ impl Endianness for LittleEndian {
     #[inline(always)]
     fn primitive_to_bytes<P: Primitive>(p: P) -> P::Bytes {
         p.to_le_bytes()
+    }
+
+    #[inline]
+    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
+    where
+        R: BitRead,
+        V: Primitive,
+    {
+        let mut buffer = V::buffer();
+        r.read_bytes(buffer.as_mut())?;
+        Ok(V::from_le_bytes(buffer))
+    }
+
+    #[inline]
+    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
+    where
+        W: BitWrite,
+        V: Primitive,
+    {
+        w.write_bytes(value.to_le_bytes().as_ref())
     }
 }
 

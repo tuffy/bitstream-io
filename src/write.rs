@@ -1712,27 +1712,27 @@ define_counter!(u128);
 ///
 /// # Example
 /// ```
-/// use bitstream_io::{BitWrite, BitCounter};
-/// let mut writer: BitCounter<u32> = BitCounter::new();
+/// use bitstream_io::{BigEndian, BitWrite, BitsWritten};
+/// let mut writer: BitsWritten<u32> = BitsWritten::new();
 /// writer.write_var(1, 0b1u8).unwrap();
 /// writer.write_var(2, 0b01u8).unwrap();
 /// writer.write_var(5, 0b10111u8).unwrap();
 /// assert_eq!(writer.written(), 8);
 /// ```
 #[derive(Default)]
-pub struct BitCounter<N> {
+pub struct BitsWritten<N> {
     bits: N,
 }
 
-impl<N: Default> BitCounter<N> {
-    /// Creates new counter
+impl<N: Default> BitsWritten<N> {
+    /// Creates new empty BitsWritten value
     #[inline]
     pub fn new() -> Self {
-        BitCounter { bits: N::default() }
+        Self { bits: N::default() }
     }
 }
 
-impl<N: Copy> BitCounter<N> {
+impl<N: Copy> BitsWritten<N> {
     /// Returns number of bits written
     #[inline]
     pub fn written(&self) -> N {
@@ -1740,7 +1740,7 @@ impl<N: Copy> BitCounter<N> {
     }
 }
 
-impl<N> BitCounter<N> {
+impl<N> BitsWritten<N> {
     /// Returns number of bits written
     #[inline]
     pub fn into_written(self) -> N {
@@ -1748,7 +1748,7 @@ impl<N> BitCounter<N> {
     }
 }
 
-impl<N: Counter> BitWrite for BitCounter<N> {
+impl<N: Counter> BitWrite for BitsWritten<N> {
     #[inline]
     fn write_bit(&mut self, _bit: bool) -> io::Result<()> {
         self.bits.checked_add_assign(1u8.into())?;
@@ -1952,6 +1952,147 @@ impl<N: Counter> BitWrite for BitCounter<N> {
     #[inline]
     fn byte_aligned(&self) -> bool {
         self.bits.byte_aligned()
+    }
+}
+
+/// For counting the number of bits written but generating no output.
+///
+/// # Example
+/// ```
+/// use bitstream_io::{BigEndian, BitWrite, BitCounter};
+/// let mut writer: BitCounter<u32, BigEndian> = BitCounter::new();
+/// writer.write_var(1, 0b1u8).unwrap();
+/// writer.write_var(2, 0b01u8).unwrap();
+/// writer.write_var(5, 0b10111u8).unwrap();
+/// assert_eq!(writer.written(), 8);
+/// ```
+#[derive(Default)]
+#[deprecated(since = "3.4.0", note = "use of BitsWritten is preferred")]
+pub struct BitCounter<N, E: Endianness> {
+    bits: BitsWritten<N>,
+    phantom: PhantomData<E>,
+}
+
+#[allow(deprecated)]
+impl<N: Default, E: Endianness> BitCounter<N, E> {
+    /// Creates new counter
+    #[inline]
+    pub fn new() -> Self {
+        BitCounter {
+            bits: BitsWritten::new(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+#[allow(deprecated)]
+impl<N: Copy, E: Endianness> BitCounter<N, E> {
+    /// Returns number of bits written
+    #[inline]
+    pub fn written(&self) -> N {
+        self.bits.written()
+    }
+}
+
+#[allow(deprecated)]
+impl<N, E: Endianness> BitCounter<N, E> {
+    /// Returns number of bits written
+    #[inline]
+    pub fn into_written(self) -> N {
+        self.bits.into_written()
+    }
+}
+
+#[allow(deprecated)]
+impl<N, E> BitWrite for BitCounter<N, E>
+where
+    E: Endianness,
+    N: Counter,
+{
+    #[inline]
+    fn write_bit(&mut self, bit: bool) -> io::Result<()> {
+        BitWrite::write_bit(&mut self.bits, bit)
+    }
+
+    #[inline]
+    fn write_const<const BITS: u32, const VALUE: u32>(&mut self) -> io::Result<()> {
+        BitWrite::write_const::<BITS, VALUE>(&mut self.bits)
+    }
+
+    #[inline]
+    fn write_unsigned<const BITS: u32, U>(&mut self, value: U) -> io::Result<()>
+    where
+        U: UnsignedInteger,
+    {
+        BitWrite::write_unsigned::<BITS, U>(&mut self.bits, value)
+    }
+
+    #[inline]
+    fn write_signed<const BITS: u32, S>(&mut self, value: S) -> io::Result<()>
+    where
+        S: SignedInteger,
+    {
+        BitWrite::write_signed::<BITS, S>(&mut self.bits, value)
+    }
+
+    #[inline]
+    fn write_unsigned_counted<const MAX: u32, U>(
+        &mut self,
+        count: BitCount<MAX>,
+        value: U,
+    ) -> io::Result<()>
+    where
+        U: UnsignedInteger,
+    {
+        BitWrite::write_unsigned_counted::<MAX, U>(&mut self.bits, count, value)
+    }
+
+    #[inline]
+    fn write_signed_counted<const MAX: u32, S>(
+        &mut self,
+        bits: impl TryInto<SignedBitCount<MAX>>,
+        value: S,
+    ) -> io::Result<()>
+    where
+        S: SignedInteger,
+    {
+        BitWrite::write_signed_counted::<MAX, S>(&mut self.bits, bits, value)
+    }
+
+    #[inline]
+    fn write_from<V>(&mut self, value: V) -> io::Result<()>
+    where
+        V: Primitive,
+    {
+        BitWrite::write_from(&mut self.bits, value)
+    }
+
+    #[inline]
+    fn write_as_from<F, V>(&mut self, value: V) -> io::Result<()>
+    where
+        F: Endianness,
+        V: Primitive,
+    {
+        BitWrite::write_as_from::<F, V>(&mut self.bits, value)
+    }
+
+    #[inline]
+    fn pad(&mut self, bits: u32) -> io::Result<()> {
+        BitWrite::pad(&mut self.bits, bits)
+    }
+
+    #[inline]
+    fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
+        BitWrite::write_bytes(&mut self.bits, buf)
+    }
+
+    fn write_unary<const STOP_BIT: u8>(&mut self, value: u32) -> io::Result<()> {
+        BitWrite::write_unary::<STOP_BIT>(&mut self.bits, value)
+    }
+
+    #[inline]
+    fn byte_aligned(&self) -> bool {
+        BitWrite::byte_aligned(&self.bits)
     }
 }
 
@@ -2509,14 +2650,24 @@ pub trait ToBitStream {
     where
         Self: Sized;
 
-    /// Returns total length of self, if possible
-    fn bits_len<C: Counter>(&self) -> Result<C, Self::Error>
+    /// Returns length of self in bits, if possible
+    fn bits<C: Counter>(&self) -> Result<C, Self::Error>
     where
         Self: Sized,
     {
-        let mut c: BitCounter<C> = BitCounter::new();
+        let mut c: BitsWritten<C> = BitsWritten::default();
         self.to_writer(&mut c)?;
         Ok(c.into_written())
+    }
+
+    /// Returns total length of self, if possible
+    #[deprecated(since = "3.4.0", note = "use of bits() is preferred")]
+    #[inline]
+    fn bits_len<C: Counter, E: Endianness>(&self) -> Result<C, Self::Error>
+    where
+        Self: Sized,
+    {
+        self.bits()
     }
 }
 
@@ -2538,14 +2689,24 @@ pub trait ToBitStreamWith<'a> {
     where
         Self: Sized;
 
-    /// Returns total length of self, if possible
-    fn bits_len<C: Counter>(&self, context: &Self::Context) -> Result<C, Self::Error>
+    /// Returns length of self in bits, if possible
+    fn bits<C: Counter>(&self, context: &Self::Context) -> Result<C, Self::Error>
     where
         Self: Sized,
     {
-        let mut c: BitCounter<C> = BitCounter::new();
+        let mut c: BitsWritten<C> = BitsWritten::default();
         self.to_writer(&mut c, context)?;
         Ok(c.into_written())
+    }
+
+    /// Returns total length of self, if possible
+    #[deprecated(since = "3.4.0", note = "use of len() is preferred")]
+    #[inline]
+    fn bits_len<C: Counter, E: Endianness>(&self, context: &Self::Context) -> Result<C, Self::Error>
+    where
+        Self: Sized,
+    {
+        self.bits(context)
     }
 }
 

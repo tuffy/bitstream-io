@@ -1126,10 +1126,10 @@ fn test_writer_bits_errors() {
 
 #[test]
 fn test_counter_be() {
-    use bitstream_io::{BitCounter, BitWrite};
+    use bitstream_io::{BitWrite, BitsWritten};
 
     // writing individual bits
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_bit(true).unwrap();
     w.write_bit(false).unwrap();
     w.write_bit(true).unwrap();
@@ -1149,7 +1149,7 @@ fn test_counter_be() {
     assert_eq!(w.written(), 16);
 
     // writing unsigned values
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     assert!(w.byte_aligned());
     w.write_var(2, 2u32).unwrap();
     assert!(!w.byte_aligned());
@@ -1164,7 +1164,7 @@ fn test_counter_be() {
     assert_eq!(w.written(), 32);
 
     // writing signed values
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_signed_var(2, -2).unwrap();
     w.write_signed_var(3, -2).unwrap();
     w.write_signed_var(5, 7).unwrap();
@@ -1173,7 +1173,7 @@ fn test_counter_be() {
     assert_eq!(w.written(), 32);
 
     // writing unary 0 values
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_unary::<0>(1).unwrap();
     w.write_unary::<0>(2).unwrap();
     w.write_unary::<0>(0).unwrap();
@@ -1192,7 +1192,7 @@ fn test_counter_be() {
     assert_eq!(w.written(), 32);
 
     // writing unary 1 values
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_unary::<1>(0).unwrap();
     w.write_unary::<1>(1).unwrap();
     w.write_unary::<1>(0).unwrap();
@@ -1214,7 +1214,7 @@ fn test_counter_be() {
     assert_eq!(w.written(), 32);
 
     // byte aligning
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_var(3, 5u32).unwrap();
     w.byte_align().unwrap();
     w.write_var(3, 7u32).unwrap();
@@ -1227,12 +1227,12 @@ fn test_counter_be() {
     assert_eq!(w.written(), 32);
 
     // writing bytes, aligned
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_bytes(b"\xB1\xED").unwrap();
     assert_eq!(w.written(), 16);
 
     // writing bytes, un-aligned
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_var(4, 11u32).unwrap();
     w.write_bytes(b"\xB1\xED").unwrap();
     w.byte_align().unwrap();
@@ -1242,11 +1242,11 @@ fn test_counter_be() {
 #[test]
 fn test_counter_huffman_be() {
     use bitstream_io::define_huffman_tree;
-    use bitstream_io::{BitCounter, BitWrite};
+    use bitstream_io::{BitWrite, BitsWritten};
 
     define_huffman_tree!(TreeName : i32 = [[[4, 3], 2], [1, 0]]);
 
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_huffman::<TreeName>(1).unwrap();
     w.write_huffman::<TreeName>(0).unwrap();
     w.write_huffman::<TreeName>(4).unwrap();
@@ -1268,10 +1268,10 @@ fn test_counter_huffman_be() {
 
 #[test]
 fn test_counter_le() {
-    use bitstream_io::{BitCounter, BitWrite};
+    use bitstream_io::{BitWrite, BitsWritten};
 
     // writing individual bits
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_bit(true).unwrap();
     w.write_bit(false).unwrap();
     w.write_bit(false).unwrap();
@@ -1291,7 +1291,7 @@ fn test_counter_le() {
     assert_eq!(w.written(), 16);
 
     // writing unsigned values
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     assert!(w.byte_aligned());
     w.write_var(2, 1u32).unwrap();
     assert!(!w.byte_aligned());
@@ -1306,7 +1306,7 @@ fn test_counter_le() {
     assert_eq!(w.written(), 32);
 
     // writing signed values
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_signed_var(2, 1).unwrap();
     w.write_signed_var(3, -4).unwrap();
     w.write_signed_var(5, 13).unwrap();
@@ -1315,7 +1315,7 @@ fn test_counter_le() {
     assert_eq!(w.written(), 32);
 
     // writing unary 0 values
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_unary::<0>(1).unwrap();
     w.write_unary::<0>(0).unwrap();
     w.write_unary::<0>(0).unwrap();
@@ -1334,7 +1334,7 @@ fn test_counter_le() {
     assert_eq!(w.written(), 32);
 
     // writing unary 1 values
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_unary::<1>(0).unwrap();
     w.write_unary::<1>(3).unwrap();
     w.write_unary::<1>(0).unwrap();
@@ -1356,7 +1356,7 @@ fn test_counter_le() {
     assert_eq!(w.written(), 32);
 
     // byte aligning
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_var(3, 5u32).unwrap();
     w.byte_align().unwrap();
     w.write_var(3, 7u32).unwrap();
@@ -1369,12 +1369,12 @@ fn test_counter_le() {
     assert_eq!(w.written(), 32);
 
     // writing bytes, aligned
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_bytes(b"\xB1\xED").unwrap();
     assert_eq!(w.written(), 16);
 
     // writing bytes, un-aligned
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_var(4, 11u32).unwrap();
     w.write_bytes(b"\xB1\xED").unwrap();
     w.byte_align().unwrap();
@@ -1384,11 +1384,11 @@ fn test_counter_le() {
 #[test]
 fn test_counter_huffman_le() {
     use bitstream_io::define_huffman_tree;
-    use bitstream_io::{BitCounter, BitWrite};
+    use bitstream_io::{BitWrite, BitsWritten};
 
     define_huffman_tree!(TreeName : i32= [[[4, 3], 2], [1, 0]]);
 
-    let mut w: BitCounter<u32> = BitCounter::new();
+    let mut w: BitsWritten<u32> = BitsWritten::new();
     w.write_huffman::<TreeName>(1).unwrap();
     w.write_huffman::<TreeName>(3).unwrap();
     w.write_huffman::<TreeName>(1).unwrap();
@@ -1817,20 +1817,20 @@ fn test_pad() {
 
 #[test]
 fn test_counter_overflow() {
-    use bitstream_io::BitCounter;
+    use bitstream_io::BitsWritten;
 
     // overflow u8 with many small writes
-    let mut counter: BitCounter<u8> = BitCounter::new();
+    let mut counter: BitsWritten<u8> = BitsWritten::new();
     for _ in 0..255 {
         assert!(counter.write_bit(false).is_ok());
     }
     assert!(counter.write_bit(false).is_err());
 
     // overflow u8 with one big write
-    let mut counter: BitCounter<u8> = BitCounter::new();
+    let mut counter: BitsWritten<u8> = BitsWritten::new();
     assert!(counter.write_from([0u8; 31]).is_ok());
 
-    let mut counter: BitCounter<u8> = BitCounter::new();
+    let mut counter: BitsWritten<u8> = BitsWritten::new();
     assert!(counter.write_from([0u8; 32]).is_err());
 }
 
