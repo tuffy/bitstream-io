@@ -63,6 +63,22 @@
 //! to encountering errors at runtime, this will hopefully be
 //! an improvement in the long run.
 
+//! # Changes From 3.X.X
+//!
+//! Version 4.0.0 features significant optimizations to the [`BitRecorder`]
+//! and deprecates the [`BitCounter`] in favor of [`BitsWritten`],
+//! which no longer requires specifying an endianness.
+//!
+//! In addition, the [`BitRead::read_bytes`] and [`BitWrite::write_bytes`]
+//! methods are significantly optimized in the case of non-aligned
+//! reads and writes.
+//!
+//! Finally, the [`Endianness`] traits have been sealed so as not
+//! to be implemented by other packages.  Given that other endianness
+//! types are extremely rare in file formats and end users should not
+//! have to implement this trait themselves, this should not be a
+//! concern.
+//!
 //! # Changes From 2.X.X
 //!
 //! Version 3.0.0 has made many breaking changes to the [`BitRead`] and
@@ -1105,14 +1121,14 @@ mod private {
         fn primitive_to_bytes<P: Primitive>(p: P) -> P::Bytes;
 
         /// Reads convertable numeric value from reader in this endianness
-        #[deprecated(since = "3.4.0")]
+        #[deprecated(since = "4.0.0")]
         fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
         where
             R: BitRead,
             V: Primitive;
 
         /// Writes convertable numeric value to writer in this endianness
-        #[deprecated(since = "3.4.0")]
+        #[deprecated(since = "4.0.0")]
         fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
         where
             W: BitWrite,

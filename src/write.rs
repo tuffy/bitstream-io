@@ -1967,7 +1967,7 @@ impl<N: Counter> BitWrite for BitsWritten<N> {
 /// assert_eq!(writer.written(), 8);
 /// ```
 #[derive(Default)]
-#[deprecated(since = "3.4.0", note = "use of BitsWritten is preferred")]
+#[deprecated(since = "4.0.0", note = "use of BitsWritten is preferred")]
 pub struct BitCounter<N, E: Endianness> {
     bits: BitsWritten<N>,
     phantom: PhantomData<E>,
@@ -2661,7 +2661,7 @@ pub trait ToBitStream {
     }
 
     /// Returns total length of self, if possible
-    #[deprecated(since = "3.4.0", note = "use of bits() is preferred")]
+    #[deprecated(since = "4.0.0", note = "use of bits() is preferred")]
     #[inline]
     fn bits_len<C: Counter, E: Endianness>(&self) -> Result<C, Self::Error>
     where
@@ -2700,7 +2700,7 @@ pub trait ToBitStreamWith<'a> {
     }
 
     /// Returns total length of self, if possible
-    #[deprecated(since = "3.4.0", note = "use of len() is preferred")]
+    #[deprecated(since = "4.0.0", note = "use of len() is preferred")]
     #[inline]
     fn bits_len<C: Counter, E: Endianness>(&self, context: &Self::Context) -> Result<C, Self::Error>
     where

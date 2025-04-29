@@ -1,9 +1,10 @@
-# 3.3.0
+# 4.0.0
 
 - Implement `SignedBitCount` for signed integer types.
 - Remove endianness requirement for `BitCounter`
 - Optimize `BitRecorder` implementation to be much faster
 - Optimize read/write_bytes to be much faster for un-aligned bytes
+- Seal `Endianness` traits from further downstream implementation
 
 # 3.2.0
 
