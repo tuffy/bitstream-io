@@ -900,226 +900,233 @@ define_signed_integer!(i128, u128);
 define_primitive_numeric!(f32);
 define_primitive_numeric!(f64);
 
+mod private {
+    use crate::{
+        io, BitCount, BitRead, BitWrite, Primitive, SignedBitCount, SignedInteger, UnsignedInteger,
+    };
+
+    pub trait Endianness: Sized {
+        /// Pops the next bit from the queue,
+        /// repleneshing it from the given reader if necessary
+        fn pop_bit_refill<R>(
+            reader: &mut R,
+            queue_value: &mut u8,
+            queue_bits: &mut u32,
+        ) -> io::Result<bool>
+        where
+            R: io::Read;
+
+        /// Pops the next unary value from the source until
+        /// `STOP_BIT` is encountered, replenishing it from the given
+        /// closure if necessary.
+        ///
+        /// `STOP_BIT` must be 0 or 1.
+        fn pop_unary<const STOP_BIT: u8, R>(
+            reader: &mut R,
+            queue_value: &mut u8,
+            queue_bits: &mut u32,
+        ) -> io::Result<u32>
+        where
+            R: io::Read;
+
+        /// Pushes the next bit into the queue,
+        /// and returns `Some` value if the queue is full.
+        fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8>;
+
+        /// For performing bulk reads from a bit source to an output type.
+        fn read_bits<const MAX: u32, R, U>(
+            reader: &mut R,
+            queue_value: &mut u8,
+            queue_bits: &mut u32,
+            count: BitCount<MAX>,
+        ) -> io::Result<U>
+        where
+            R: io::Read,
+            U: UnsignedInteger;
+
+        /// For performing bulk reads from a bit source to an output type.
+        fn read_bits_fixed<const BITS: u32, R, U>(
+            reader: &mut R,
+            queue_value: &mut u8,
+            queue_bits: &mut u32,
+        ) -> io::Result<U>
+        where
+            R: io::Read,
+            U: UnsignedInteger;
+
+        /// For performing bulk writes of a type to a bit sink.
+        fn write_bits<const MAX: u32, W, U>(
+            writer: &mut W,
+            queue_value: &mut u8,
+            queue_bits: &mut u32,
+            count: BitCount<MAX>,
+            value: U,
+        ) -> io::Result<()>
+        where
+            W: io::Write,
+            U: UnsignedInteger;
+
+        /// For performing bulk writes of a type to a bit sink.
+        fn write_bits_fixed<const BITS: u32, W, U>(
+            writer: &mut W,
+            queue_value: &mut u8,
+            queue_bits: &mut u32,
+            value: U,
+        ) -> io::Result<()>
+        where
+            W: io::Write,
+            U: UnsignedInteger;
+
+        /// Reads signed value from reader in this endianness
+        #[inline]
+        fn read_signed<const MAX: u32, R, S>(
+            r: &mut R,
+            count @ BitCount { bits }: BitCount<MAX>,
+        ) -> io::Result<S>
+        where
+            R: BitRead,
+            S: SignedInteger,
+        {
+            if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+                Self::read_signed_counted(
+                    r,
+                    count.signed_count().ok_or(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "signed reads need at least 1 bit for sign",
+                    ))?,
+                )
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "excessive bits for type read",
+                ))
+            }
+        }
+
+        /// Reads signed value from reader in this endianness
+        #[inline]
+        fn read_signed_fixed<R, const BITS: u32, S>(r: &mut R) -> io::Result<S>
+        where
+            R: BitRead,
+            S: SignedInteger,
+        {
+            let count = const {
+                assert!(BITS <= S::BITS_SIZE, "excessive bits for type read");
+                let count = BitCount::<BITS>::new::<BITS>().signed_count();
+                assert!(count.is_some(), "signed reads need at least 1 bit for sign");
+                count.unwrap()
+            };
+
+            Self::read_signed_counted(r, count)
+        }
+
+        /// Reads signed value from reader in this endianness
+        fn read_signed_counted<const MAX: u32, R, S>(
+            r: &mut R,
+            bits: SignedBitCount<MAX>,
+        ) -> io::Result<S>
+        where
+            R: BitRead,
+            S: SignedInteger;
+
+        /// Writes signed value to writer in this endianness
+        fn write_signed<const MAX: u32, W, S>(
+            w: &mut W,
+            count: BitCount<MAX>,
+            value: S,
+        ) -> io::Result<()>
+        where
+            W: BitWrite,
+            S: SignedInteger,
+        {
+            Self::write_signed_counted(
+                w,
+                count.signed_count().ok_or(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "signed writes need at least 1 bit for sign",
+                ))?,
+                value,
+            )
+        }
+
+        /// Writes signed value to writer in this endianness
+        fn write_signed_fixed<W, const BITS: u32, S>(w: &mut W, value: S) -> io::Result<()>
+        where
+            W: BitWrite,
+            S: SignedInteger,
+        {
+            let count = const {
+                assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
+                let count = BitCount::<BITS>::new::<BITS>().signed_count();
+                assert!(
+                    count.is_some(),
+                    "signed writes need at least 1 bit for sign"
+                );
+                count.unwrap()
+            };
+
+            Self::write_signed_counted(w, count, value)
+        }
+
+        /// Writes signed value to writer in this endianness
+        fn write_signed_counted<const MAX: u32, W, S>(
+            w: &mut W,
+            bits: SignedBitCount<MAX>,
+            value: S,
+        ) -> io::Result<()>
+        where
+            W: BitWrite,
+            S: SignedInteger;
+
+        /// Reads whole set of bytes to output buffer
+        fn read_bytes<const CHUNK_SIZE: usize, R>(
+            reader: &mut R,
+            queue_value: &mut u8,
+            queue_bits: u32,
+            buf: &mut [u8],
+        ) -> io::Result<()>
+        where
+            R: io::Read;
+
+        /// Writes whole set of bytes to output buffer
+        fn write_bytes<const CHUNK_SIZE: usize, W>(
+            writer: &mut W,
+            queue_value: &mut u8,
+            queue_bits: u32,
+            buf: &[u8],
+        ) -> io::Result<()>
+        where
+            W: io::Write;
+
+        /// Converts a primitive's byte buffer to a primitive
+        fn bytes_to_primitive<P: Primitive>(buf: P::Bytes) -> P;
+
+        /// Converts a primitive to a primitive's byte buffer
+        fn primitive_to_bytes<P: Primitive>(p: P) -> P::Bytes;
+
+        /// Reads convertable numeric value from reader in this endianness
+        #[deprecated(since = "3.4.0")]
+        fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
+        where
+            R: BitRead,
+            V: Primitive;
+
+        /// Writes convertable numeric value to writer in this endianness
+        #[deprecated(since = "3.4.0")]
+        fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
+        where
+            W: BitWrite,
+            V: Primitive;
+    }
+}
+
 /// A stream's endianness, or byte order, for determining
 /// how bits should be read.
 ///
 /// It comes in `BigEndian` and `LittleEndian` varieties
 /// (which may be shortened to `BE` and `LE`)
-/// and is not something programmers should have to implement
-/// in most cases.
-pub trait Endianness: Sized {
-    /// Pops the next bit from the queue,
-    /// repleneshing it from the given reader if necessary
-    fn pop_bit_refill<R>(
-        reader: &mut R,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-    ) -> io::Result<bool>
-    where
-        R: io::Read;
-
-    /// Pops the next unary value from the source until
-    /// `STOP_BIT` is encountered, replenishing it from the given
-    /// closure if necessary.
-    ///
-    /// `STOP_BIT` must be 0 or 1.
-    fn pop_unary<const STOP_BIT: u8, R>(
-        reader: &mut R,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-    ) -> io::Result<u32>
-    where
-        R: io::Read;
-
-    /// Pushes the next bit into the queue,
-    /// and returns `Some` value if the queue is full.
-    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8>;
-
-    /// For performing bulk reads from a bit source to an output type.
-    fn read_bits<const MAX: u32, R, U>(
-        reader: &mut R,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        count: BitCount<MAX>,
-    ) -> io::Result<U>
-    where
-        R: io::Read,
-        U: UnsignedInteger;
-
-    /// For performing bulk reads from a bit source to an output type.
-    fn read_bits_fixed<const BITS: u32, R, U>(
-        reader: &mut R,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-    ) -> io::Result<U>
-    where
-        R: io::Read,
-        U: UnsignedInteger;
-
-    /// For performing bulk writes of a type to a bit sink.
-    fn write_bits<const MAX: u32, W, U>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        count: BitCount<MAX>,
-        value: U,
-    ) -> io::Result<()>
-    where
-        W: io::Write,
-        U: UnsignedInteger;
-
-    /// For performing bulk writes of a type to a bit sink.
-    fn write_bits_fixed<const BITS: u32, W, U>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        value: U,
-    ) -> io::Result<()>
-    where
-        W: io::Write,
-        U: UnsignedInteger;
-
-    /// Reads signed value from reader in this endianness
-    #[inline]
-    fn read_signed<const MAX: u32, R, S>(
-        r: &mut R,
-        count @ BitCount { bits }: BitCount<MAX>,
-    ) -> io::Result<S>
-    where
-        R: BitRead,
-        S: SignedInteger,
-    {
-        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-            Self::read_signed_counted(
-                r,
-                count.signed_count().ok_or(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "signed reads need at least 1 bit for sign",
-                ))?,
-            )
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
-    }
-
-    /// Reads signed value from reader in this endianness
-    #[inline]
-    fn read_signed_fixed<R, const BITS: u32, S>(r: &mut R) -> io::Result<S>
-    where
-        R: BitRead,
-        S: SignedInteger,
-    {
-        let count = const {
-            assert!(BITS <= S::BITS_SIZE, "excessive bits for type read");
-            let count = BitCount::<BITS>::new::<BITS>().signed_count();
-            assert!(count.is_some(), "signed reads need at least 1 bit for sign");
-            count.unwrap()
-        };
-
-        Self::read_signed_counted(r, count)
-    }
-
-    /// Reads signed value from reader in this endianness
-    fn read_signed_counted<const MAX: u32, R, S>(
-        r: &mut R,
-        bits: SignedBitCount<MAX>,
-    ) -> io::Result<S>
-    where
-        R: BitRead,
-        S: SignedInteger;
-
-    /// Writes signed value to writer in this endianness
-    fn write_signed<const MAX: u32, W, S>(
-        w: &mut W,
-        count: BitCount<MAX>,
-        value: S,
-    ) -> io::Result<()>
-    where
-        W: BitWrite,
-        S: SignedInteger,
-    {
-        Self::write_signed_counted(
-            w,
-            count.signed_count().ok_or(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "signed writes need at least 1 bit for sign",
-            ))?,
-            value,
-        )
-    }
-
-    /// Writes signed value to writer in this endianness
-    fn write_signed_fixed<W, const BITS: u32, S>(w: &mut W, value: S) -> io::Result<()>
-    where
-        W: BitWrite,
-        S: SignedInteger,
-    {
-        let count = const {
-            assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
-            let count = BitCount::<BITS>::new::<BITS>().signed_count();
-            assert!(
-                count.is_some(),
-                "signed writes need at least 1 bit for sign"
-            );
-            count.unwrap()
-        };
-
-        Self::write_signed_counted(w, count, value)
-    }
-
-    /// Writes signed value to writer in this endianness
-    fn write_signed_counted<const MAX: u32, W, S>(
-        w: &mut W,
-        bits: SignedBitCount<MAX>,
-        value: S,
-    ) -> io::Result<()>
-    where
-        W: BitWrite,
-        S: SignedInteger;
-
-    /// Reads whole set of bytes to output buffer
-    fn read_bytes<const CHUNK_SIZE: usize, R>(
-        reader: &mut R,
-        queue_value: &mut u8,
-        queue_bits: u32,
-        buf: &mut [u8],
-    ) -> io::Result<()>
-    where
-        R: io::Read;
-
-    /// Writes whole set of bytes to output buffer
-    fn write_bytes<const CHUNK_SIZE: usize, W>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: u32,
-        buf: &[u8],
-    ) -> io::Result<()>
-    where
-        W: io::Write;
-
-    /// Converts a primitive's byte buffer to a primitive
-    fn bytes_to_primitive<P: Primitive>(buf: P::Bytes) -> P;
-
-    /// Converts a primitive to a primitive's byte buffer
-    fn primitive_to_bytes<P: Primitive>(p: P) -> P::Bytes;
-
-    /// Reads convertable numeric value from reader in this endianness
-    #[deprecated(since = "3.4.0")]
-    fn read_primitive<R, V>(r: &mut R) -> io::Result<V>
-    where
-        R: BitRead,
-        V: Primitive;
-
-    /// Writes convertable numeric value to writer in this endianness
-    #[deprecated(since = "3.4.0")]
-    fn write_primitive<W, V>(w: &mut W, value: V) -> io::Result<()>
-    where
-        W: BitWrite,
-        V: Primitive;
-}
+/// and is not something programmers should implement directly.
+pub trait Endianness: private::Endianness {}
 
 #[inline(always)]
 fn read_byte<R>(mut reader: R) -> io::Result<u8>
@@ -1889,7 +1896,9 @@ impl BigEndian {
     }
 }
 
-impl Endianness for BigEndian {
+impl Endianness for BigEndian {}
+
+impl private::Endianness for BigEndian {
     #[inline]
     fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
         *queue_value = (*queue_value << 1) | u8::from(bit);
@@ -2426,7 +2435,9 @@ impl LittleEndian {
     }
 }
 
-impl Endianness for LittleEndian {
+impl Endianness for LittleEndian {}
+
+impl private::Endianness for LittleEndian {
     #[inline]
     fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
         *queue_value |= u8::from(bit) << *queue_bits;
