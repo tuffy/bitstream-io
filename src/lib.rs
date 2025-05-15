@@ -607,6 +607,15 @@ macro_rules! define_unsigned_integer {
             fn checked_shr(self, rhs: u32) -> Option<Self> {
                 self.checked_shr(rhs)
             }
+            // TODO - enable these in the future
+            // #[inline(always)]
+            // fn shl_default(self, rhs: u32) -> Self {
+            //     self.unbounded_shl(rhs)
+            // }
+            // #[inline(always)]
+            // fn shr_default(self, rhs: u32) -> Self {
+            //     self.unbounded_shr(rhs)
+            // }
         }
 
         impl Integer for $t {
