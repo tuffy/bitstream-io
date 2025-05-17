@@ -864,6 +864,15 @@ pub trait BitWrite {
         build.to_writer(self, context)
     }
 
+    /// Builds and writes complex type with owned context
+    fn build_using<'a, T: ToBitStreamUsing>(
+        &mut self,
+        build: &T,
+        context: T::Context,
+    ) -> Result<(), T::Error> {
+        build.to_writer(self, context)
+    }
+
     /// Returns true if the stream is aligned at a whole byte.
     ///
     /// # Example
@@ -2566,6 +2575,15 @@ pub trait ByteWrite {
         build.to_writer(self, context)
     }
 
+    /// Builds and writes complex type with owned context
+    fn build_using<'a, T: ToByteStreamUsing>(
+        &mut self,
+        build: &T,
+        context: T::Context,
+    ) -> Result<(), T::Error> {
+        build.to_writer(self, context)
+    }
+
     /// Returns mutable reference to underlying writer
     fn writer_ref(&mut self) -> &mut dyn io::Write;
 }
@@ -2710,6 +2728,35 @@ pub trait ToBitStreamWith<'a> {
     }
 }
 
+/// Implemented by complex types that consume additional context
+/// to build themselves to a writer
+pub trait ToBitStreamUsing {
+    /// Some context to consume when writing
+    type Context;
+
+    /// Error generated during building, such as `io::Error`
+    type Error;
+
+    /// Generate self to writer
+    fn to_writer<W: BitWrite + ?Sized>(
+        &self,
+        w: &mut W,
+        context: Self::Context,
+    ) -> Result<(), Self::Error>
+    where
+        Self: Sized;
+
+    /// Returns length of self in bits, if possible
+    fn bits<C: Counter>(&self, context: Self::Context) -> Result<C, Self::Error>
+    where
+        Self: Sized,
+    {
+        let mut c: BitsWritten<C> = BitsWritten::default();
+        self.to_writer(&mut c, context)?;
+        Ok(c.into_written())
+    }
+}
+
 /// Implemented by complex types that don't require any additional context
 /// to build themselves to a writer
 pub trait ToByteStream {
@@ -2736,6 +2783,25 @@ pub trait ToByteStreamWith<'a> {
         &self,
         w: &mut W,
         context: &Self::Context,
+    ) -> Result<(), Self::Error>
+    where
+        Self: Sized;
+}
+
+/// Implemented by complex types that consume additional context
+/// to build themselves to a writer
+pub trait ToByteStreamUsing {
+    /// Some context to consume when writing
+    type Context;
+
+    /// Error generated during building, such as `io::Error`
+    type Error;
+
+    /// Generate self to writer
+    fn to_writer<W: ByteWrite + ?Sized>(
+        &self,
+        w: &mut W,
+        context: Self::Context,
     ) -> Result<(), Self::Error>
     where
         Self: Sized;

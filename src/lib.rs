@@ -164,12 +164,12 @@ pub mod huffman;
 pub mod read;
 pub mod write;
 pub use read::{
-    BitRead, BitRead2, BitReader, ByteRead, ByteReader, FromBitStream, FromBitStreamWith,
-    FromByteStream, FromByteStreamWith,
+    BitRead, BitRead2, BitReader, ByteRead, ByteReader, FromBitStream, FromBitStreamUsing,
+    FromBitStreamWith, FromByteStream, FromByteStreamUsing, FromByteStreamWith,
 };
 pub use write::{
     BitRecorder, BitWrite, BitWrite2, BitWriter, BitsWritten, ByteWrite, ByteWriter, ToBitStream,
-    ToBitStreamWith, ToByteStream, ToByteStreamWith,
+    ToBitStreamUsing, ToBitStreamWith, ToByteStream, ToByteStreamUsing, ToByteStreamWith,
 };
 
 #[allow(deprecated)]

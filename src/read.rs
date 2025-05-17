@@ -768,6 +768,11 @@ pub trait BitRead {
         F::from_reader(self, context)
     }
 
+    /// Parses and returns complex type with owned context
+    fn parse_using<F: FromBitStreamUsing>(&mut self, context: F::Context) -> Result<F, F::Error> {
+        F::from_reader(self, context)
+    }
+
     /// Returns true if the stream is aligned at a whole byte.
     ///
     /// # Example
@@ -1795,6 +1800,11 @@ pub trait ByteRead {
         F::from_reader(self, context)
     }
 
+    /// Parses and returns complex type with owned context
+    fn parse_using<F: FromByteStreamUsing>(&mut self, context: F::Context) -> Result<F, F::Error> {
+        F::from_reader(self, context)
+    }
+
     /// Returns mutable reference to underlying reader
     fn reader_ref(&mut self) -> &mut dyn io::Read;
 }
@@ -2199,6 +2209,27 @@ pub trait FromBitStreamWith<'a> {
         Self: Sized;
 }
 
+/// Implemented by complex types that consume some immutable context
+/// to parse themselves from a reader.
+///
+/// Like [`FromBitStreamWith`], but consumes its context
+/// rather than taking a shared reference to it.
+pub trait FromBitStreamUsing {
+    /// Some context to consume when parsing
+    type Context;
+
+    /// Error generated during parsing, such as `io::Error`
+    type Error;
+
+    /// Parse Self from reader with the given context
+    fn from_reader<R: BitRead + ?Sized>(
+        r: &mut R,
+        context: Self::Context,
+    ) -> Result<Self, Self::Error>
+    where
+        Self: Sized;
+}
+
 /// Implemented by complex types that don't require any additional context
 /// to parse themselves from a reader.  Analagous to `FromStr`.
 pub trait FromByteStream {
@@ -2224,6 +2255,26 @@ pub trait FromByteStreamWith<'a> {
     fn from_reader<R: ByteRead + ?Sized>(
         r: &mut R,
         context: &Self::Context,
+    ) -> Result<Self, Self::Error>
+    where
+        Self: Sized;
+}
+
+/// Implemented by complex types that consume some additional context
+/// to parse themselves from a reader.
+///
+/// Like [`FromByteStreamWith`], but consumes the context.
+pub trait FromByteStreamUsing {
+    /// Some context to use when parsing
+    type Context;
+
+    /// Error generated during parsing, such as `io::Error`
+    type Error;
+
+    /// Parse Self from reader
+    fn from_reader<R: ByteRead + ?Sized>(
+        r: &mut R,
+        context: Self::Context,
     ) -> Result<Self, Self::Error>
     where
         Self: Sized;
