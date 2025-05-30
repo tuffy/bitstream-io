@@ -865,7 +865,7 @@ pub trait BitWrite {
     }
 
     /// Builds and writes complex type with owned context
-    fn build_using<'a, T: ToBitStreamUsing>(
+    fn build_using<T: ToBitStreamUsing>(
         &mut self,
         build: &T,
         context: T::Context,
@@ -2576,7 +2576,7 @@ pub trait ByteWrite {
     }
 
     /// Builds and writes complex type with owned context
-    fn build_using<'a, T: ToByteStreamUsing>(
+    fn build_using<T: ToByteStreamUsing>(
         &mut self,
         build: &T,
         context: T::Context,
