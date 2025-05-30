@@ -18,8 +18,8 @@ use alloc::{vec, vec::Vec};
 use std::io;
 
 use super::{
-    BitCount, Endianness, Integer, PhantomData, Primitive, SignedBitCount, SignedInteger,
-    UnsignedInteger,
+    BitCount, CheckedUnsigned, Endianness, Integer, PhantomData, Primitive, SignedBitCount,
+    SignedInteger, UnsignedInteger,
 };
 
 use core::convert::TryInto;
@@ -753,6 +753,56 @@ pub trait BitRead {
             unary += 1;
         }
         Ok(unary)
+    }
+
+    /// Reads an unsigned checked value from the stream
+    /// with the given number of bits.
+    ///
+    /// Because the count is known at read-time,
+    /// we know the read value cannot exceed that count.
+    /// Therefore, the value does not need to be verified
+    /// again when writing it back to a writer.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Also returns an error if the output type is too small
+    /// to hold the requested number of bits.
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::{
+    ///     BigEndian, BitCount, BitRead, BitReader, BitWrite, BitWriter, CheckedUnsigned,
+    /// };
+    ///
+    /// let bytes: &[u8] = &[0b111111_0];
+    ///
+    /// let mut r = BitReader::endian(bytes, BigEndian);
+    ///
+    /// // read a 7 bit value to a u8
+    /// let v: CheckedUnsigned<8, u8> = r.read_checked(BitCount::new::<7>()).unwrap();
+    /// r.skip(1).unwrap();
+    ///
+    /// // write that same 7 bit value back to disk
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    ///
+    /// // because we've kept a record of the number of bits
+    /// // that we've read from the stream, we don't have to
+    /// // check that the value is larger than a u8,
+    /// // nor do we have to check that its value is larger than 7 bits
+    /// w.write_checked(v).unwrap();
+    /// w.pad(1).unwrap();
+    ///
+    /// assert_eq!(w.into_writer().as_slice(), bytes);
+    /// ```
+    fn read_checked<const MAX: u32, U: UnsignedInteger>(
+        &mut self,
+        count: BitCount<MAX>,
+    ) -> io::Result<CheckedUnsigned<MAX, U>> {
+        Ok(CheckedUnsigned {
+            value: self.read_unsigned_counted(count)?,
+            count,
+        })
     }
 
     /// Parses and returns complex type

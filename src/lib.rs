@@ -927,7 +927,8 @@ define_primitive_numeric!(f64);
 
 mod private {
     use crate::{
-        io, BitCount, BitRead, BitWrite, Primitive, SignedBitCount, SignedInteger, UnsignedInteger,
+        io, BitCount, BitRead, BitWrite, CheckedUnsigned, Primitive, SignedBitCount, SignedInteger,
+        UnsignedInteger,
     };
 
     pub trait Endianness: Sized {
@@ -980,6 +981,7 @@ mod private {
             U: UnsignedInteger;
 
         /// For performing bulk writes of a type to a bit sink.
+        #[inline]
         fn write_bits<const MAX: u32, W, U>(
             writer: &mut W,
             queue_value: &mut u8,
@@ -989,14 +991,42 @@ mod private {
         ) -> io::Result<()>
         where
             W: io::Write,
-            U: UnsignedInteger;
+            U: UnsignedInteger,
+        {
+            Self::write_bits_checked(
+                writer,
+                queue_value,
+                queue_bits,
+                CheckedUnsigned::new(count, value)?,
+            )
+        }
 
         /// For performing bulk writes of a type to a bit sink.
+        #[inline]
         fn write_bits_fixed<const BITS: u32, W, U>(
             writer: &mut W,
             queue_value: &mut u8,
             queue_bits: &mut u32,
             value: U,
+        ) -> io::Result<()>
+        where
+            W: io::Write,
+            U: UnsignedInteger,
+        {
+            Self::write_bits_checked::<BITS, W, U>(
+                writer,
+                queue_value,
+                queue_bits,
+                CheckedUnsigned::new_fixed::<BITS>(value)?,
+            )
+        }
+
+        /// For performing a checked write to a bit sink
+        fn write_bits_checked<const MAX: u32, W, U>(
+            writer: &mut W,
+            queue_value: &mut u8,
+            queue_bits: &mut u32,
+            value: CheckedUnsigned<MAX, U>,
         ) -> io::Result<()>
         where
             W: io::Write,
@@ -1725,6 +1755,154 @@ impl<const MAX: u32> From<SignedBitCount<MAX>> for u32 {
     }
 }
 
+/// An error when converting a value to a [`CheckedUnsigned`] struct
+#[derive(Copy, Clone, Debug)]
+pub enum CheckedUnsignedError {
+    /// Excessive bits for type
+    ExcessiveBits,
+    /// Excessive value for bits
+    ExcessiveValue,
+}
+
+impl core::error::Error for CheckedUnsignedError {}
+
+impl core::fmt::Display for CheckedUnsignedError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            Self::ExcessiveBits => core::fmt::Display::fmt("excessive bits for type written", f),
+            Self::ExcessiveValue => core::fmt::Display::fmt("excessive value for bits written", f),
+        }
+    }
+}
+
+impl From<CheckedUnsignedError> for io::Error {
+    #[inline]
+    fn from(error: CheckedUnsignedError) -> Self {
+        match error {
+            CheckedUnsignedError::ExcessiveBits => io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type written",
+            ),
+            CheckedUnsignedError::ExcessiveValue => io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive value for bits written",
+            ),
+        }
+    }
+}
+
+/// An unsigned integer with a verified maximum value
+///
+/// Note that the maximum number of bits can be larger
+/// than our value's type's size in bits, (a common case
+/// when the maximum is unknown), but the actual bit count
+/// must not be.
+#[derive(Copy, Clone, Debug)]
+pub struct CheckedUnsigned<const MAX: u32, U: UnsignedInteger> {
+    count: BitCount<MAX>,
+    value: U,
+}
+
+impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
+    /// Returns our value if it fits in the given number of const bits
+    /// # Examples
+    ///
+    /// ```
+    /// use bitstream_io::{CheckedUnsigned, CheckedUnsignedError};
+    ///
+    /// // a value of 7 fits into a 3 bit count
+    /// assert!(CheckedUnsigned::<8, u8>::new_fixed::<3>(7).is_ok());
+    ///
+    /// // a value of 8 does not fit into a 3 bit count
+    /// assert!(matches!(
+    ///     CheckedUnsigned::<8, u8>::new_fixed::<3>(8),
+    ///     Err(CheckedUnsignedError::ExcessiveValue),
+    /// ));
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use bitstream_io::{BitCount, CheckedUnsigned};
+    ///
+    /// // a bit count of 9 is too large for u8
+    /// let c = CheckedUnsigned::<16, u8>::new_fixed::<9>(1);
+    /// ```
+    pub fn new_fixed<const BITS: u32>(value: U) -> Result<Self, CheckedUnsignedError> {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
+        }
+
+        if BITS == 0 {
+            Ok(Self {
+                count: BitCount::new::<0>(),
+                value: U::ZERO,
+            })
+        } else if BITS == U::BITS_SIZE || value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+            Ok(Self {
+                // whether BITS is larger than MAX is checked here
+                count: BitCount::new::<BITS>(),
+                value,
+            })
+        } else {
+            Err(CheckedUnsignedError::ExcessiveValue)
+        }
+    }
+
+    /// Returns our value if it fits in the given number of bits
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::{BitCount, CheckedUnsigned, CheckedUnsignedError};
+    ///
+    /// // a value of 7 fits into a 3 bit count
+    /// assert!(CheckedUnsigned::new(BitCount::<8>::new::<3>(), 7u8).is_ok());
+    ///
+    /// // a value of 8 does not fit into a 3 bit count
+    /// assert!(matches!(
+    ///     CheckedUnsigned::new(BitCount::<8>::new::<3>(), 8u8),
+    ///     Err(CheckedUnsignedError::ExcessiveValue),
+    /// ));
+    ///
+    /// // a bit count of 9 is too large for u8
+    /// assert!(matches!(
+    ///     CheckedUnsigned::new(BitCount::<9>::new::<9>(), 1u8),
+    ///     Err(CheckedUnsignedError::ExcessiveBits),
+    /// ));
+    /// ```
+    #[inline]
+    pub fn new(
+        count @ BitCount { bits }: BitCount<MAX>,
+        value: U,
+    ) -> Result<Self, CheckedUnsignedError> {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            if bits == 0 {
+                Ok(Self {
+                    count,
+                    value: U::ZERO,
+                })
+            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
+                Ok(Self { count, value })
+            } else {
+                Err(CheckedUnsignedError::ExcessiveValue)
+            }
+        } else {
+            Err(CheckedUnsignedError::ExcessiveBits)
+        }
+    }
+
+    /// Returns our bit count and value
+    #[inline]
+    pub fn into_count_value(self) -> (BitCount<MAX>, U) {
+        (self.count, self.value)
+    }
+
+    /// Returns our value
+    #[inline]
+    pub fn into_value(self) -> U {
+        self.value
+    }
+}
+
 /// Big-endian, or most significant bits first
 #[derive(Copy, Clone, Debug)]
 pub struct BigEndian;
@@ -1822,6 +2000,60 @@ impl BigEndian {
             }
         }
     }
+}
+
+impl Endianness for BigEndian {}
+
+impl private::Endianness for BigEndian {
+    #[inline]
+    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
+        *queue_value = (*queue_value << 1) | u8::from(bit);
+        *queue_bits = (*queue_bits + 1) % 8;
+        (*queue_bits == 0).then(|| mem::take(queue_value))
+    }
+
+    #[inline]
+    fn read_bits<const MAX: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count @ BitCount { bits }: BitCount<MAX>,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedInteger,
+    {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            Self::read_bits_checked::<MAX, R, U>(reader, queue_value, queue_bits, count)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
+        }
+    }
+
+    #[inline]
+    fn read_bits_fixed<const BITS: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedInteger,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
+        }
+
+        Self::read_bits_checked::<BITS, R, U>(
+            reader,
+            queue_value,
+            queue_bits,
+            BitCount::new::<BITS>(),
+        )
+    }
 
     // checked in the sense that we've verified
     // the input type is large enough to hold the
@@ -1832,8 +2064,10 @@ impl BigEndian {
         writer: &mut W,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        BitCount { bits }: BitCount<MAX>,
-        value: U,
+        CheckedUnsigned {
+            count: BitCount { bits },
+            value,
+        }: CheckedUnsigned<MAX, U>,
     ) -> io::Result<()>
     where
         W: io::Write,
@@ -1917,124 +2151,6 @@ impl BigEndian {
                     write_bytes(writer, bytes as usize, value.shr_default(excess))
                 }
             }
-        }
-    }
-}
-
-impl Endianness for BigEndian {}
-
-impl private::Endianness for BigEndian {
-    #[inline]
-    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
-        *queue_value = (*queue_value << 1) | u8::from(bit);
-        *queue_bits = (*queue_bits + 1) % 8;
-        (*queue_bits == 0).then(|| mem::take(queue_value))
-    }
-
-    #[inline]
-    fn read_bits<const MAX: u32, R, U>(
-        reader: &mut R,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        count @ BitCount { bits }: BitCount<MAX>,
-    ) -> io::Result<U>
-    where
-        R: io::Read,
-        U: UnsignedInteger,
-    {
-        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            Self::read_bits_checked::<MAX, R, U>(reader, queue_value, queue_bits, count)
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
-    }
-
-    #[inline]
-    fn read_bits_fixed<const BITS: u32, R, U>(
-        reader: &mut R,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-    ) -> io::Result<U>
-    where
-        R: io::Read,
-        U: UnsignedInteger,
-    {
-        const {
-            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
-        }
-
-        Self::read_bits_checked::<BITS, R, U>(
-            reader,
-            queue_value,
-            queue_bits,
-            BitCount::new::<BITS>(),
-        )
-    }
-
-    /// For performing bulk writes of a type to a bit sink.
-    fn write_bits<const MAX: u32, W, U>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        count @ BitCount { bits }: BitCount<MAX>,
-        value: U,
-    ) -> io::Result<()>
-    where
-        W: io::Write,
-        U: UnsignedInteger,
-    {
-        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            if bits == 0 {
-                Ok(())
-            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
-                Self::write_bits_checked::<MAX, W, U>(writer, queue_value, queue_bits, count, value)
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "excessive value for bits written",
-                ))
-            }
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            ))
-        }
-    }
-
-    /// For performing bulk writes of a type to a bit sink.
-    fn write_bits_fixed<const BITS: u32, W, U>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        value: U,
-    ) -> io::Result<()>
-    where
-        W: io::Write,
-        U: UnsignedInteger,
-    {
-        const {
-            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
-        }
-
-        if BITS == 0 {
-            Ok(())
-        } else if BITS == U::BITS_SIZE || value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
-            Self::write_bits_checked::<BITS, W, U>(
-                writer,
-                queue_value,
-                queue_bits,
-                BitCount::new::<BITS>(),
-                value,
-            )
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive value for bits written",
-            ))
         }
     }
 
@@ -2369,6 +2485,60 @@ impl LittleEndian {
             }
         }
     }
+}
+
+impl Endianness for LittleEndian {}
+
+impl private::Endianness for LittleEndian {
+    #[inline]
+    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
+        *queue_value |= u8::from(bit) << *queue_bits;
+        *queue_bits = (*queue_bits + 1) % 8;
+        (*queue_bits == 0).then(|| mem::take(queue_value))
+    }
+
+    #[inline]
+    fn read_bits<const MAX: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        count @ BitCount { bits }: BitCount<MAX>,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedInteger,
+    {
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            Self::read_bits_checked::<MAX, R, U>(reader, queue_value, queue_bits, count)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "excessive bits for type read",
+            ))
+        }
+    }
+
+    #[inline]
+    fn read_bits_fixed<const BITS: u32, R, U>(
+        reader: &mut R,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<U>
+    where
+        R: io::Read,
+        U: UnsignedInteger,
+    {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
+        }
+
+        Self::read_bits_checked::<BITS, R, U>(
+            reader,
+            queue_value,
+            queue_bits,
+            BitCount::new::<BITS>(),
+        )
+    }
 
     // checked in the sense that we've verified
     // the input type is large enough to hold the
@@ -2379,8 +2549,10 @@ impl LittleEndian {
         writer: &mut W,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        BitCount { bits }: BitCount<MAX>,
-        value: U,
+        CheckedUnsigned {
+            count: BitCount { bits },
+            value,
+        }: CheckedUnsigned<MAX, U>,
     ) -> io::Result<()>
     where
         W: io::Write,
@@ -2456,124 +2628,6 @@ impl LittleEndian {
                     write_bytes(writer, bytes as usize, value >> available_bits)
                 }
             }
-        }
-    }
-}
-
-impl Endianness for LittleEndian {}
-
-impl private::Endianness for LittleEndian {
-    #[inline]
-    fn push_bit_flush(queue_value: &mut u8, queue_bits: &mut u32, bit: bool) -> Option<u8> {
-        *queue_value |= u8::from(bit) << *queue_bits;
-        *queue_bits = (*queue_bits + 1) % 8;
-        (*queue_bits == 0).then(|| mem::take(queue_value))
-    }
-
-    #[inline]
-    fn read_bits<const MAX: u32, R, U>(
-        reader: &mut R,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        count @ BitCount { bits }: BitCount<MAX>,
-    ) -> io::Result<U>
-    where
-        R: io::Read,
-        U: UnsignedInteger,
-    {
-        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            Self::read_bits_checked::<MAX, R, U>(reader, queue_value, queue_bits, count)
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type read",
-            ))
-        }
-    }
-
-    #[inline]
-    fn read_bits_fixed<const BITS: u32, R, U>(
-        reader: &mut R,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-    ) -> io::Result<U>
-    where
-        R: io::Read,
-        U: UnsignedInteger,
-    {
-        const {
-            assert!(BITS <= U::BITS_SIZE, "excessive bits for type read");
-        }
-
-        Self::read_bits_checked::<BITS, R, U>(
-            reader,
-            queue_value,
-            queue_bits,
-            BitCount::new::<BITS>(),
-        )
-    }
-
-    /// For performing bulk writes of a type to a bit sink.
-    fn write_bits<const MAX: u32, W, U>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        count @ BitCount { bits }: BitCount<MAX>,
-        value: U,
-    ) -> io::Result<()>
-    where
-        W: io::Write,
-        U: UnsignedInteger,
-    {
-        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            if bits == 0 {
-                Ok(())
-            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
-                Self::write_bits_checked::<MAX, W, U>(writer, queue_value, queue_bits, count, value)
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "excessive value for bits written",
-                ))
-            }
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
-            ))
-        }
-    }
-
-    /// For performing bulk writes of a type to a bit sink.
-    fn write_bits_fixed<const BITS: u32, W, U>(
-        writer: &mut W,
-        queue_value: &mut u8,
-        queue_bits: &mut u32,
-        value: U,
-    ) -> io::Result<()>
-    where
-        W: io::Write,
-        U: UnsignedInteger,
-    {
-        const {
-            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
-        }
-
-        if BITS == 0 {
-            Ok(())
-        } else if BITS == U::BITS_SIZE || value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
-            Self::write_bits_checked::<BITS, W, U>(
-                writer,
-                queue_value,
-                queue_bits,
-                BitCount::new::<BITS>(),
-                value,
-            )
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive value for bits written",
-            ))
         }
     }
 
