@@ -1,3 +1,10 @@
+# 4.1.0
+
+- Implement `FromBitStreamUsing` convenience trait
+- Implement `FromByteStreamUsing` convenience trait
+- Implement `ToBitStreamUsing` convenience trait
+- Implement `ToByteStreamUsing` convenience trait
+
 # 4.0.0
 
 - Implement `SignedBitCount` for signed integer types.
