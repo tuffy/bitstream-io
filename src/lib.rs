@@ -1426,6 +1426,52 @@ impl<const MAX: u32> BitCount<MAX> {
             None => None,
         }
     }
+
+    /// Masks off the least-significant bits for the given type
+    ///
+    /// Returns closure that takes a value and returns a
+    /// pair of the most-significant and least-significant
+    /// bits.  Because the least-significant bits cannot
+    /// be larger than this bit count, that value is
+    /// returned as a [`CheckedUnsigned`] type.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::BitCount;
+    ///
+    /// // create a bit count of 3
+    /// let count = BitCount::<8>::new::<3>();
+    ///
+    /// // create a mask suitable for u8 types
+    /// let mask = count.mask_lsb::<u8>();
+    ///
+    /// let (msb, lsb) = mask(0b11011_110);
+    /// assert_eq!(msb, 0b11011);             // the most-significant bits
+    /// assert_eq!(lsb.into_value(), 0b110);  // the least-significant bits
+    ///
+    /// let (msb, lsb) = mask(0b01100_010);
+    /// assert_eq!(msb, 0b01100);             // the most-significant bits
+    /// assert_eq!(lsb.into_value(), 0b010);  // the least-significant bits
+    ///
+    /// let (msb, lsb) = mask(0b00000_111);
+    /// assert_eq!(msb, 0b00000);             // the most-significant bits
+    /// assert_eq!(lsb.into_value(), 0b111);  // the least-significant bits
+    /// ```
+    pub fn mask_lsb<U: UnsignedInteger>(self) -> impl Fn(U) -> (U, CheckedUnsigned<MAX, U>) {
+        let shift = self.bits;
+        let mask = U::ALL.shr_default(U::BITS_SIZE - shift);
+
+        move |v| {
+            (
+                v.shr_default(shift),
+                CheckedUnsigned {
+                    value: v & mask,
+                    count: self,
+                },
+            )
+        }
+    }
 }
 
 impl<const MAX: u32> core::convert::TryFrom<u32> for BitCount<MAX> {
