@@ -927,9 +927,98 @@ define_primitive_numeric!(f64);
 
 mod private {
     use crate::{
-        io, BitCount, BitRead, BitWrite, Checked, Primitive, SignedBitCount, SignedInteger,
-        UnsignedInteger,
+        io, BitCount, BitRead, BitWrite, Checked, CheckedError, Primitive, SignedBitCount,
+        SignedInteger, UnsignedInteger,
     };
+
+    pub struct CheckedSigned<const MAX: u32, S: SignedInteger> {
+        count: SignedBitCount<MAX>,
+        value: S,
+    }
+
+    impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
+        #[inline]
+        pub fn new(
+            count @ SignedBitCount {
+                bits: BitCount { bits },
+                unsigned: BitCount {
+                    bits: unsigned_bits,
+                },
+            }: SignedBitCount<MAX>,
+            value: S,
+        ) -> Result<Self, CheckedError> {
+            if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+                if bits == S::BITS_SIZE
+                    || (((S::ZERO - S::ONE) << unsigned_bits) <= value
+                        && value < (S::ONE << unsigned_bits))
+                {
+                    Ok(Self { count, value })
+                } else {
+                    Err(CheckedError::ExcessiveValue)
+                }
+            } else {
+                Err(CheckedError::ExcessiveBits)
+            }
+        }
+
+        pub fn new_fixed<const BITS: u32>(value: S) -> Result<Self, CheckedError> {
+            const {
+                assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
+            }
+
+            if BITS == S::BITS_SIZE
+                || (((S::ZERO - S::ONE) << (BITS - 1)) <= value && value < (S::ONE << (BITS - 1)))
+            {
+                Ok(Self {
+                    count: SignedBitCount::new::<BITS>(),
+                    value,
+                })
+            } else {
+                Err(CheckedError::ExcessiveValue)
+            }
+        }
+
+        /// Returns our bit count and value
+        #[inline]
+        pub fn into_count_value(self) -> (SignedBitCount<MAX>, S) {
+            (self.count, self.value)
+        }
+    }
+
+    #[test]
+    fn test_checked_signed() {
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<8>(), -128i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<8>(), 127i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<7>(), -64i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<7>(), 63i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<6>(), -32i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<6>(), 31i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<5>(), -16i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<5>(), 15i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<4>(), -8i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<4>(), 7i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<3>(), -4i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<3>(), 3i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<2>(), -2i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<2>(), 1i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<1>(), -1i8).is_ok());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<1>(), 0i8).is_ok());
+
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<7>(), -65i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<7>(), 64i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<6>(), -33i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<6>(), 32i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<5>(), -17i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<5>(), 16i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<4>(), -9i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<4>(), 8i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<3>(), -5i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<3>(), 4i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<2>(), -3i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<2>(), 2i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<1>(), -2i8).is_err());
+        assert!(CheckedSigned::new(SignedBitCount::<8>::new::<1>(), 1i8).is_err());
+    }
 
     pub trait Endianness: Sized {
         /// Pops the next bit from the queue,
@@ -1027,6 +1116,17 @@ mod private {
             W: io::Write,
             U: UnsignedInteger;
 
+        /// For performing a checked signed write to a bit sink
+        fn write_signed_bits_checked<const MAX: u32, W, S>(
+            writer: &mut W,
+            queue_value: &mut u8,
+            queue_bits: &mut u32,
+            value: CheckedSigned<MAX, S>,
+        ) -> io::Result<()>
+        where
+            W: io::Write,
+            S: SignedInteger;
+
         /// Reads signed value from reader in this endianness
         #[inline]
         fn read_signed<const MAX: u32, R, S>(
@@ -1077,55 +1177,6 @@ mod private {
         ) -> io::Result<S>
         where
             R: BitRead,
-            S: SignedInteger;
-
-        /// Writes signed value to writer in this endianness
-        fn write_signed<const MAX: u32, W, S>(
-            w: &mut W,
-            count: BitCount<MAX>,
-            value: S,
-        ) -> io::Result<()>
-        where
-            W: BitWrite,
-            S: SignedInteger,
-        {
-            Self::write_signed_counted(
-                w,
-                count.signed_count().ok_or(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "signed writes need at least 1 bit for sign",
-                ))?,
-                value,
-            )
-        }
-
-        /// Writes signed value to writer in this endianness
-        fn write_signed_fixed<W, const BITS: u32, S>(w: &mut W, value: S) -> io::Result<()>
-        where
-            W: BitWrite,
-            S: SignedInteger,
-        {
-            let count = const {
-                assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
-                let count = BitCount::<BITS>::new::<BITS>().signed_count();
-                assert!(
-                    count.is_some(),
-                    "signed writes need at least 1 bit for sign"
-                );
-                count.unwrap()
-            };
-
-            Self::write_signed_counted(w, count, value)
-        }
-
-        /// Writes signed value to writer in this endianness
-        fn write_signed_counted<const MAX: u32, W, S>(
-            w: &mut W,
-            bits: SignedBitCount<MAX>,
-            value: S,
-        ) -> io::Result<()>
-        where
-            W: BitWrite,
             S: SignedInteger;
 
         /// Reads whole set of bytes to output buffer
@@ -2219,6 +2270,42 @@ impl private::Endianness for BigEndian {
         }
     }
 
+    fn write_signed_bits_checked<const MAX: u32, W, S>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        value: private::CheckedSigned<MAX, S>,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+        S: SignedInteger,
+    {
+        let (
+            SignedBitCount {
+                bits: BitCount { bits },
+                unsigned,
+            },
+            value,
+        ) = value.into_count_value();
+
+        if let Some(b) = Self::push_bit_flush(queue_value, queue_bits, value.is_negative()) {
+            write_byte(writer.by_ref(), b)?;
+        }
+        Self::write_bits_checked(
+            writer,
+            queue_value,
+            queue_bits,
+            Checked {
+                value: if value.is_negative() {
+                    value.as_negative(bits)
+                } else {
+                    value.as_non_negative()
+                },
+                count: unsigned,
+            },
+        )
+    }
+
     #[inline]
     fn pop_bit_refill<R>(
         reader: &mut R,
@@ -2300,36 +2387,6 @@ impl private::Endianness for BigEndian {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type read",
-            ))
-        }
-    }
-
-    fn write_signed_counted<const MAX: u32, W, S>(
-        w: &mut W,
-        SignedBitCount {
-            bits: BitCount { bits },
-            unsigned,
-        }: SignedBitCount<MAX>,
-        value: S,
-    ) -> io::Result<()>
-    where
-        W: BitWrite,
-        S: SignedInteger,
-    {
-        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-            w.write_bit(value.is_negative())?;
-            w.write_unsigned_counted(
-                unsigned,
-                if value.is_negative() {
-                    value.as_negative(bits)
-                } else {
-                    value.as_non_negative()
-                },
-            )
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
             ))
         }
     }
@@ -2696,6 +2753,44 @@ impl private::Endianness for LittleEndian {
         }
     }
 
+    fn write_signed_bits_checked<const MAX: u32, W, S>(
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+        value: private::CheckedSigned<MAX, S>,
+    ) -> io::Result<()>
+    where
+        W: io::Write,
+        S: SignedInteger,
+    {
+        // little-endian
+        let (
+            SignedBitCount {
+                bits: BitCount { bits },
+                unsigned,
+            },
+            value,
+        ) = value.into_count_value();
+
+        Self::write_bits_checked(
+            writer.by_ref(),
+            queue_value,
+            queue_bits,
+            Checked {
+                value: if value.is_negative() {
+                    value.as_negative(bits)
+                } else {
+                    value.as_non_negative()
+                },
+                count: unsigned,
+            },
+        )?;
+        match Self::push_bit_flush(queue_value, queue_bits, value.is_negative()) {
+            Some(b) => write_byte(writer, b),
+            None => Ok(()),
+        }
+    }
+
     #[inline]
     fn pop_bit_refill<R>(
         reader: &mut R,
@@ -2777,36 +2872,6 @@ impl private::Endianness for LittleEndian {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "excessive bits for type read",
-            ))
-        }
-    }
-
-    fn write_signed_counted<const MAX: u32, W, S>(
-        w: &mut W,
-        SignedBitCount {
-            bits: BitCount { bits },
-            unsigned,
-        }: SignedBitCount<MAX>,
-        value: S,
-    ) -> io::Result<()>
-    where
-        W: BitWrite,
-        S: SignedInteger,
-    {
-        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-            w.write_unsigned_counted(
-                unsigned,
-                if value.is_negative() {
-                    value.as_negative(bits)
-                } else {
-                    value.as_non_negative()
-                },
-            )?;
-            w.write_bit(value.is_negative())
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "excessive bits for type written",
             ))
         }
     }

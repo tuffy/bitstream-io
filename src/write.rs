@@ -1582,15 +1582,19 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     where
         S: SignedInteger,
     {
-        E::write_signed_counted(
-            self,
-            bits.try_into().map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "signed writes need at least 1 bit for sign",
-                )
-            })?,
-            value,
+        E::write_signed_bits_checked(
+            &mut self.writer,
+            &mut self.value,
+            &mut self.bits,
+            crate::private::CheckedSigned::new(
+                bits.try_into().map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "signed writes need at least 1 bit for sign",
+                    )
+                })?,
+                value,
+            )?,
         )
     }
 
@@ -1599,7 +1603,12 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
     where
         S: SignedInteger,
     {
-        E::write_signed_fixed::<_, BITS, S>(self, value)
+        E::write_signed_bits_checked(
+            &mut self.writer,
+            &mut self.value,
+            &mut self.bits,
+            crate::private::CheckedSigned::<BITS, _>::new_fixed::<BITS>(value)?,
+        )
     }
 
     #[inline]
