@@ -1069,42 +1069,6 @@ mod private {
             R: io::Read,
             U: UnsignedInteger;
 
-        /// For performing bulk writes of a type to a bit sink.
-        #[inline]
-        fn write_bits<const MAX: u32, W, U>(
-            writer: &mut W,
-            queue_value: &mut u8,
-            queue_bits: &mut u32,
-            count: BitCount<MAX>,
-            value: U,
-        ) -> io::Result<()>
-        where
-            W: io::Write,
-            U: UnsignedInteger,
-        {
-            Self::write_bits_checked(writer, queue_value, queue_bits, Checked::new(count, value)?)
-        }
-
-        /// For performing bulk writes of a type to a bit sink.
-        #[inline]
-        fn write_bits_fixed<const BITS: u32, W, U>(
-            writer: &mut W,
-            queue_value: &mut u8,
-            queue_bits: &mut u32,
-            value: U,
-        ) -> io::Result<()>
-        where
-            W: io::Write,
-            U: UnsignedInteger,
-        {
-            Self::write_bits_checked::<BITS, W, U>(
-                writer,
-                queue_value,
-                queue_bits,
-                Checked::new_fixed::<BITS>(value)?,
-            )
-        }
-
         /// For performing a checked write to a bit sink
         fn write_bits_checked<const MAX: u32, W, U>(
             writer: &mut W,
@@ -1126,49 +1090,6 @@ mod private {
         where
             W: io::Write,
             S: SignedInteger;
-
-        /// Reads signed value from reader in this endianness
-        #[inline]
-        fn read_signed<const MAX: u32, R, S>(
-            r: &mut R,
-            count @ BitCount { bits }: BitCount<MAX>,
-        ) -> io::Result<S>
-        where
-            R: BitRead,
-            S: SignedInteger,
-        {
-            if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-                Self::read_signed_counted(
-                    r,
-                    count.signed_count().ok_or(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "signed reads need at least 1 bit for sign",
-                    ))?,
-                )
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "excessive bits for type read",
-                ))
-            }
-        }
-
-        /// Reads signed value from reader in this endianness
-        #[inline]
-        fn read_signed_fixed<R, const BITS: u32, S>(r: &mut R) -> io::Result<S>
-        where
-            R: BitRead,
-            S: SignedInteger,
-        {
-            let count = const {
-                assert!(BITS <= S::BITS_SIZE, "excessive bits for type read");
-                let count = BitCount::<BITS>::new::<BITS>().signed_count();
-                assert!(count.is_some(), "signed reads need at least 1 bit for sign");
-                count.unwrap()
-            };
-
-            Self::read_signed_counted(r, count)
-        }
 
         /// Reads signed value from reader in this endianness
         fn read_signed_counted<const MAX: u32, R, S>(

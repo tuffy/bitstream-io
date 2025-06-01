@@ -1553,12 +1553,18 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
             writer,
             ..
         } = self;
-        E::write_bits_fixed::<BITS, W, U>(writer, queue_value, queue_bits, value)
+
+        E::write_bits_checked(
+            writer,
+            queue_value,
+            queue_bits,
+            Checked::<BITS, U>::new_fixed::<BITS>(value)?,
+        )
     }
 
     fn write_unsigned_counted<const BITS: u32, U>(
         &mut self,
-        bits: BitCount<BITS>,
+        count: BitCount<BITS>,
         value: U,
     ) -> io::Result<()>
     where
@@ -1570,7 +1576,8 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
             writer,
             ..
         } = self;
-        E::write_bits::<BITS, W, U>(writer, queue_value, queue_bits, bits, value)
+
+        E::write_bits_checked(writer, queue_value, queue_bits, Checked::new(count, value)?)
     }
 
     #[inline(always)]

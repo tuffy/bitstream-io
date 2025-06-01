@@ -1494,7 +1494,14 @@ impl<R: io::Read, E: Endianness> BitRead for BitReader<R, E> {
     where
         S: SignedInteger,
     {
-        E::read_signed_fixed::<_, BITS, S>(self)
+        let count = const {
+            assert!(BITS <= S::BITS_SIZE, "excessive bits for type read");
+            let count = BitCount::<BITS>::new::<BITS>().signed_count();
+            assert!(count.is_some(), "signed reads need at least 1 bit for sign");
+            count.unwrap()
+        };
+
+        E::read_signed_counted(self, count)
     }
 
     #[inline]
