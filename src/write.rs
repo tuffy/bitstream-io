@@ -22,8 +22,8 @@ use core::{
 use std::io;
 
 use super::{
-    BitCount, CheckedSigned, CheckedUnsigned, Endianness, Integer, Numeric, PhantomData, Primitive,
-    SignedBitCount, SignedInteger, UnsignedInteger,
+    BitCount, Checkable, CheckedSigned, CheckedUnsigned, Endianness, Integer, Numeric, PhantomData,
+    Primitive, SignedBitCount, SignedInteger, UnsignedInteger,
 };
 
 /// For writing bit values to an underlying stream in a given endianness.
@@ -850,20 +850,10 @@ pub trait BitWrite {
         self.write::<1, _>(STOP_BIT)
     }
 
-    /// Writes a value that is known to fit into its given number of bits
-    ///
-    /// Ordinarily, the value written to a stream must be verified to
-    /// fit into the number of bits written.  For instance,
-    /// writing the value 255 in 7 bits won't fit and results in an
-    /// error.  By using the [`CheckedUnsigned`] type, that check
-    /// can be performed beforehand and may not be needed when writing.
-    fn write_checked<const MAX: u32, U: UnsignedInteger>(
-        &mut self,
-        value: CheckedUnsigned<MAX, U>,
-    ) -> io::Result<()> {
+    /// Writes checked value that is known to fit a given number of bits
+    fn write_checked<C: Checkable>(&mut self, value: C) -> io::Result<()> {
         // a naive default implementation
-        let (count, value) = value.into_count_value();
-        self.write_unsigned_counted(count, value)
+        value.write(self)
     }
 
     /// Builds and writes complex type
@@ -1114,11 +1104,8 @@ impl<W: BitWrite + ?Sized> BitWrite for &mut W {
     }
 
     #[inline]
-    fn write_checked<const MAX: u32, U: UnsignedInteger>(
-        &mut self,
-        value: CheckedUnsigned<MAX, U>,
-    ) -> io::Result<()> {
-        (**self).write_checked::<MAX, _>(value)
+    fn write_checked<C: Checkable>(&mut self, value: C) -> io::Result<()> {
+        (**self).write_checked(value)
     }
 
     #[inline]
@@ -1685,11 +1672,9 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
         }
     }
 
-    fn write_checked<const MAX: u32, U: UnsignedInteger>(
-        &mut self,
-        value: CheckedUnsigned<MAX, U>,
-    ) -> io::Result<()> {
-        E::write_bits_checked(&mut self.writer, &mut self.value, &mut self.bits, value)
+    #[inline]
+    fn write_checked<C: Checkable>(&mut self, value: C) -> io::Result<()> {
+        value.write_endian::<E, _>(&mut self.writer, &mut self.value, &mut self.bits)
     }
 
     #[inline]
@@ -2010,19 +1995,10 @@ impl<N: Counter> BitWrite for BitsWritten<N> {
         Ok(())
     }
 
-    fn write_checked<const MAX: u32, U: UnsignedInteger>(
-        &mut self,
-        CheckedUnsigned {
-            count: BitCount { bits },
-            ..
-        }: CheckedUnsigned<MAX, U>,
-    ) -> io::Result<()> {
-        // because the written value has already been checked to ensure its
-        // value isn't larger than the number of bits can support,
-        // we don't need to check it again
+    fn write_checked<C: Checkable>(&mut self, value: C) -> io::Result<()> {
         Ok(self
             .bits
-            .checked_add_assign(bits.try_into().map_err(|_| Overflowed)?)?)
+            .checked_add_assign(value.written_bits().try_into().map_err(|_| Overflowed)?)?)
     }
 
     #[inline]
@@ -2405,14 +2381,6 @@ where
     #[inline]
     fn write_unary<const STOP_BIT: u8>(&mut self, value: u32) -> io::Result<()> {
         self.writer.write_unary::<STOP_BIT>(value)
-    }
-
-    #[inline]
-    fn write_checked<const MAX: u32, U: UnsignedInteger>(
-        &mut self,
-        value: CheckedUnsigned<MAX, U>,
-    ) -> io::Result<()> {
-        self.writer.write_checked(value)
     }
 
     #[inline]

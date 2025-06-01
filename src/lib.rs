@@ -1086,6 +1086,18 @@ mod private {
             W: BitWrite,
             V: Primitive;
     }
+
+    pub trait Checkable {
+        fn write_endian<E, W>(
+            self,
+            writer: &mut W,
+            queue_value: &mut u8,
+            queue_bits: &mut u32,
+        ) -> io::Result<()>
+        where
+            E: Endianness,
+            W: io::Write;
+    }
 }
 
 /// A stream's endianness, or byte order, for determining
@@ -1777,7 +1789,17 @@ impl From<CheckedError> for io::Error {
     }
 }
 
-/// A value with a verified maximum value
+/// A type with a verified value
+///
+/// Normally, when writing a value, not only must the number of bits
+/// must be checked against the type being written
+/// (e.g. writing 9 bits from a `u8` is always an error),
+/// but the value must also be checked against the number of bits
+/// (e.g. writing a value of 255 in 7 bits is always an error).
+///
+/// But when the value's range can be checked in advance,
+/// the write-time check can be skipped through the use
+/// of `write_checked` methods.
 #[derive(Copy, Clone, Debug)]
 pub struct Checked<C, T> {
     count: C,
@@ -1804,8 +1826,36 @@ impl<C, T> AsRef<T> for Checked<C, T> {
     }
 }
 
-/// An unsigned value with a verified maximum value
+/// An unsigned type with a verified maximum value
 pub type CheckedUnsigned<const MAX: u32, T> = Checked<BitCount<MAX>, T>;
+
+impl<const MAX: u32, U: UnsignedInteger> Checkable for CheckedUnsigned<MAX, U> {
+    #[inline]
+    fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        // a naive default implementation
+        writer.write_unsigned_counted(self.count, self.value)
+    }
+
+    #[inline]
+    fn written_bits(&self) -> u32 {
+        self.count.bits
+    }
+}
+
+impl<const MAX: u32, U: UnsignedInteger> private::Checkable for CheckedUnsigned<MAX, U> {
+    fn write_endian<E, W>(
+        self,
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<()>
+    where
+        E: private::Endianness,
+        W: io::Write,
+    {
+        E::write_bits_checked(writer, queue_value, queue_bits, self)
+    }
+}
 
 impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
     /// Returns our value if it fits in the given number of const bits
@@ -1892,8 +1942,36 @@ impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
     }
 }
 
-/// A signed value with a verified maximum value
+/// A signed type with a verified value
 pub type CheckedSigned<const MAX: u32, T> = Checked<SignedBitCount<MAX>, T>;
+
+impl<const MAX: u32, S: SignedInteger> Checkable for CheckedSigned<MAX, S> {
+    #[inline]
+    fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        // a naive default implementation
+        writer.write_signed_counted(self.count, self.value)
+    }
+
+    #[inline]
+    fn written_bits(&self) -> u32 {
+        self.count.bits.into()
+    }
+}
+
+impl<const MAX: u32, S: SignedInteger> private::Checkable for CheckedSigned<MAX, S> {
+    fn write_endian<E, W>(
+        self,
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<()>
+    where
+        E: private::Endianness,
+        W: io::Write,
+    {
+        E::write_signed_bits_checked(writer, queue_value, queue_bits, self)
+    }
+}
 
 impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
     /// Returns our value if it fits in the given number of bits
@@ -1938,6 +2016,15 @@ impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
             Err(CheckedError::ExcessiveValue)
         }
     }
+}
+
+/// A trait for types which can be checked
+pub trait Checkable: private::Checkable {
+    /// Write our value to the given stream
+    fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()>;
+
+    /// The number of written bits
+    fn written_bits(&self) -> u32;
 }
 
 /// Big-endian, or most significant bits first
