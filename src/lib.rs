@@ -927,63 +927,9 @@ define_primitive_numeric!(f64);
 
 mod private {
     use crate::{
-        io, BitCount, BitRead, BitWrite, Checked, CheckedError, Primitive, SignedBitCount,
+        io, BitCount, BitRead, BitWrite, CheckedSigned, CheckedUnsigned, Primitive, SignedBitCount,
         SignedInteger, UnsignedInteger,
     };
-
-    pub struct CheckedSigned<const MAX: u32, S: SignedInteger> {
-        count: SignedBitCount<MAX>,
-        value: S,
-    }
-
-    impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
-        #[inline]
-        pub fn new(
-            count @ SignedBitCount {
-                bits: BitCount { bits },
-                unsigned: BitCount {
-                    bits: unsigned_bits,
-                },
-            }: SignedBitCount<MAX>,
-            value: S,
-        ) -> Result<Self, CheckedError> {
-            if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
-                if bits == S::BITS_SIZE
-                    || (((S::ZERO - S::ONE) << unsigned_bits) <= value
-                        && value < (S::ONE << unsigned_bits))
-                {
-                    Ok(Self { count, value })
-                } else {
-                    Err(CheckedError::ExcessiveValue)
-                }
-            } else {
-                Err(CheckedError::ExcessiveBits)
-            }
-        }
-
-        pub fn new_fixed<const BITS: u32>(value: S) -> Result<Self, CheckedError> {
-            const {
-                assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
-            }
-
-            if BITS == S::BITS_SIZE
-                || (((S::ZERO - S::ONE) << (BITS - 1)) <= value && value < (S::ONE << (BITS - 1)))
-            {
-                Ok(Self {
-                    count: SignedBitCount::new::<BITS>(),
-                    value,
-                })
-            } else {
-                Err(CheckedError::ExcessiveValue)
-            }
-        }
-
-        /// Returns our bit count and value
-        #[inline]
-        pub fn into_count_value(self) -> (SignedBitCount<MAX>, S) {
-            (self.count, self.value)
-        }
-    }
 
     #[test]
     fn test_checked_signed() {
@@ -1074,7 +1020,7 @@ mod private {
             writer: &mut W,
             queue_value: &mut u8,
             queue_bits: &mut u32,
-            value: Checked<MAX, U>,
+            value: CheckedUnsigned<MAX, U>,
         ) -> io::Result<()>
         where
             W: io::Write,
@@ -1444,7 +1390,7 @@ impl<const MAX: u32> BitCount<MAX> {
     /// assert_eq!(msb, 0);
     /// assert_eq!(lsb.into_value(), 0b11111111);
     /// ```
-    pub fn mask_lsb<U: UnsignedInteger>(self) -> impl Fn(U) -> (U, Checked<MAX, U>) {
+    pub fn mask_lsb<U: UnsignedInteger>(self) -> impl Fn(U) -> (U, CheckedUnsigned<MAX, U>) {
         use core::convert::TryFrom;
 
         let (mask, shift, count) = match U::BITS_SIZE.checked_sub(self.bits) {
@@ -1831,40 +1777,58 @@ impl From<CheckedError> for io::Error {
     }
 }
 
-/// An unsigned integer with a verified maximum value
-///
-/// Note that the maximum number of bits can be larger
-/// than our value's type's size in bits, (a common case
-/// when the maximum is unknown), but the actual bit count
-/// must not be.
+/// A value with a verified maximum value
 #[derive(Copy, Clone, Debug)]
-pub struct Checked<const MAX: u32, U: UnsignedInteger> {
-    count: BitCount<MAX>,
-    value: U,
+pub struct Checked<C, T> {
+    count: C,
+    value: T,
 }
 
-impl<const MAX: u32, U: UnsignedInteger> Checked<MAX, U> {
+impl<C, T> Checked<C, T> {
+    /// Returns our bit count and value
+    #[inline]
+    pub fn into_count_value(self) -> (C, T) {
+        (self.count, self.value)
+    }
+
+    /// Returns our value
+    #[inline]
+    pub fn into_value(self) -> T {
+        self.value
+    }
+}
+
+impl<C, T> AsRef<T> for Checked<C, T> {
+    fn as_ref(&self) -> &T {
+        &self.value
+    }
+}
+
+/// An unsigned value with a verified maximum value
+pub type CheckedUnsigned<const MAX: u32, T> = Checked<BitCount<MAX>, T>;
+
+impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
     /// Returns our value if it fits in the given number of const bits
     /// # Examples
     ///
     /// ```
-    /// use bitstream_io::{Checked, CheckedError};
+    /// use bitstream_io::{CheckedUnsigned, CheckedError};
     ///
     /// // a value of 7 fits into a 3 bit count
-    /// assert!(Checked::<8, u8>::new_fixed::<3>(7).is_ok());
+    /// assert!(CheckedUnsigned::<8, u8>::new_fixed::<3>(7).is_ok());
     ///
     /// // a value of 8 does not fit into a 3 bit count
     /// assert!(matches!(
-    ///     Checked::<8, u8>::new_fixed::<3>(8),
+    ///     CheckedUnsigned::<8, u8>::new_fixed::<3>(8),
     ///     Err(CheckedError::ExcessiveValue),
     /// ));
     /// ```
     ///
     /// ```compile_fail
-    /// use bitstream_io::{BitCount, Checked};
+    /// use bitstream_io::{BitCount, CheckedUnsigned};
     ///
     /// // a bit count of 9 is too large for u8
-    /// let c = Checked::<16, u8>::new_fixed::<9>(1);
+    /// let c = CheckedUnsigned::<16, u8>::new_fixed::<9>(1);
     /// ```
     pub fn new_fixed<const BITS: u32>(value: U) -> Result<Self, CheckedError> {
         const {
@@ -1892,20 +1856,20 @@ impl<const MAX: u32, U: UnsignedInteger> Checked<MAX, U> {
     /// # Example
     ///
     /// ```
-    /// use bitstream_io::{BitCount, Checked, CheckedError};
+    /// use bitstream_io::{BitCount, CheckedUnsigned, CheckedError};
     ///
     /// // a value of 7 fits into a 3 bit count
-    /// assert!(Checked::new(BitCount::<8>::new::<3>(), 7u8).is_ok());
+    /// assert!(CheckedUnsigned::new(BitCount::<8>::new::<3>(), 7u8).is_ok());
     ///
     /// // a value of 8 does not fit into a 3 bit count
     /// assert!(matches!(
-    ///     Checked::new(BitCount::<8>::new::<3>(), 8u8),
+    ///     CheckedUnsigned::new(BitCount::<8>::new::<3>(), 8u8),
     ///     Err(CheckedError::ExcessiveValue),
     /// ));
     ///
     /// // a bit count of 9 is too large for u8
     /// assert!(matches!(
-    ///     Checked::new(BitCount::<9>::new::<9>(), 1u8),
+    ///     CheckedUnsigned::new(BitCount::<9>::new::<9>(), 1u8),
     ///     Err(CheckedError::ExcessiveBits),
     /// ));
     /// ```
@@ -1926,17 +1890,53 @@ impl<const MAX: u32, U: UnsignedInteger> Checked<MAX, U> {
             Err(CheckedError::ExcessiveBits)
         }
     }
+}
 
-    /// Returns our bit count and value
+/// A signed value with a verified maximum value
+pub type CheckedSigned<const MAX: u32, T> = Checked<SignedBitCount<MAX>, T>;
+
+impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
+    /// Returns our value if it fits in the given number of bits
     #[inline]
-    pub fn into_count_value(self) -> (BitCount<MAX>, U) {
-        (self.count, self.value)
+    pub fn new(
+        count @ SignedBitCount {
+            bits: BitCount { bits },
+            unsigned: BitCount {
+                bits: unsigned_bits,
+            },
+        }: SignedBitCount<MAX>,
+        value: S,
+    ) -> Result<Self, CheckedError> {
+        if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
+            if bits == S::BITS_SIZE
+                || (((S::ZERO - S::ONE) << unsigned_bits) <= value
+                    && value < (S::ONE << unsigned_bits))
+            {
+                Ok(Self { count, value })
+            } else {
+                Err(CheckedError::ExcessiveValue)
+            }
+        } else {
+            Err(CheckedError::ExcessiveBits)
+        }
     }
 
-    /// Returns our value
-    #[inline]
-    pub fn into_value(self) -> U {
-        self.value
+    /// Returns our value if it fits in the given number of const bits
+    pub fn new_fixed<const BITS: u32>(value: S) -> Result<Self, CheckedError> {
+        const {
+            assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
+        }
+
+        if BITS == S::BITS_SIZE
+            || (((S::ZERO - S::ONE) << (BITS - 1)) <= value && value < (S::ONE << (BITS - 1)))
+        {
+            Ok(Self {
+                count: SignedBitCount::new::<BITS>(),
+                value,
+            })
+        } else {
+            Err(CheckedError::ExcessiveValue)
+        }
     }
 }
 
@@ -2101,10 +2101,10 @@ impl private::Endianness for BigEndian {
         writer: &mut W,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        Checked {
+        CheckedUnsigned {
             count: BitCount { bits },
             value,
-        }: Checked<MAX, U>,
+        }: CheckedUnsigned<MAX, U>,
     ) -> io::Result<()>
     where
         W: io::Write,
@@ -2195,7 +2195,7 @@ impl private::Endianness for BigEndian {
         writer: &mut W,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        value: private::CheckedSigned<MAX, S>,
+        value: CheckedSigned<MAX, S>,
     ) -> io::Result<()>
     where
         W: io::Write,
@@ -2592,10 +2592,10 @@ impl private::Endianness for LittleEndian {
         writer: &mut W,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        Checked {
+        CheckedUnsigned {
             count: BitCount { bits },
             value,
-        }: Checked<MAX, U>,
+        }: CheckedUnsigned<MAX, U>,
     ) -> io::Result<()>
     where
         W: io::Write,
@@ -2678,7 +2678,7 @@ impl private::Endianness for LittleEndian {
         writer: &mut W,
         queue_value: &mut u8,
         queue_bits: &mut u32,
-        value: private::CheckedSigned<MAX, S>,
+        value: CheckedSigned<MAX, S>,
     ) -> io::Result<()>
     where
         W: io::Write,
