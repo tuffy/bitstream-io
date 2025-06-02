@@ -152,6 +152,7 @@ extern crate std;
 #[cfg(not(feature = "std"))]
 use core2::io;
 
+use core::convert::TryInto;
 use core::num::NonZero;
 use core::ops::{
     BitAnd, BitOr, BitOrAssign, BitXor, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub,
@@ -1868,6 +1869,7 @@ impl<const MAX: u32, U: UnsignedInteger> private::Checkable for CheckedUnsigned<
 
 impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
     /// Returns our value if it fits in the given number of const bits
+    ///
     /// # Examples
     ///
     /// ```
@@ -1918,22 +1920,25 @@ impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
     /// use bitstream_io::{BitCount, CheckedUnsigned, CheckedError};
     ///
     /// // a value of 7 fits into a 3 bit count
-    /// assert!(CheckedUnsigned::new(BitCount::<8>::new::<3>(), 7u8).is_ok());
+    /// assert!(CheckedUnsigned::<8, _>::new(3, 7u8).is_ok());
     ///
     /// // a value of 8 does not fit into a 3 bit count
     /// assert!(matches!(
-    ///     CheckedUnsigned::new(BitCount::<8>::new::<3>(), 8u8),
+    ///     CheckedUnsigned::<8, _>::new(3, 8u8),
     ///     Err(CheckedError::ExcessiveValue),
     /// ));
     ///
     /// // a bit count of 9 is too large for u8
     /// assert!(matches!(
-    ///     CheckedUnsigned::new(BitCount::<9>::new::<9>(), 1u8),
+    ///     CheckedUnsigned::<9, _>::new(9, 1u8),
     ///     Err(CheckedError::ExcessiveBits),
     /// ));
     /// ```
     #[inline]
-    pub fn new(count @ BitCount { bits }: BitCount<MAX>, value: U) -> Result<Self, CheckedError> {
+    pub fn new(count: impl TryInto<BitCount<MAX>>, value: U) -> Result<Self, CheckedError> {
+        let count @ BitCount { bits } =
+            count.try_into().map_err(|_| CheckedError::ExcessiveBits)?;
+
         if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
             if bits == 0 {
                 Ok(Self {
@@ -1993,16 +1998,36 @@ impl<const MAX: u32, S: SignedInteger> private::Checkable for CheckedSigned<MAX,
 
 impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
     /// Returns our value if it fits in the given number of bits
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::{SignedBitCount, CheckedSigned, CheckedError};
+    ///
+    /// // a value of 3 fits into a 3 bit count
+    /// assert!(CheckedSigned::<8, _>::new(3, 3i8).is_ok());
+    ///
+    /// // a value of 4 does not fit into a 3 bit count
+    /// assert!(matches!(
+    ///     CheckedSigned::<8, _>::new(3, 4i8),
+    ///     Err(CheckedError::ExcessiveValue),
+    /// ));
+    ///
+    /// // a bit count of 9 is too large for i8
+    /// assert!(matches!(
+    ///     CheckedSigned::<9, _>::new(9, 1i8),
+    ///     Err(CheckedError::ExcessiveBits),
+    /// ));
+    /// ```
     #[inline]
-    pub fn new(
-        count @ SignedBitCount {
+    pub fn new(count: impl TryInto<SignedBitCount<MAX>>, value: S) -> Result<Self, CheckedError> {
+        let count @ SignedBitCount {
             bits: BitCount { bits },
             unsigned: BitCount {
                 bits: unsigned_bits,
             },
-        }: SignedBitCount<MAX>,
-        value: S,
-    ) -> Result<Self, CheckedError> {
+        } = count.try_into().map_err(|_| CheckedError::ExcessiveBits)?;
+
         if MAX <= S::BITS_SIZE || bits <= S::BITS_SIZE {
             if bits == S::BITS_SIZE
                 || (((S::ZERO - S::ONE) << unsigned_bits) <= value
@@ -2018,6 +2043,28 @@ impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
     }
 
     /// Returns our value if it fits in the given number of const bits
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bitstream_io::{CheckedSigned, CheckedError};
+    ///
+    /// // a value of 3 fits into a 3 bit count
+    /// assert!(CheckedSigned::<8, i8>::new_fixed::<3>(3).is_ok());
+    ///
+    /// // a value of 4 does not fit into a 3 bit count
+    /// assert!(matches!(
+    ///     CheckedSigned::<8, i8>::new_fixed::<3>(4),
+    ///     Err(CheckedError::ExcessiveValue),
+    /// ));
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use bitstream_io::{BitCount, CheckedSigned};
+    ///
+    /// // a bit count of 9 is too large for i8
+    /// let c = CheckedSigned::<16, i8>::new_fixed::<9>(1);
+    /// ```
     pub fn new_fixed<const BITS: u32>(value: S) -> Result<Self, CheckedError> {
         const {
             assert!(BITS <= S::BITS_SIZE, "excessive bits for type written");
