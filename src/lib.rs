@@ -1830,6 +1830,15 @@ impl<C, T> AsRef<T> for Checked<C, T> {
 pub type CheckedUnsigned<const MAX: u32, T> = Checked<BitCount<MAX>, T>;
 
 impl<const MAX: u32, U: UnsignedInteger> Checkable for CheckedUnsigned<MAX, U> {
+    type CountType = BitCount<MAX>;
+
+    #[inline]
+    fn read<R: BitRead + ?Sized>(reader: &mut R, count: Self::CountType) -> io::Result<Self> {
+        reader
+            .read_unsigned_counted(count)
+            .map(|value| Self { value, count })
+    }
+
     #[inline]
     fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         // a naive default implementation
@@ -1946,6 +1955,15 @@ impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
 pub type CheckedSigned<const MAX: u32, T> = Checked<SignedBitCount<MAX>, T>;
 
 impl<const MAX: u32, S: SignedInteger> Checkable for CheckedSigned<MAX, S> {
+    type CountType = SignedBitCount<MAX>;
+
+    #[inline]
+    fn read<R: BitRead + ?Sized>(reader: &mut R, count: Self::CountType) -> io::Result<Self> {
+        reader
+            .read_signed_counted(count)
+            .map(|value| Self { value, count })
+    }
+
     #[inline]
     fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         // a naive default implementation
@@ -2019,7 +2037,13 @@ impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
 }
 
 /// A trait for types which can be checked
-pub trait Checkable: private::Checkable {
+pub trait Checkable: private::Checkable + Sized {
+    /// Our bit count type for reading
+    type CountType;
+
+    /// Reads our value from the given stream
+    fn read<R: BitRead + ?Sized>(reader: &mut R, count: Self::CountType) -> io::Result<Self>;
+
     /// Write our value to the given stream
     fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()>;
 

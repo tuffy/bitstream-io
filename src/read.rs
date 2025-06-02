@@ -18,8 +18,8 @@ use alloc::{vec, vec::Vec};
 use std::io;
 
 use super::{
-    BitCount, Endianness, Integer, PhantomData, Primitive, SignedBitCount, SignedInteger,
-    UnsignedInteger,
+    BitCount, Checkable, Endianness, Integer, PhantomData, Primitive, SignedBitCount,
+    SignedInteger, UnsignedInteger,
 };
 
 use core::convert::TryInto;
@@ -753,6 +753,12 @@ pub trait BitRead {
             unary += 1;
         }
         Ok(unary)
+    }
+
+    /// Reads to a checked value that is known to fit a given number of bits
+    #[inline]
+    fn read_checked<C: Checkable>(&mut self, count: C::CountType) -> io::Result<C> {
+        C::read(self, count)
     }
 
     /// Parses and returns complex type
