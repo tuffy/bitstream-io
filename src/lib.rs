@@ -1790,17 +1790,17 @@ impl From<CheckedError> for io::Error {
     }
 }
 
-/// A type with a verified value
+/// A type for eliminating redundant validation when writing
 ///
 /// Normally, when writing a value, not only must the number of bits
 /// must be checked against the type being written
 /// (e.g. writing 9 bits from a `u8` is always an error),
 /// but the value must also be checked against the number of bits
-/// (e.g. writing a value of 255 in 7 bits is always an error).
+/// (e.g. writing a value of 2 in 1 bit is always an error).
 ///
 /// But when the value's range can be checked in advance,
 /// the write-time check can be skipped through the use
-/// of `write_checked` methods.
+/// of the [`BitWrite::write_checked`] method.
 #[derive(Copy, Clone, Debug)]
 pub struct Checked<C, T> {
     count: C,
@@ -1868,6 +1868,49 @@ impl<const MAX: u32, U: UnsignedInteger> private::Checkable for CheckedUnsigned<
 }
 
 impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
+    /// Returns our value if it fits in the given number of bits
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::{BitCount, CheckedUnsigned, CheckedError};
+    ///
+    /// // a value of 7 fits into a 3 bit count
+    /// assert!(CheckedUnsigned::<8, _>::new(3, 7u8).is_ok());
+    ///
+    /// // a value of 8 does not fit into a 3 bit count
+    /// assert!(matches!(
+    ///     CheckedUnsigned::<8, _>::new(3, 8u8),
+    ///     Err(CheckedError::ExcessiveValue),
+    /// ));
+    ///
+    /// // a bit count of 9 is too large for u8
+    /// assert!(matches!(
+    ///     CheckedUnsigned::<9, _>::new(9, 1u8),
+    ///     Err(CheckedError::ExcessiveBits),
+    /// ));
+    /// ```
+    #[inline]
+    pub fn new(count: impl TryInto<BitCount<MAX>>, value: U) -> Result<Self, CheckedError> {
+        let count @ BitCount { bits } =
+            count.try_into().map_err(|_| CheckedError::ExcessiveBits)?;
+
+        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
+            if bits == 0 {
+                Ok(Self {
+                    count,
+                    value: U::ZERO,
+                })
+            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
+                Ok(Self { count, value })
+            } else {
+                Err(CheckedError::ExcessiveValue)
+            }
+        } else {
+            Err(CheckedError::ExcessiveBits)
+        }
+    }
+
     /// Returns our value if it fits in the given number of const bits
     ///
     /// # Examples
@@ -1909,49 +1952,6 @@ impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
             })
         } else {
             Err(CheckedError::ExcessiveValue)
-        }
-    }
-
-    /// Returns our value if it fits in the given number of bits
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use bitstream_io::{BitCount, CheckedUnsigned, CheckedError};
-    ///
-    /// // a value of 7 fits into a 3 bit count
-    /// assert!(CheckedUnsigned::<8, _>::new(3, 7u8).is_ok());
-    ///
-    /// // a value of 8 does not fit into a 3 bit count
-    /// assert!(matches!(
-    ///     CheckedUnsigned::<8, _>::new(3, 8u8),
-    ///     Err(CheckedError::ExcessiveValue),
-    /// ));
-    ///
-    /// // a bit count of 9 is too large for u8
-    /// assert!(matches!(
-    ///     CheckedUnsigned::<9, _>::new(9, 1u8),
-    ///     Err(CheckedError::ExcessiveBits),
-    /// ));
-    /// ```
-    #[inline]
-    pub fn new(count: impl TryInto<BitCount<MAX>>, value: U) -> Result<Self, CheckedError> {
-        let count @ BitCount { bits } =
-            count.try_into().map_err(|_| CheckedError::ExcessiveBits)?;
-
-        if MAX <= U::BITS_SIZE || bits <= U::BITS_SIZE {
-            if bits == 0 {
-                Ok(Self {
-                    count,
-                    value: U::ZERO,
-                })
-            } else if value <= U::ALL >> (U::BITS_SIZE - bits) {
-                Ok(Self { count, value })
-            } else {
-                Err(CheckedError::ExcessiveValue)
-            }
-        } else {
-            Err(CheckedError::ExcessiveBits)
         }
     }
 }

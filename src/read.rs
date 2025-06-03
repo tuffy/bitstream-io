@@ -756,6 +756,32 @@ pub trait BitRead {
     }
 
     /// Reads to a checked value that is known to fit a given number of bits
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::{
+    ///     BitRead, BitReader, BigEndian, Checked, CheckedUnsigned, CheckedSigned,
+    ///     BitCount, SignedBitCount, BitWrite, BitWriter,
+    /// };
+    ///
+    /// let data: &[u8] = &[0b1001_1111];
+    /// let mut r = BitReader::endian(data, BigEndian);
+    ///
+    /// let bit_count = BitCount::<4>::new::<4>();
+    /// let checked_u8 = r.read_checked::<CheckedUnsigned<4, u8>>(bit_count).unwrap();
+    /// assert_eq!(checked_u8.into_value(), 0b1001);
+    ///
+    /// let bit_count = SignedBitCount::<4>::new::<4>();
+    /// let checked_i8 = r.read_checked::<CheckedSigned<4, i8>>(bit_count).unwrap();
+    /// assert_eq!(checked_i8.into_value(), -1);
+    ///
+    /// // note that checked values already know their bit count
+    /// // so none is required when writing them to a stream
+    /// let mut w = BitWriter::endian(vec![], BigEndian);
+    /// w.write_checked(checked_u8).unwrap();
+    /// w.write_checked(checked_i8).unwrap();
+    /// assert_eq!(w.into_writer().as_slice(), data);
+    /// ```
     #[inline]
     fn read_checked<C: Checkable>(&mut self, count: C::CountType) -> io::Result<C> {
         C::read(self, count)
