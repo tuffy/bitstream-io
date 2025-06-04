@@ -1425,6 +1425,34 @@ impl<const MAX: u32> BitCount<MAX> {
             )
         }
     }
+
+    /// Returns this bit count's range for the given unsigned type
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::BitCount;
+    ///
+    /// assert_eq!(BitCount::<9>::new::<0>().range::<u8>(), 0..=0);
+    /// assert_eq!(BitCount::<9>::new::<1>().range::<u8>(), 0..=0b1);
+    /// assert_eq!(BitCount::<9>::new::<2>().range::<u8>(), 0..=0b11);
+    /// assert_eq!(BitCount::<9>::new::<3>().range::<u8>(), 0..=0b111);
+    /// assert_eq!(BitCount::<9>::new::<4>().range::<u8>(), 0..=0b1111);
+    /// assert_eq!(BitCount::<9>::new::<5>().range::<u8>(), 0..=0b11111);
+    /// assert_eq!(BitCount::<9>::new::<6>().range::<u8>(), 0..=0b111111);
+    /// assert_eq!(BitCount::<9>::new::<7>().range::<u8>(), 0..=0b1111111);
+    /// assert_eq!(BitCount::<9>::new::<8>().range::<u8>(), 0..=0b11111111);
+    /// // a count that exceeds the type's size is
+    /// // naturally restricted to that type's maximum range
+    /// assert_eq!(BitCount::<9>::new::<9>().range::<u8>(), 0..=0b11111111);
+    /// ```
+    #[inline]
+    pub fn range<U: UnsignedInteger>(&self) -> core::ops::RangeInclusive<U> {
+        match U::ONE.checked_shl(self.bits) {
+            Some(top) => U::ZERO..=(top - U::ONE),
+            None => U::ZERO..=U::ALL,
+        }
+    }
 }
 
 impl<const MAX: u32> core::convert::TryFrom<u32> for BitCount<MAX> {
@@ -1721,6 +1749,36 @@ impl<const MAX: u32> SignedBitCount<MAX> {
     #[inline(always)]
     pub const fn count(&self) -> BitCount<MAX> {
         self.bits
+    }
+
+    /// Returns this bit count's range for the given signed type
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::SignedBitCount;
+    ///
+    /// assert_eq!(SignedBitCount::<9>::new::<1>().range::<i8>(), -1..=0);
+    /// assert_eq!(SignedBitCount::<9>::new::<2>().range::<i8>(), -2..=1);
+    /// assert_eq!(SignedBitCount::<9>::new::<3>().range::<i8>(), -4..=3);
+    /// assert_eq!(SignedBitCount::<9>::new::<4>().range::<i8>(), -8..=7);
+    /// assert_eq!(SignedBitCount::<9>::new::<5>().range::<i8>(), -16..=15);
+    /// assert_eq!(SignedBitCount::<9>::new::<6>().range::<i8>(), -32..=31);
+    /// assert_eq!(SignedBitCount::<9>::new::<7>().range::<i8>(), -64..=63);
+    /// assert_eq!(SignedBitCount::<9>::new::<8>().range::<i8>(), -128..=127);
+    /// // a count that exceeds the type's size is
+    /// // naturally restricted to that type's maximum range
+    /// assert_eq!(SignedBitCount::<9>::new::<9>().range::<i8>(), -128..=127);
+    /// ```
+    pub fn range<S: SignedInteger>(&self) -> core::ops::RangeInclusive<S> {
+        // a bit of a hack to get around the somewhat restrictive
+        // SignedInteger trait I've created for myself
+
+        if self.bits.bits < S::BITS_SIZE {
+            (!S::ZERO << self.unsigned.bits)..=((S::ONE << self.unsigned.bits) - S::ONE)
+        } else {
+            S::Unsigned::ZERO.as_negative(S::BITS_SIZE)..=(S::Unsigned::ALL >> 1).as_non_negative()
+        }
     }
 }
 
