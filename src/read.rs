@@ -18,7 +18,7 @@ use alloc::{vec, vec::Vec};
 use std::io;
 
 use super::{
-    BitCount, Checkable, Endianness, Integer, PhantomData, Primitive, SignedBitCount,
+    BitCount, CheckableFromBitstream, Endianness, Integer, PhantomData, Primitive, SignedBitCount,
     SignedInteger, UnsignedInteger,
 };
 
@@ -783,7 +783,10 @@ pub trait BitRead {
     /// assert_eq!(w.into_writer().as_slice(), data);
     /// ```
     #[inline]
-    fn read_checked<C: Checkable>(&mut self, count: C::CountType) -> io::Result<C> {
+    fn read_checked<C>(&mut self, count: C::CountType) -> io::Result<C>
+    where
+        C: CheckableFromBitstream,
+    {
         C::read(self, count)
     }
 

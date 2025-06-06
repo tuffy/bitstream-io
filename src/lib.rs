@@ -1889,15 +1889,6 @@ impl<C, T> AsRef<T> for Checked<C, T> {
 pub type CheckedUnsigned<const MAX: u32, T> = Checked<BitCount<MAX>, T>;
 
 impl<const MAX: u32, U: UnsignedInteger> Checkable for CheckedUnsigned<MAX, U> {
-    type CountType = BitCount<MAX>;
-
-    #[inline]
-    fn read<R: BitRead + ?Sized>(reader: &mut R, count: Self::CountType) -> io::Result<Self> {
-        reader
-            .read_unsigned_counted(count)
-            .map(|value| Self { value, count })
-    }
-
     #[inline]
     fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         // a naive default implementation
@@ -1907,6 +1898,17 @@ impl<const MAX: u32, U: UnsignedInteger> Checkable for CheckedUnsigned<MAX, U> {
     #[inline]
     fn written_bits(&self) -> u32 {
         self.count.bits
+    }
+}
+
+impl<const MAX: u32, U: UnsignedInteger> CheckableFromBitstream for CheckedUnsigned<MAX, U> {
+    type CountType = BitCount<MAX>;
+
+    #[inline]
+    fn read<R: BitRead + ?Sized>(reader: &mut R, count: Self::CountType) -> io::Result<Self> {
+        reader
+            .read_unsigned_counted(count)
+            .map(|value| Self { value, count })
     }
 }
 
@@ -2018,15 +2020,6 @@ impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
 pub type CheckedSigned<const MAX: u32, T> = Checked<SignedBitCount<MAX>, T>;
 
 impl<const MAX: u32, S: SignedInteger> Checkable for CheckedSigned<MAX, S> {
-    type CountType = SignedBitCount<MAX>;
-
-    #[inline]
-    fn read<R: BitRead + ?Sized>(reader: &mut R, count: Self::CountType) -> io::Result<Self> {
-        reader
-            .read_signed_counted(count)
-            .map(|value| Self { value, count })
-    }
-
     #[inline]
     fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         // a naive default implementation
@@ -2036,6 +2029,17 @@ impl<const MAX: u32, S: SignedInteger> Checkable for CheckedSigned<MAX, S> {
     #[inline]
     fn written_bits(&self) -> u32 {
         self.count.bits.into()
+    }
+}
+
+impl<const MAX: u32, S: SignedInteger> CheckableFromBitstream for CheckedSigned<MAX, S> {
+    type CountType = SignedBitCount<MAX>;
+
+    #[inline]
+    fn read<R: BitRead + ?Sized>(reader: &mut R, count: Self::CountType) -> io::Result<Self> {
+        reader
+            .read_signed_counted(count)
+            .map(|value| Self { value, count })
     }
 }
 
@@ -2141,19 +2145,60 @@ impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
     }
 }
 
-/// A trait for types which can be checked
+/// A trait for writable types whose values can be validated
+///
+/// Ordinarily, when writing a value to a stream with a given
+/// number of bits, the value must be validated to ensure
+/// it will fit within that number of bits.
+///
+/// # Example 1
+///
+/// ```
+/// use bitstream_io::{BitWrite, BitWriter, BigEndian};
+///
+/// let mut w = BitWriter::endian(vec![], BigEndian);
+///
+/// // writing a value of 2 in 1 bit is always an error
+/// assert!(w.write::<1, u8>(2).is_err());
+/// ```
+///
+/// But if the value can be checked beforehand,
+/// it doesn't need to be checked at write-time.
+///
+/// # Example 2
+///
+/// ```
+/// use bitstream_io::{BitWrite, BitWriter, BigEndian, CheckedUnsigned};
+///
+/// let mut w = BitWriter::endian(vec![], BigEndian);
+///
+/// // writing a value of 1 in 1 bit is ok
+/// let value = CheckedUnsigned::new_fixed::<1>(1).unwrap();
+///
+/// // because we've pre-validated the value beforehand,
+/// // it doesn't need to be checked again at this stage
+/// assert!(w.write_checked(value).is_ok());
+/// ```
+///
 pub trait Checkable: private::Checkable + Sized {
-    /// Our bit count type for reading
-    type CountType;
-
-    /// Reads our value from the given stream
-    fn read<R: BitRead + ?Sized>(reader: &mut R, count: Self::CountType) -> io::Result<Self>;
-
     /// Write our value to the given stream
     fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()>;
 
     /// The number of written bits
     fn written_bits(&self) -> u32;
+}
+
+/// A trait for readable types whose bit counts can be saved
+///
+/// Because the intent of reading checkable values is
+/// to avoid validating their values when being written,
+/// implementing the [`Checkable`] trait is required.
+pub trait CheckableFromBitstream: Checkable {
+    /// Our bit count type for reading
+    type CountType;
+
+    /// Reads our value from the given stream
+    fn read<R: BitRead + ?Sized>(reader: &mut R, count: Self::CountType) -> io::Result<Self>;
 }
 
 /// Big-endian, or most significant bits first
