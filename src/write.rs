@@ -836,18 +836,27 @@ pub trait BitWrite {
             assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
         }
 
-        // a simple implementation which works anywhere
-        let continue_bit = match STOP_BIT {
-            0 => 1,
-            1 => 0,
-            _ => unreachable!(),
-        };
+        const MAX: BitCount<32> = BitCount::new::<32>();
 
-        while value > 0 {
-            self.write::<1, u8>(continue_bit)?;
-            value -= 1;
+        match STOP_BIT {
+            0 => {
+                while value > 0 {
+                    let to_write = MAX.min(value);
+                    self.write_checked(to_write.all::<u32>())?;
+                    value -= u32::from(to_write);
+                }
+                self.write_bit(false)
+            }
+            1 => {
+                while value > 0 {
+                    let to_write = MAX.min(value);
+                    self.write_checked(to_write.none::<u32>())?;
+                    value -= u32::from(to_write);
+                }
+                self.write_bit(true)
+            }
+            _ => unreachable!(),
         }
-        self.write::<1, _>(STOP_BIT)
     }
 
     /// Writes checked value that is known to fit a given number of bits
@@ -1635,41 +1644,6 @@ impl<W: io::Write, E: Endianness> BitWrite for BitWriter<W, E> {
             self.bits,
             F::primitive_to_bytes(value).as_ref(),
         )
-    }
-
-    fn write_unary<const STOP_BIT: u8>(&mut self, mut value: u32) -> io::Result<()> {
-        const {
-            assert!(matches!(STOP_BIT, 0 | 1), "stop bit must be 0 or 1");
-        }
-
-        loop {
-            match value {
-                0 => break BitWrite::write::<1, _>(self, STOP_BIT),
-                1..64 => {
-                    BitWrite::write_var(
-                        self,
-                        value,
-                        match STOP_BIT {
-                            0 => u64::MAX >> (64 - value),
-                            1 => 0,
-                            _ => unreachable!(),
-                        },
-                    )?;
-                    break BitWrite::write::<1, _>(self, STOP_BIT);
-                }
-                64.. => {
-                    BitWrite::write::<64, _>(
-                        self,
-                        match STOP_BIT {
-                            0 => u64::MAX,
-                            1 => 0,
-                            _ => unreachable!(),
-                        },
-                    )?;
-                    value -= 64;
-                }
-            }
-        }
     }
 
     #[inline]

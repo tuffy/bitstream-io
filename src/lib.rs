@@ -1453,6 +1453,79 @@ impl<const MAX: u32> BitCount<MAX> {
             None => U::ZERO..=U::ALL,
         }
     }
+
+    /// Returns minimum value between ourself and bit count
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::BitCount;
+    ///
+    /// let count = BitCount::<8>::new::<7>();
+    /// assert_eq!(count.min(6), BitCount::new::<6>());
+    /// assert_eq!(count.min(8), BitCount::new::<7>());
+    /// ```
+    #[inline(always)]
+    pub fn min(self, bits: u32) -> Self {
+        // the minimum of ourself and another bit count
+        // can never exceed our maximum bit count
+        Self {
+            bits: self.bits.min(bits),
+        }
+    }
+
+    /// Returns the minimum value of an unsigned int in this bit count
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::BitCount;
+    ///
+    /// assert_eq!(BitCount::<8>::new::<0>().none::<u8>().into_value(), 0b0);
+    /// assert_eq!(BitCount::<8>::new::<1>().none::<u8>().into_value(), 0b0);
+    /// assert_eq!(BitCount::<8>::new::<2>().none::<u8>().into_value(), 0b00);
+    /// assert_eq!(BitCount::<8>::new::<3>().none::<u8>().into_value(), 0b000);
+    /// assert_eq!(BitCount::<8>::new::<4>().none::<u8>().into_value(), 0b0000);
+    /// assert_eq!(BitCount::<8>::new::<5>().none::<u8>().into_value(), 0b00000);
+    /// assert_eq!(BitCount::<8>::new::<6>().none::<u8>().into_value(), 0b000000);
+    /// assert_eq!(BitCount::<8>::new::<7>().none::<u8>().into_value(), 0b0000000);
+    /// assert_eq!(BitCount::<8>::new::<8>().none::<u8>().into_value(), 0b00000000);
+    /// ```
+    #[inline(always)]
+    pub fn none<U: UnsignedInteger>(self) -> CheckedUnsigned<MAX, U> {
+        CheckedUnsigned {
+            value: U::ZERO,
+            count: self,
+        }
+    }
+
+    /// Returns the maximim value of an unsigned int in this bit count
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitstream_io::BitCount;
+    ///
+    /// assert_eq!(BitCount::<8>::new::<0>().all::<u8>().into_value(), 0b0);
+    /// assert_eq!(BitCount::<8>::new::<1>().all::<u8>().into_value(), 0b1);
+    /// assert_eq!(BitCount::<8>::new::<2>().all::<u8>().into_value(), 0b11);
+    /// assert_eq!(BitCount::<8>::new::<3>().all::<u8>().into_value(), 0b111);
+    /// assert_eq!(BitCount::<8>::new::<4>().all::<u8>().into_value(), 0b1111);
+    /// assert_eq!(BitCount::<8>::new::<5>().all::<u8>().into_value(), 0b11111);
+    /// assert_eq!(BitCount::<8>::new::<6>().all::<u8>().into_value(), 0b111111);
+    /// assert_eq!(BitCount::<8>::new::<7>().all::<u8>().into_value(), 0b1111111);
+    /// assert_eq!(BitCount::<8>::new::<8>().all::<u8>().into_value(), 0b11111111);
+    /// ```
+    #[inline(always)]
+    pub fn all<U: UnsignedInteger>(self) -> CheckedUnsigned<MAX, U> {
+        CheckedUnsigned {
+            value: match U::ONE.checked_shl(self.bits) {
+                Some(top) => top - U::ONE,
+                None => U::ALL,
+            },
+            count: self,
+        }
+    }
 }
 
 impl<const MAX: u32> core::convert::TryFrom<u32> for BitCount<MAX> {
@@ -2173,7 +2246,7 @@ impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
 /// let mut w = BitWriter::endian(vec![], BigEndian);
 ///
 /// // writing a value of 1 in 1 bit is ok
-/// let value = CheckedUnsigned::new_fixed::<1>(1).unwrap();
+/// let value = CheckedUnsigned::<1, u8>::new_fixed::<1>(1).unwrap();
 ///
 /// // because we've pre-validated the value beforehand,
 /// // it doesn't need to be checked again at this stage
