@@ -1,3 +1,8 @@
+# 4.2.0
+
+- Add `Checked` API for avoiding redundant validation during writes
+- Add `BitCount`-related helper methods to optimize unary writes
+
 # 4.1.0
 
 - Implement `FromBitStreamUsing` convenience trait

@@ -1958,7 +1958,7 @@ impl<C, T> AsRef<T> for Checked<C, T> {
     }
 }
 
-/// An unsigned type with a verified maximum value
+/// An unsigned type with a verified value
 pub type CheckedUnsigned<const MAX: u32, T> = Checked<BitCount<MAX>, T>;
 
 impl<const MAX: u32, U: UnsignedInteger> Checkable for CheckedUnsigned<MAX, U> {
@@ -1974,7 +1974,7 @@ impl<const MAX: u32, U: UnsignedInteger> Checkable for CheckedUnsigned<MAX, U> {
     }
 }
 
-impl<const MAX: u32, U: UnsignedInteger> CheckableFromBitstream for CheckedUnsigned<MAX, U> {
+impl<const MAX: u32, U: UnsignedInteger> CheckablePrimitive for CheckedUnsigned<MAX, U> {
     type CountType = BitCount<MAX>;
 
     #[inline]
@@ -2009,11 +2009,11 @@ impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
     /// use bitstream_io::{BitCount, CheckedUnsigned, CheckedError};
     ///
     /// // a value of 7 fits into a 3 bit count
-    /// assert!(CheckedUnsigned::<8, _>::new(3, 7u8).is_ok());
+    /// assert!(CheckedUnsigned::<8, u8>::new(3, 0b111).is_ok());
     ///
     /// // a value of 8 does not fit into a 3 bit count
     /// assert!(matches!(
-    ///     CheckedUnsigned::<8, _>::new(3, 8u8),
+    ///     CheckedUnsigned::<8, u8>::new(3, 0b1000),
     ///     Err(CheckedError::ExcessiveValue),
     /// ));
     ///
@@ -2052,11 +2052,11 @@ impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
     /// use bitstream_io::{CheckedUnsigned, CheckedError};
     ///
     /// // a value of 7 fits into a 3 bit count
-    /// assert!(CheckedUnsigned::<8, u8>::new_fixed::<3>(7).is_ok());
+    /// assert!(CheckedUnsigned::<8, u8>::new_fixed::<3>(0b111).is_ok());
     ///
     /// // a value of 8 does not fit into a 3 bit count
     /// assert!(matches!(
-    ///     CheckedUnsigned::<8, u8>::new_fixed::<3>(8),
+    ///     CheckedUnsigned::<8, u8>::new_fixed::<3>(0b1000),
     ///     Err(CheckedError::ExcessiveValue),
     /// ));
     /// ```
@@ -2065,6 +2065,9 @@ impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
     /// use bitstream_io::{BitCount, CheckedUnsigned};
     ///
     /// // a bit count of 9 is too large for u8
+    ///
+    /// // because this is checked at compile-time,
+    /// // it does not compile at all
     /// let c = CheckedUnsigned::<16, u8>::new_fixed::<9>(1);
     /// ```
     pub fn new_fixed<const BITS: u32>(value: U) -> Result<Self, CheckedError> {
@@ -2105,7 +2108,7 @@ impl<const MAX: u32, S: SignedInteger> Checkable for CheckedSigned<MAX, S> {
     }
 }
 
-impl<const MAX: u32, S: SignedInteger> CheckableFromBitstream for CheckedSigned<MAX, S> {
+impl<const MAX: u32, S: SignedInteger> CheckablePrimitive for CheckedSigned<MAX, S> {
     type CountType = SignedBitCount<MAX>;
 
     #[inline]
@@ -2198,6 +2201,9 @@ impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
     /// use bitstream_io::{BitCount, CheckedSigned};
     ///
     /// // a bit count of 9 is too large for i8
+    ///
+    /// // because this is checked at compile-time,
+    /// // it does not compile at all
     /// let c = CheckedSigned::<16, i8>::new_fixed::<9>(1);
     /// ```
     pub fn new_fixed<const BITS: u32>(value: S) -> Result<Self, CheckedError> {
@@ -2232,6 +2238,7 @@ impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
 /// let mut w = BitWriter::endian(vec![], BigEndian);
 ///
 /// // writing a value of 2 in 1 bit is always an error
+/// // which is checked here at write-time
 /// assert!(w.write::<1, u8>(2).is_err());
 /// ```
 ///
@@ -2246,10 +2253,12 @@ impl<const MAX: u32, S: SignedInteger> CheckedSigned<MAX, S> {
 /// let mut w = BitWriter::endian(vec![], BigEndian);
 ///
 /// // writing a value of 1 in 1 bit is ok
+/// // and we're checking that validity at this stage
 /// let value = CheckedUnsigned::<1, u8>::new_fixed::<1>(1).unwrap();
 ///
 /// // because we've pre-validated the value beforehand,
-/// // it doesn't need to be checked again at this stage
+/// // it doesn't need to be checked again here
+/// // (though the write itself may still fail)
 /// assert!(w.write_checked(value).is_ok());
 /// ```
 ///
@@ -2266,7 +2275,7 @@ pub trait Checkable: private::Checkable + Sized {
 /// Because the intent of reading checkable values is
 /// to avoid validating their values when being written,
 /// implementing the [`Checkable`] trait is required.
-pub trait CheckableFromBitstream: Checkable {
+pub trait CheckablePrimitive: Checkable {
     /// Our bit count type for reading
     type CountType;
 
