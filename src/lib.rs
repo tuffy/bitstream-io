@@ -1549,6 +1549,12 @@ impl<const MAX: u32> core::convert::TryFrom<u32> for BitCount<MAX> {
     }
 }
 
+impl<const MAX: u32> core::fmt::Display for BitCount<MAX> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        core::fmt::Display::fmt(&self.bits, f)
+    }
+}
+
 impl BitCount<{ u32::MAX }> {
     /// Builds a bit count where the maximum bits is unknown.
     ///
@@ -1852,6 +1858,12 @@ impl<const MAX: u32> SignedBitCount<MAX> {
         } else {
             S::Unsigned::ZERO.as_negative(S::BITS_SIZE)..=(S::Unsigned::ALL >> 1).as_non_negative()
         }
+    }
+}
+
+impl<const MAX: u32> core::fmt::Display for SignedBitCount<MAX> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        core::fmt::Display::fmt(&self.bits, f)
     }
 }
 
