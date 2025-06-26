@@ -2784,6 +2784,16 @@ pub trait ToByteStream {
     fn to_writer<W: ByteWrite + ?Sized>(&self, w: &mut W) -> Result<(), Self::Error>
     where
         Self: Sized;
+
+    /// Returns length of self in bytes, if possible
+    fn bytes<C: Counter>(&self) -> Result<C, Self::Error>
+    where
+        Self: Sized,
+    {
+        let mut counter = ByteCount::default();
+        self.to_writer(&mut counter)?;
+        Ok(counter.writer.count)
+    }
 }
 
 /// Implemented by complex types that require additional context
@@ -2803,6 +2813,16 @@ pub trait ToByteStreamWith<'a> {
     ) -> Result<(), Self::Error>
     where
         Self: Sized;
+
+    /// Returns length of self in bytes, if possible
+    fn bytes<C: Counter>(&self, context: &Self::Context) -> Result<C, Self::Error>
+    where
+        Self: Sized,
+    {
+        let mut counter = ByteCount::default();
+        self.to_writer(&mut counter, context)?;
+        Ok(counter.writer.count)
+    }
 }
 
 /// Implemented by complex types that consume additional context
@@ -2822,4 +2842,86 @@ pub trait ToByteStreamUsing {
     ) -> Result<(), Self::Error>
     where
         Self: Sized;
+
+    /// Returns length of self in bytes, if possible
+    fn bytes<C: Counter>(&self, context: Self::Context) -> Result<C, Self::Error>
+    where
+        Self: Sized,
+    {
+        let mut counter = ByteCount::default();
+        self.to_writer(&mut counter, context)?;
+        Ok(counter.writer.count)
+    }
+}
+
+#[derive(Default)]
+struct ByteCounterWriter<C> {
+    count: C,
+}
+
+impl<C: Counter> io::Write for ByteCounterWriter<C> {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.count
+            .checked_add_assign(buf.len().try_into().map_err(|_| Overflowed)?)?;
+
+        Ok(buf.len())
+    }
+
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        // nothing to do
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct ByteCount<C> {
+    writer: ByteCounterWriter<C>,
+}
+
+impl<C: Counter> ByteWrite for ByteCount<C> {
+    fn write<V: Primitive>(&mut self, _value: V) -> io::Result<()> {
+        self.writer.count.checked_add_assign(
+            V::buffer()
+                .as_ref()
+                .len()
+                .try_into()
+                .map_err(|_| Overflowed)?,
+        )?;
+
+        Ok(())
+    }
+
+    fn write_as<F: Endianness, V: Primitive>(&mut self, _value: V) -> io::Result<()> {
+        self.writer.count.checked_add_assign(
+            V::buffer()
+                .as_ref()
+                .len()
+                .try_into()
+                .map_err(|_| Overflowed)?,
+        )?;
+
+        Ok(())
+    }
+
+    fn write_bytes(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.writer
+            .count
+            .checked_add_assign(buf.len().try_into().map_err(|_| Overflowed)?)?;
+
+        Ok(())
+    }
+
+    fn pad(&mut self, bytes: u32) -> io::Result<()> {
+        self.writer
+            .count
+            .checked_add_assign(bytes.try_into().map_err(|_| Overflowed)?)?;
+
+        Ok(())
+    }
+
+    fn writer_ref(&mut self) -> &mut dyn io::Write {
+        &mut self.writer
+    }
 }

@@ -2074,3 +2074,35 @@ fn test_const_writes() {
         ]
     );
 }
+
+#[test]
+fn test_byte_count() {
+    use bitstream_io::{ByteWrite, ToByteStream};
+
+    #[derive(Default)]
+    struct Builder {
+        a: u8,
+        b: u16,
+        c: u32,
+        d: u64,
+        e: u128,
+    }
+
+    impl ToByteStream for Builder {
+        type Error = io::Error;
+
+        fn to_writer<W: ByteWrite + ?Sized>(&self, w: &mut W) -> io::Result<()> {
+            w.write(self.a)?;
+            w.write(self.b)?;
+            w.write(self.c)?;
+            w.write(self.d)?;
+            w.write(self.e)?;
+            Ok(())
+        }
+    }
+
+    assert_eq!(
+        Builder::default().bytes::<u32>().unwrap(),
+        1 + 2 + 4 + 8 + 16
+    );
+}
