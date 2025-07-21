@@ -1,3 +1,8 @@
+# 4.4.0
+
+- Implement new `CheckedUnsignedFixed` of `Checked` types
+- Implement `FixedBitCount` for use by `CheckedUnsignedFixed`
+
 # 4.3.0
 
 - Add `bytes` method to ToByteStream traits with default implementations
