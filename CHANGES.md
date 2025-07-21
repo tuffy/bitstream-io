@@ -1,3 +1,7 @@
+# 4.3.0
+
+- Add `bytes` method to ToByteStream traits with default implementations
+
 # 4.2.0
 
 - Add `Checked` API for avoiding redundant validation during writes
