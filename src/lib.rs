@@ -1499,7 +1499,7 @@ impl<const MAX: u32> BitCount<MAX> {
         }
     }
 
-    /// Returns the maximim value of an unsigned int in this bit count
+    /// Returns the maximum value of an unsigned int in this bit count
     ///
     /// # Example
     ///
@@ -2101,6 +2101,159 @@ impl<const MAX: u32, U: UnsignedInteger> CheckedUnsigned<MAX, U> {
         } else {
             Err(CheckedError::ExcessiveValue)
         }
+    }
+}
+
+/// A fixed number of bits to be consumed or written
+///
+/// Analagous to [`BitCount`], this is a zero-sized type
+/// whose value is fixed at compile-time and cannot be changed.
+///
+/// # Example
+///
+/// ```
+/// use bitstream_io::{
+///     BigEndian, BitRead, BitReader, BitWrite, BitWriter, CheckedUnsignedFixed, FixedBitCount,
+/// };
+///
+/// type FourBits = CheckedUnsignedFixed<4, u8>;
+///
+/// let input: &[u8] = &[0b0001_1111, 0b0110_1001];
+/// let mut r = BitReader::endian(input, BigEndian);
+///
+/// // read 4, 4-bit values
+/// let v1 = r.read_checked::<FourBits>(FixedBitCount).unwrap();
+/// let v2 = r.read_checked::<FourBits>(FixedBitCount).unwrap();
+/// let v3 = r.read_checked::<FourBits>(FixedBitCount).unwrap();
+/// let v4 = r.read_checked::<FourBits>(FixedBitCount).unwrap();
+///
+/// // write those same values back to disk
+/// let mut w = BitWriter::endian(vec![], BigEndian);
+/// w.write_checked(v1).unwrap();
+/// w.write_checked(v2).unwrap();
+/// w.write_checked(v3).unwrap();
+/// w.write_checked(v4).unwrap();
+///
+/// // ensure they're the same
+/// assert_eq!(w.into_writer().as_slice(), input);
+/// ```
+#[derive(Copy, Clone, Debug)]
+pub struct FixedBitCount<const BITS: u32>;
+
+impl<const BITS: u32> From<FixedBitCount<BITS>> for BitCount<BITS> {
+    fn from(_count: FixedBitCount<BITS>) -> Self {
+        BitCount::new::<BITS>()
+    }
+}
+
+impl<const BITS: u32, const MAX: u32> core::convert::TryFrom<BitCount<MAX>>
+    for FixedBitCount<BITS>
+{
+    type Error = BitCount<MAX>;
+
+    fn try_from(count: BitCount<MAX>) -> Result<Self, Self::Error> {
+        (count.bits == BITS).then_some(FixedBitCount).ok_or(count)
+    }
+}
+
+/// An unsigned type with a verified value for a fixed number of bits
+pub type CheckedUnsignedFixed<const BITS: u32, T> = Checked<FixedBitCount<BITS>, T>;
+
+impl<const BITS: u32, U: UnsignedInteger> CheckedUnsignedFixed<BITS, U> {
+    /// Returns our value if it fits in the given number of const bits
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bitstream_io::{CheckedUnsignedFixed, CheckedError};
+    ///
+    /// // a value of 7 fits into a maximum of 3 bits
+    /// assert!(CheckedUnsignedFixed::<3, u8>::new_fixed(0b111).is_ok());
+    ///
+    /// // a value of 8 does not fit into a maximum of 3 bits
+    /// assert!(matches!(
+    ///     CheckedUnsignedFixed::<3, u8>::new_fixed(0b1000),
+    ///     Err(CheckedError::ExcessiveValue),
+    /// ));
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use bitstream_io::{BitCount, CheckedUnsignedFixed};
+    ///
+    /// // a bit count of 9 is too large for u8
+    ///
+    /// // because this is checked at compile-time,
+    /// // it does not compile at all
+    /// let c = CheckedUnsignedFixed::<9, u8>::new_fixed(1);
+    /// ```
+    pub fn new_fixed(value: U) -> Result<Self, CheckedError> {
+        const {
+            assert!(BITS <= U::BITS_SIZE, "excessive bits for type written");
+        }
+
+        if BITS == 0 {
+            Ok(Self {
+                count: FixedBitCount,
+                value: U::ZERO,
+            })
+        } else if BITS == U::BITS_SIZE || value <= (U::ALL >> (U::BITS_SIZE - BITS)) {
+            Ok(Self {
+                count: FixedBitCount,
+                value,
+            })
+        } else {
+            Err(CheckedError::ExcessiveValue)
+        }
+    }
+}
+
+impl<const BITS: u32, U: UnsignedInteger> Checkable for CheckedUnsignedFixed<BITS, U> {
+    #[inline]
+    fn write<W: BitWrite + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        // a naive default implementation
+        writer.write_unsigned::<BITS, _>(self.value)
+    }
+
+    #[inline]
+    fn written_bits(&self) -> u32 {
+        BITS
+    }
+}
+
+impl<const BITS: u32, U: UnsignedInteger> private::Checkable for CheckedUnsignedFixed<BITS, U> {
+    fn write_endian<E, W>(
+        self,
+        writer: &mut W,
+        queue_value: &mut u8,
+        queue_bits: &mut u32,
+    ) -> io::Result<()>
+    where
+        E: private::Endianness,
+        W: io::Write,
+    {
+        E::write_bits_checked(
+            writer,
+            queue_value,
+            queue_bits,
+            Checked {
+                value: self.value,
+                count: self.count.into(),
+            },
+        )
+    }
+}
+
+impl<const BITS: u32, U: UnsignedInteger> CheckablePrimitive for CheckedUnsignedFixed<BITS, U> {
+    type CountType = FixedBitCount<BITS>;
+
+    fn read<R: BitRead + ?Sized>(
+        reader: &mut R,
+        count: FixedBitCount<BITS>,
+    ) -> std::io::Result<Self> {
+        Ok(Self {
+            value: reader.read_unsigned::<BITS, _>()?,
+            count,
+        })
     }
 }
 
