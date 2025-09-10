@@ -6,13 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-extern crate bitstream_io;
-
-#[cfg(not(feature = "std"))]
-use core2::io::{self};
-
-#[cfg(feature = "std")]
-use std::io::{self};
+use std::io;
 
 #[test]
 fn test_reader_be() {

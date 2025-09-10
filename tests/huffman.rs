@@ -1,6 +1,3 @@
-extern crate alloc;
-extern crate bitstream_io;
-
 #[test]
 fn test_huffman_values() {
     use bitstream_io::{define_huffman_tree, BigEndian, BitRead, BitReader};

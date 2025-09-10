@@ -1,8 +1,4 @@
 use bitstream_io::{BigEndian, BitRead, BitReader, Endianness, LittleEndian};
-#[cfg(not(feature = "std"))]
-use core2::io::{self, Cursor, SeekFrom};
-
-#[cfg(feature = "std")]
 use std::io::{self, Cursor, SeekFrom};
 
 #[test]

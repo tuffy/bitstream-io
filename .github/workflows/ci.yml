@@ -26,8 +26,11 @@ jobs:
     - name: Run tests
       run: cargo test
 
-    - name: Run tests (no_std)
-      run: cargo test --no-default-features
+    - name: Check (no_std)
+      run: cargo check --no-default-features
+
+    - name: Check (no_std, alloc)
+      run: cargo check --no-default-features --features alloc
 
     - name: Run clippy
       run: cargo clippy

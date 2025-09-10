@@ -6,13 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-extern crate bitstream_io;
-
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
-#[cfg(not(feature = "std"))]
-use core2::io;
-
-#[cfg(feature = "std")]
 use std::io;
 
 #[test]

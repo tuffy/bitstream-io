@@ -13,6 +13,7 @@
 #[cfg(not(feature = "std"))]
 use core2::io;
 
+#[cfg(feature = "alloc")]
 use alloc::{vec, vec::Vec};
 #[cfg(feature = "std")]
 use std::io;
@@ -683,6 +684,8 @@ pub trait BitRead {
     /// assert_eq!(r.read_to_vec(3).unwrap().as_slice(), &[0x01, 0x02, 0x03]);
     /// assert_eq!(r.read::<8, u8>().unwrap(), 0x04);
     /// ```
+    #[cfg(feature = "alloc")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     fn read_to_vec(&mut self, bytes: usize) -> io::Result<Vec<u8>> {
         read_to_vec(|buf| self.read_bytes(buf), bytes)
     }
@@ -1011,6 +1014,7 @@ impl<R: BitRead + ?Sized> BitRead for &mut R {
     }
 
     #[inline]
+    #[cfg(feature = "alloc")]
     fn read_to_vec(&mut self, bytes: usize) -> io::Result<Vec<u8>> {
         (**self).read_to_vec(bytes)
     }
@@ -1209,6 +1213,8 @@ pub trait BitRead2 {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    #[cfg(feature = "alloc")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     fn read_to_vec(&mut self, bytes: usize) -> io::Result<Vec<u8>> {
         read_to_vec(|buf| self.read_bytes(buf), bytes)
     }
@@ -1704,8 +1710,10 @@ where
     /// assert_eq!(reader.position_in_bits().unwrap(), 6);
     /// ```
     #[inline]
+    #[allow(clippy::seek_from_current)]
     pub fn position_in_bits(&mut self) -> io::Result<u64> {
-        let bytes = self.reader.stream_position()?;
+        // core2 doesn't have `seek_from_current`
+        let bytes = self.reader.seek(io::SeekFrom::Current(0))?;
         Ok(bytes * 8 - (self.bits as u64))
     }
 }
@@ -1818,6 +1826,8 @@ pub trait ByteRead {
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
+    #[cfg(feature = "alloc")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     fn read_to_vec(&mut self, bytes: usize) -> io::Result<Vec<u8>> {
         read_to_vec(|buf| self.read_bytes(buf), bytes)
     }
@@ -2322,6 +2332,7 @@ pub trait FromByteStreamUsing {
         Self: Sized;
 }
 
+#[cfg(feature = "alloc")]
 fn read_to_vec(
     mut read: impl FnMut(&mut [u8]) -> io::Result<()>,
     bytes: usize,
