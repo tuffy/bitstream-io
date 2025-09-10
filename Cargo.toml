@@ -11,9 +11,14 @@ repository = "https://github.com/tuffy/bitstream-io"
 edition = "2018"
 rust-version = "1.83"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
-core2 = "0.4"
+core2 = { version = "0.4", default-features = false }
 
 [features]
-std = []
+std = ["core2/std", "alloc"]
+alloc = ["core2/alloc"]
 default = ["std"]

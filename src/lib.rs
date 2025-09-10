@@ -141,10 +141,12 @@
 //! of bit reader or bit writer, regardless of the underlying
 //! stream byte source or endianness.
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 #![no_std]
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
@@ -168,8 +170,11 @@ pub use read::{
     BitRead, BitRead2, BitReader, ByteRead, ByteReader, FromBitStream, FromBitStreamUsing,
     FromBitStreamWith, FromByteStream, FromByteStreamUsing, FromByteStreamWith,
 };
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+#[cfg(feature = "alloc")]
+pub use write::BitRecorder;
 pub use write::{
-    BitRecorder, BitWrite, BitWrite2, BitWriter, BitsWritten, ByteWrite, ByteWriter, ToBitStream,
+    BitWrite, BitWrite2, BitWriter, BitsWritten, ByteWrite, ByteWriter, ToBitStream,
     ToBitStreamUsing, ToBitStreamWith, ToByteStream, ToByteStreamUsing, ToByteStreamWith,
 };
 
@@ -2251,10 +2256,7 @@ impl<const BITS: u32, U: UnsignedInteger> private::Checkable for CheckedUnsigned
 impl<const BITS: u32, U: UnsignedInteger> CheckablePrimitive for CheckedUnsignedFixed<BITS, U> {
     type CountType = FixedBitCount<BITS>;
 
-    fn read<R: BitRead + ?Sized>(
-        reader: &mut R,
-        count: FixedBitCount<BITS>,
-    ) -> std::io::Result<Self> {
+    fn read<R: BitRead + ?Sized>(reader: &mut R, count: FixedBitCount<BITS>) -> io::Result<Self> {
         Ok(Self {
             value: reader.read_unsigned::<BITS, _>()?,
             count,
@@ -2545,7 +2547,7 @@ impl<const BITS: u32, S: SignedInteger> CheckablePrimitive for CheckedSignedFixe
     fn read<R: BitRead + ?Sized>(
         reader: &mut R,
         count: FixedSignedBitCount<BITS>,
-    ) -> std::io::Result<Self> {
+    ) -> io::Result<Self> {
         Ok(Self {
             value: reader.read_signed::<BITS, _>()?,
             count,
