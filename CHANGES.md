@@ -1,8 +1,11 @@
+# 4.6.0
+
+- Add no alloc support
+
 # 4.5.0
 
 - Implement new `CheckedSignedFixed` type alias
 - Implement `FixedSignedBitCount` for use by `CheckedSignedFixed`
-
 
 # 4.4.0
 
