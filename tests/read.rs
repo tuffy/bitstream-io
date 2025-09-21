@@ -110,6 +110,20 @@ fn test_reader_be() {
     assert_eq!(r.read_unary::<1>().unwrap(), 3);
     assert_eq!(r.read_unary::<1>().unwrap(), 0);
 
+    // reading unsigned vbr
+    let mut r = BitReader::endian(actual_data.as_slice(), BigEndian);
+    assert_eq!(r.read_unsigned_vbr::<4, u8>().unwrap(), 11);
+    assert_eq!(r.read_unsigned_vbr::<4, u8>().unwrap(), 238);
+    assert_eq!(r.read_unsigned_vbr::<4, u8>().unwrap(), 99);
+    assert!(r.read_unsigned_vbr::<4, u8>().is_err());
+
+    // reading signed vbr
+    let mut r = BitReader::endian(actual_data.as_slice(), BigEndian);
+    assert_eq!(r.read_signed_vbr::<4, i8>().unwrap(), -6);
+    assert_eq!(r.read_signed_vbr::<4, i8>().unwrap(), 119);
+    assert_eq!(r.read_signed_vbr::<4, i8>().unwrap(), -50);
+    assert!(r.read_signed_vbr::<4, i8>().is_err());
+
     // byte aligning
     let mut r = BitReader::endian(actual_data.as_slice(), BigEndian);
     assert_eq!(r.read_var::<u32>(3).unwrap(), 5);
