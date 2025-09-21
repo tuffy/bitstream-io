@@ -134,6 +134,20 @@ fn test_writer_be() {
     w.write_unary::<1>(5).unwrap();
     assert_eq!(w.into_writer().as_slice(), &final_data);
 
+    // writing unsigned vbr
+    let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
+    w.write_unsigned_vbr::<4, _>(11u8).unwrap(); // 001 011 -> <1>011 <0>001
+    w.write_unsigned_vbr::<4, _>(238u8).unwrap(); // 011 101 110 -> <1>110 <1>101 <0>011
+    w.write_unsigned_vbr::<4, _>(99u8).unwrap(); // 001 100 011 -> <1>011 <1>100 <0>001
+    assert_eq!(w.into_writer().as_slice(), &final_data);
+
+    // writing signed vbr
+    let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);
+    w.write_signed_vbr::<4, _>(-6i16).unwrap(); // 001 011 -> <1>011 <0>001
+    w.write_signed_vbr::<4, _>(119i16).unwrap(); // 011 101 110 -> <1>110 <1>101 <0>011
+    w.write_signed_vbr::<4, _>(-50i16).unwrap(); // 001 100 011 -> <1>011 <1>100 <0>001
+    assert_eq!(w.into_writer().as_slice(), &final_data);
+
     // byte aligning
     let aligned_data = [0xA0, 0xE0, 0x3B, 0xC0];
     let mut w = BitWriter::endian(Vec::with_capacity(4), BigEndian);

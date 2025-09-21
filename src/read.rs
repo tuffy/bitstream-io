@@ -25,6 +25,34 @@ use super::{
 
 use core::convert::TryInto;
 
+/// An error returned if performing VBR read overflows
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct VariableWidthOverflow;
+
+impl core::fmt::Display for VariableWidthOverflow {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        "variable bit rate overflowed".fmt(f)
+    }
+}
+
+impl core::error::Error for VariableWidthOverflow {}
+
+impl From<VariableWidthOverflow> for io::Error {
+    fn from(VariableWidthOverflow: VariableWidthOverflow) -> Self {
+        io::Error::new(
+            #[cfg(feature = "std")]
+            {
+                io::ErrorKind::StorageFull
+            },
+            #[cfg(not(feature = "std"))]
+            {
+                io::ErrorKind::Other
+            },
+            "variable bit rate overflow",
+        )
+    }
+}
+
 /// A trait for anything that can read a variable number of
 /// potentially un-aligned values from an input stream
 pub trait BitRead {
@@ -872,6 +900,97 @@ pub trait BitRead {
         T: crate::huffman::FromBits,
     {
         T::from_bits(|| self.read_bit())
+    }
+
+    /// Reads a number using a variable using a variable-width integer.
+    /// This optimises the case when the number is small.
+    ///
+    /// The integer is mapped to an unsigned value using zigzag encoding.
+    /// For an integer X:
+    ///   - if X >= 0 -> 2X
+    ///   - else -> -2X + 1
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if the data read would overflow the size of the result
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::{BitReader, BitRead, BigEndian};
+    ///
+    /// let bytes: &[u8] = &[0b0111_1100, 0b1100_0001];
+    /// let mut r = BitReader::endian(bytes, BigEndian);
+    /// assert_eq!(r.read_unsigned_vbr::<4, u32>().unwrap(), 7);
+    /// assert_eq!(r.read_unsigned_vbr::<4, u32>().unwrap(), 100);
+    /// ```
+    /// ```
+    /// use bitstream_io::{BitReader, BitRead, BigEndian};
+    ///
+    /// let bytes: &[u8] = &[0b1111_1111, 0b0011_1000, 0b1000_0100, 0b1000_1000, 0b1000_0000];
+    /// let mut r = BitReader::endian(bytes, BigEndian);
+    /// assert_eq!(r.read_unsigned_vbr::<4, u8>().unwrap(), 255); // Tries to read <011><111><111>
+    /// assert!(r.read_unsigned_vbr::<4, u8>().is_err()); // Tries to read a value of <100><000><000>
+    /// assert!(r.read_unsigned_vbr::<4, u8>().is_err()); // Tries to read a value of <000><000><000><000>
+    /// ```
+    fn read_unsigned_vbr<const FIELD_SIZE: u32, U: UnsignedInteger>(&mut self) -> io::Result<U> {
+        const { assert!(FIELD_SIZE >= 2 && FIELD_SIZE < U::BITS_SIZE) };
+        let payload_bits = FIELD_SIZE - 1;
+        let mut value = U::ZERO;
+        let mut shift = 0u32;
+        loop {
+            let (data, continuation) = self.read_unsigned::<FIELD_SIZE, U>().map(|item| {
+                (
+                    item & ((U::ONE << payload_bits) - U::ONE),
+                    (item >> payload_bits) != U::ZERO,
+                )
+            })?;
+            let shifted = data << shift;
+            value |= shifted;
+            if !continuation {
+                if (data << shift) >> shift == data {
+                    break Ok(value);
+                } else {
+                    break Err(VariableWidthOverflow {}.into());
+                }
+            }
+            shift += payload_bits;
+            if shift >= U::BITS_SIZE {
+                break Err(VariableWidthOverflow {}.into());
+            }
+        }
+    }
+
+    /// Reads a number using a variable using a variable-width integer.
+    /// This optimises the case when the number is small.
+    ///
+    /// The integer is mapped to an unsigned value using zigzag encoding.
+    /// For an integer X:
+    ///   - if X >= 0 -> 2X
+    ///   - else -> -2X + 1
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if the data read would overflow the size of the result
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::{BitReader, BitRead, BigEndian};
+    ///
+    /// let bytes: &[u8] = &[0b0110_1011, 0b1100_0001];
+    /// let mut r = BitReader::endian(bytes, BigEndian);
+    /// assert_eq!(r.read_signed_vbr::<4, i32>().unwrap(), 3);
+    /// assert_eq!(r.read_signed_vbr::<4, i32>().unwrap(), -50);
+    /// ```
+    fn read_signed_vbr<const FIELD_SIZE: u32, I: SignedInteger>(&mut self) -> io::Result<I> {
+        self.read_unsigned_vbr::<FIELD_SIZE, I::Unsigned>()
+            .map(|zig_zag| {
+                let shifted = zig_zag >> 1;
+                let complimented = zig_zag & <I::Unsigned as crate::Numeric>::ONE;
+                let neg = I::ZERO - complimented.as_non_negative();
+                shifted.as_non_negative() ^ neg
+            })
     }
 
     /// Creates a "by reference" adaptor for this `BitRead`

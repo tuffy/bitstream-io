@@ -962,6 +962,78 @@ pub trait BitWrite {
         T::to_bits(value, |b| self.write_bit(b))
     }
 
+    /// Writes a number using a variable using a variable-width integer.
+    /// This optimises the case when the number is small.
+    ///
+    /// Given a 4-bit VBR field, any 3-bit value (0 through 7) is encoded directly, with the high bit set to zero.
+    /// Values larger than N-1 bits emit their bits in a series of N-1 bit chunks, where all but the last set the high bit.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+    /// writer.write_unsigned_vbr::<4,_>(7u32);
+    /// writer.write_unsigned_vbr::<4,_>(100u32);
+    /// assert_eq!(writer.into_writer(), [0b0111_1100, 0b1100_0001]);
+    /// ```
+    fn write_unsigned_vbr<const FIELD_SIZE: u32, U: UnsignedInteger>(
+        &mut self,
+        value: U,
+    ) -> io::Result<()> {
+        const { assert!(FIELD_SIZE >= 2 && FIELD_SIZE < U::BITS_SIZE) };
+        let payload_bits = FIELD_SIZE - 1;
+        let continuation_bit = U::ONE.shl(payload_bits);
+        let payload_mask = continuation_bit.sub(U::ONE);
+        let mut value = value;
+
+        loop {
+            let payload = value & payload_mask;
+            value >>= payload_bits;
+            if value != U::ZERO {
+                self.write_unsigned::<FIELD_SIZE, U>(payload | continuation_bit)?;
+            } else {
+                self.write_unsigned::<FIELD_SIZE, U>(payload)?;
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    /// Writes a number using a variable using a variable-width integer.
+    /// This optimises the case when the number is small.
+    ///
+    /// The integer is mapped to an unsigned value using zigzag encoding.
+    /// For an integer X:
+    ///   - if X >= 0 -> 2X
+    ///   - else -> -2X + 1
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+    /// writer.write_signed_vbr::<4,_>(3);
+    /// writer.write_signed_vbr::<4,_>(-50);
+    /// assert_eq!(writer.into_writer(), [0b0110_1011, 0b1100_0001]);
+    /// ```
+    #[inline]
+    fn write_signed_vbr<const FIELD_SIZE: u32, I: SignedInteger>(
+        &mut self,
+        value: I,
+    ) -> io::Result<()> {
+        let zig_zag = value.shl(1).bitxor(value.shr(I::BITS_SIZE - 1));
+        self.write_unsigned_vbr::<FIELD_SIZE, _>(zig_zag.as_non_negative())
+    }
+
     /// Creates a "by reference" adaptor for this `BitWrite`
     ///
     /// The returned adapter also implements `BitWrite`
