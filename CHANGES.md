@@ -1,3 +1,7 @@
+# 4.7.0
+
+- Add support for LLVM-style variable bit rate integers
+
 # 4.6.0
 
 - Add no alloc support
