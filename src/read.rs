@@ -2074,6 +2074,12 @@ impl<R: io::Read, E: Endianness> ByteRead for ByteReader<R, E> {
     }
 }
 
+impl<R: io::Read + io::Seek, E: Endianness> io::Seek for ByteReader<R, E> {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.reader().seek(pos)
+    }
+}
+
 /// Implemented by complex types that don't require any additional context
 /// to parse themselves from a reader.  Analogous to [`std::str::FromStr`].
 ///
