@@ -962,7 +962,7 @@ pub trait BitWrite {
         T::to_bits(value, |b| self.write_bit(b))
     }
 
-    /// Writes a number using a variable using a variable-width integer.
+    /// Writes a number using a variable using a variable width integer.
     /// This optimises the case when the number is small.
     ///
     /// Given a 4-bit VBR field, any 3-bit value (0 through 7) is encoded directly, with the high bit set to zero.
@@ -1004,7 +1004,7 @@ pub trait BitWrite {
         Ok(())
     }
 
-    /// Writes a number using a variable using a variable-width integer.
+    /// Writes a number using a variable using a variable width integer.
     /// This optimises the case when the number is small.
     ///
     /// The integer is mapped to an unsigned value using zigzag encoding.
@@ -1032,6 +1032,26 @@ pub trait BitWrite {
     ) -> io::Result<()> {
         let zig_zag = value.shl(1).bitxor(value.shr(I::BITS_SIZE - 1));
         self.write_unsigned_vbr::<FIELD_SIZE, _>(zig_zag.as_non_negative())
+    }
+
+    /// Writes a signed or unsigned variable width integer to the stream
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::Write;
+    /// use bitstream_io::{BigEndian, BitWriter, BitWrite};
+    /// let mut writer = BitWriter::endian(Vec::new(), BigEndian);
+    /// writer.write_vbr::<4,_>(6u32);
+    /// writer.write_vbr::<4,_>(-50i32);
+    /// assert_eq!(writer.into_writer(), [0b0110_1011, 0b1100_0001]);
+    /// ```
+    #[inline]
+    fn write_vbr<const FIELD_SIZE: u32, I: Integer>(&mut self, value: I) -> io::Result<()> {
+        I::write_vbr::<FIELD_SIZE, _>(value, self)
     }
 
     /// Creates a "by reference" adaptor for this `BitWrite`
