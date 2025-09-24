@@ -1,3 +1,7 @@
+# 4.8.0
+
+- Add io::Seek support to ByteReader
+
 # 4.7.0
 
 - Add support for LLVM-style variable bit rate integers
