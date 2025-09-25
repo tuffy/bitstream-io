@@ -902,7 +902,7 @@ pub trait BitRead {
         T::from_bits(|| self.read_bit())
     }
 
-    /// Reads a number using a variable using a variable-width integer.
+    /// Reads a number using a variable using a variable width integer.
     /// This optimises the case when the number is small.
     ///
     /// The integer is mapped to an unsigned value using zigzag encoding.
@@ -961,7 +961,7 @@ pub trait BitRead {
         }
     }
 
-    /// Reads a number using a variable using a variable-width integer.
+    /// Reads a number using a variable using a variable width integer.
     /// This optimises the case when the number is small.
     ///
     /// The integer is mapped to an unsigned value using zigzag encoding.
@@ -991,6 +991,27 @@ pub trait BitRead {
                 let neg = I::ZERO - complimented.as_non_negative();
                 shifted.as_non_negative() ^ neg
             })
+    }
+
+    /// Reads a signed or unsigned variable width integer from the stream.
+    /// 
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    /// Returns an error if the data read would overflow the size of the result
+    ///
+    /// # Example
+    /// ```
+    /// use bitstream_io::{BitReader, BitRead, BigEndian};
+    ///
+    /// let bytes: &[u8] = &[0b0110_1011, 0b1100_0001];
+    /// let mut r = BitReader::endian(bytes, BigEndian);
+    /// assert_eq!(r.read_vbr::<4, u32>().unwrap(), 6);
+    /// assert_eq!(r.read_vbr::<4, i32>().unwrap(), -50);
+    /// ```
+    #[inline]
+    fn read_vbr<const FIELD_SIZE: u32, I: Integer>(&mut self) -> io::Result<I> {
+        I::read_vbr::<FIELD_SIZE, _>(self)
     }
 
     /// Creates a "by reference" adaptor for this `BitRead`
