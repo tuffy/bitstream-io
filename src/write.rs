@@ -24,7 +24,7 @@ use std::io;
 
 use super::{
     BitCount, Checkable, CheckedSigned, CheckedUnsigned, Endianness, Integer, Numeric, PhantomData,
-    Primitive, SignedBitCount, SignedInteger, UnsignedInteger,
+    Primitive, SignedBitCount, SignedInteger, UnsignedInteger, VBRInteger,
 };
 
 #[cfg(feature = "alloc")]
@@ -1050,7 +1050,7 @@ pub trait BitWrite {
     /// assert_eq!(writer.into_writer(), [0b0110_1011, 0b1100_0001]);
     /// ```
     #[inline]
-    fn write_vbr<const FIELD_SIZE: u32, I: Integer>(&mut self, value: I) -> io::Result<()> {
+    fn write_vbr<const FIELD_SIZE: u32, I: VBRInteger>(&mut self, value: I) -> io::Result<()> {
         I::write_vbr::<FIELD_SIZE, _>(value, self)
     }
 

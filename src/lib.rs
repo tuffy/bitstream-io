@@ -294,16 +294,6 @@ pub trait Integer {
         R: BitRead + ?Sized,
         Self: Sized;
 
-    /// Reads a valur of ourself from the stream using a variable width integer.
-    ///
-    /// # Errors
-    ///
-    /// Passes along any I/O error from the underlying stream.
-    fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
-    where
-        R: BitRead + ?Sized,
-        Self: Sized;
-
     /// Writes ourself to the stream using the given const number of bits.
     ///
     /// # Errors
@@ -329,6 +319,24 @@ pub trait Integer {
         writer: &mut W,
         bits: BitCount<MAX>,
     ) -> io::Result<()>;
+}
+
+/// This trait is for integer types which can be read or written
+/// to a bit stream as variable-width integers.
+///
+/// It unifies signed and unsigned integer types by delegating
+/// reads and write to the signed and unsigned vbr reading and
+/// writing methods as appropriate.
+pub trait VBRInteger: Integer {
+    /// Reads a value of ourself from the stream using a variable width integer.
+    ///
+    /// # Errors
+    ///
+    /// Passes along any I/O error from the underlying stream.
+    fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
+    where
+        R: BitRead + ?Sized,
+        Self: Sized;
 
     /// Writes ourself to the stream using a variable width integer.
     ///
@@ -397,15 +405,6 @@ impl Integer for bool {
     }
 
     #[inline(always)]
-    fn read_vbr<const FIELD_SIZE: u32, R>(_reader: &mut R) -> io::Result<Self>
-    where
-        R: BitRead + ?Sized,
-        Self: Sized,
-    {
-        unimplemented!("Can't read a VBR boolean")
-    }
-
-    #[inline(always)]
     fn write<const BITS: u32, W: BitWrite + ?Sized>(self, writer: &mut W) -> io::Result<()> {
         const {
             assert!(BITS == 1, "booleans require exactly 1 bit");
@@ -427,14 +426,6 @@ impl Integer for bool {
                 "booleans require exactly 1 bit",
             ))
         }
-    }
-
-    #[inline(always)]
-    fn write_vbr<const FIELD_SIZE: u32, W: BitWrite + ?Sized>(
-        self,
-        _writer: &mut W,
-    ) -> io::Result<()> {
-        unimplemented!("Can't write a VBR for boolean")
     }
 }
 
@@ -469,6 +460,23 @@ impl<const SIZE: usize, I: Integer + Copy + Default> Integer for [I; SIZE] {
 
         Ok(a)
     }
+
+    #[inline]
+    fn write<const BITS: u32, W: BitWrite + ?Sized>(self, writer: &mut W) -> io::Result<()> {
+        IntoIterator::into_iter(self).try_for_each(|v| writer.write::<BITS, I>(v))
+    }
+
+    #[inline]
+    fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
+        self,
+        writer: &mut W,
+        count: BitCount<MAX>,
+    ) -> io::Result<()> {
+        IntoIterator::into_iter(self).try_for_each(|v| writer.write_counted(count, v))
+    }
+}
+
+impl<const SIZE: usize, I: VBRInteger + Copy + Default> VBRInteger for [I; SIZE] {
     fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
     where
         R: BitRead + ?Sized,
@@ -483,20 +491,6 @@ impl<const SIZE: usize, I: Integer + Copy + Default> Integer for [I; SIZE] {
         })?;
 
         Ok(a)
-    }
-
-    #[inline]
-    fn write<const BITS: u32, W: BitWrite + ?Sized>(self, writer: &mut W) -> io::Result<()> {
-        IntoIterator::into_iter(self).try_for_each(|v| writer.write::<BITS, I>(v))
-    }
-
-    #[inline]
-    fn write_var<const MAX: u32, W: BitWrite + ?Sized>(
-        self,
-        writer: &mut W,
-        count: BitCount<MAX>,
-    ) -> io::Result<()> {
-        IntoIterator::into_iter(self).try_for_each(|v| writer.write_counted(count, v))
     }
 
     fn write_vbr<const FIELD_SIZE: u32, W: BitWrite + ?Sized>(
@@ -702,15 +696,6 @@ macro_rules! define_unsigned_integer {
             }
 
             #[inline(always)]
-            fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
-            where
-                R: BitRead + ?Sized,
-                Self: Sized,
-            {
-                reader.read_unsigned_vbr::<FIELD_SIZE, _>()
-            }
-
-            #[inline(always)]
             fn write<const BITS: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
@@ -725,6 +710,17 @@ macro_rules! define_unsigned_integer {
                 bits: BitCount<MAX>,
             ) -> io::Result<()> {
                 writer.write_unsigned_counted(bits, self)
+            }
+        }
+
+        impl VBRInteger for $t {
+            #[inline(always)]
+            fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
+            where
+                R: BitRead + ?Sized,
+                Self: Sized,
+            {
+                reader.read_unsigned_vbr::<FIELD_SIZE, _>()
             }
 
             #[inline(always)]
@@ -805,16 +801,6 @@ macro_rules! define_unsigned_integer {
             }
 
             #[inline]
-            fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
-            where
-                R: BitRead + ?Sized,
-                Self: Sized,
-            {
-                <$t as Integer>::read_vbr::<FIELD_SIZE, R>(reader)
-                    .map(|u| NonZero::new(u + 1).unwrap())
-            }
-
-            #[inline]
             fn write<const BITS: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
@@ -844,13 +830,25 @@ macro_rules! define_unsigned_integer {
                     ))
                 }
             }
+        }
+
+        impl VBRInteger for NonZero<$t> {
+            #[inline]
+            fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
+            where
+                R: BitRead + ?Sized,
+                Self: Sized,
+            {
+                <$t as VBRInteger>::read_vbr::<FIELD_SIZE, R>(reader)
+                    .map(|u| NonZero::new(u + 1).unwrap())
+            }
 
             #[inline]
             fn write_vbr<const FIELD_SIZE: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
             ) -> io::Result<()> {
-                <$t as Integer>::write_vbr::<FIELD_SIZE, W>(self.get() - 1, writer)
+                <$t as VBRInteger>::write_vbr::<FIELD_SIZE, W>(self.get() - 1, writer)
             }
         }
 
@@ -870,15 +868,6 @@ macro_rules! define_unsigned_integer {
                 Self: Sized,
             {
                 <$t as Integer>::read_var::<MAX, R>(reader, count).map(NonZero::new)
-            }
-
-            #[inline(always)]
-            fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
-            where
-                R: BitRead + ?Sized,
-                Self: Sized,
-            {
-                <$t as Integer>::read_vbr::<FIELD_SIZE, _>(reader).map(NonZero::new)
             }
 
             #[inline]
@@ -901,13 +890,24 @@ macro_rules! define_unsigned_integer {
                     count,
                 )
             }
+        }
+
+        impl VBRInteger for Option<NonZero<$t>> {
+            #[inline(always)]
+            fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
+            where
+                R: BitRead + ?Sized,
+                Self: Sized,
+            {
+                <$t as VBRInteger>::read_vbr::<FIELD_SIZE, _>(reader).map(NonZero::new)
+            }
 
             #[inline]
             fn write_vbr<const FIELD_SIZE: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
             ) -> io::Result<()> {
-                <$t as Integer>::write_vbr::<FIELD_SIZE, W>(
+                <$t as VBRInteger>::write_vbr::<FIELD_SIZE, W>(
                     self.map(|n| n.get()).unwrap_or(0),
                     writer,
                 )
@@ -1011,15 +1011,6 @@ macro_rules! define_signed_integer {
             }
 
             #[inline(always)]
-            fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
-            where
-                R: BitRead + ?Sized,
-                Self: Sized,
-            {
-                reader.read_signed_vbr::<FIELD_SIZE, _>()
-            }
-
-            #[inline(always)]
             fn write<const BITS: u32, W: BitWrite + ?Sized>(
                 self,
                 writer: &mut W,
@@ -1034,6 +1025,17 @@ macro_rules! define_signed_integer {
                 bits: BitCount<MAX>,
             ) -> io::Result<()> {
                 writer.write_signed_counted::<MAX, _>(bits, self)
+            }
+        }
+
+        impl VBRInteger for $t {
+            #[inline(always)]
+            fn read_vbr<const FIELD_SIZE: u32, R>(reader: &mut R) -> io::Result<Self>
+            where
+                R: BitRead + ?Sized,
+                Self: Sized,
+            {
+                reader.read_signed_vbr::<FIELD_SIZE, _>()
             }
 
             #[inline(always)]

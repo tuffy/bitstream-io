@@ -20,7 +20,7 @@ use std::io;
 
 use super::{
     BitCount, CheckablePrimitive, Endianness, Integer, PhantomData, Primitive, SignedBitCount,
-    SignedInteger, UnsignedInteger,
+    SignedInteger, UnsignedInteger, VBRInteger,
 };
 
 use core::convert::TryInto;
@@ -994,7 +994,7 @@ pub trait BitRead {
     }
 
     /// Reads a signed or unsigned variable width integer from the stream.
-    /// 
+    ///
     /// # Errors
     ///
     /// Passes along any I/O error from the underlying stream.
@@ -1010,7 +1010,7 @@ pub trait BitRead {
     /// assert_eq!(r.read_vbr::<4, i32>().unwrap(), -50);
     /// ```
     #[inline]
-    fn read_vbr<const FIELD_SIZE: u32, I: Integer>(&mut self) -> io::Result<I> {
+    fn read_vbr<const FIELD_SIZE: u32, I: VBRInteger>(&mut self) -> io::Result<I> {
         I::read_vbr::<FIELD_SIZE, _>(self)
     }
 
