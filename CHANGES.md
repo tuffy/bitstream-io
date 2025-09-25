@@ -1,3 +1,7 @@
+# 4.9.0
+
+- Further extend VBR integer support
+
 # 4.8.0
 
 - Add io::Seek support to ByteReader
