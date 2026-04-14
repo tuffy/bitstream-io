@@ -16,9 +16,9 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-core2 = { version = "0.4", default-features = false }
+no_std_io2 = "0.9"
 
 [features]
-std = ["core2/std", "alloc"]
-alloc = ["core2/alloc"]
+std = ["no_std_io2/std", "alloc"]
+alloc = ["no_std_io2/alloc"]
 default = ["std"]

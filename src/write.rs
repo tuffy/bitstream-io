@@ -11,7 +11,7 @@
 #![warn(missing_docs)]
 
 #[cfg(not(feature = "std"))]
-use core2::io;
+use no_std_io2::io;
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;

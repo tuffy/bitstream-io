@@ -152,7 +152,7 @@ extern crate alloc;
 extern crate std;
 
 #[cfg(not(feature = "std"))]
-use core2::io;
+use no_std_io2::io;
 
 use core::convert::TryInto;
 use core::num::NonZero;

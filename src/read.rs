@@ -11,7 +11,7 @@
 #![warn(missing_docs)]
 
 #[cfg(not(feature = "std"))]
-use core2::io;
+use no_std_io2::io;
 
 #[cfg(feature = "alloc")]
 use alloc::{vec, vec::Vec};
@@ -1850,7 +1850,7 @@ where
     #[inline]
     #[allow(clippy::seek_from_current)]
     pub fn position_in_bits(&mut self) -> io::Result<u64> {
-        // core2 doesn't have `seek_from_current`
+        // no_std_io2 doesn't have `seek_from_current`
         let bytes = self.reader.seek(io::SeekFrom::Current(0))?;
         Ok(bytes * 8 - (self.bits as u64))
     }
