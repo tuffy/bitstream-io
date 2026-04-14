@@ -5,38 +5,67 @@ on:
   pull_request:
 
 jobs:
-  build:
-    name: Build & Lint
+  clippy:
+    name: Clippy
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Run Clippy
+        run: cargo clippy -- -D warnings
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        components: clippy
+  rustfmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Run Rustfmt
+        run: cargo fmt --check
 
-    - name: Install cargo-binstall
-      uses: cargo-bins/cargo-binstall@main
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run Tests
+        run: cargo test
 
-    - name: Run tests
-      run: cargo test
+  msrv:
+    name: MSRV Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo-msrv
+        run: cargo binstall --no-confirm --force cargo-msrv
+      - name: Verify MSRV
+        run: |
+          cargo +nightly generate-lockfile -Z minimal-versions
+          cargo msrv verify
 
-    - name: Check (no_std)
-      run: cargo check --no-default-features
-
-    - name: Check (no_std, alloc)
-      run: cargo check --no-default-features --features alloc
-
-    - name: Run clippy
-      run: cargo clippy
-
-    - name: Install cargo-msrv
-      run: cargo binstall --no-confirm cargo-msrv
-
-    - name: Verify MSRV
-      run: cargo msrv verify
+  no_std:
+    name: Check no_std
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-none
+      - uses: Swatinem/rust-cache@v2
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo-no-std
+        run: cargo binstall --no-confirm --force cargo-no-std
+      - name: Check no_std
+        run: cargo no-std --no-default-features
+      - name: Check alloc
+        run: cargo no-std --no-default-features --alloc --features alloc
